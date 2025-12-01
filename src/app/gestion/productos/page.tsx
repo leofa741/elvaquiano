@@ -8,6 +8,9 @@ import { toast } from 'react-toastify';
 import Link from 'next/link';
 import { FaBox, FaPlus } from 'react-icons/fa';
 import Swal from 'sweetalert2';
+import SearchParamsWrapper from "./SearchParamsWrapper";
+import { Suspense } from "react";
+
 
 interface Product {
     _id: string;
@@ -32,10 +35,20 @@ interface ProductResponse {
 }
 
 export default function ProductosPage() {
+  return (
+    <Suspense fallback={<div className="text-gray-400">Cargando...</div>}>
+      <PageContent />
+    </Suspense>
+  );
+}
+
+function PageContent() {
+    const searchParams = useSearchParams();
+    const currentPage = parseInt(searchParams.get("page") || "1");
     const { data: session, status } = useSession();
     const router = useRouter();
     const pathname = usePathname();
-    const searchParams = useSearchParams();
+    
 
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [products, setProducts] = useState<Product[]>([]);
@@ -48,7 +61,7 @@ export default function ProductosPage() {
         totalPages: 1,
     });
 
-    const currentPage = parseInt(searchParams.get('page') || '1');
+ 
     const limit = 10;
 
     // 🔒 Validación de acceso
