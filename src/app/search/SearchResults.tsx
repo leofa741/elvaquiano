@@ -1,84 +1,48 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import Image from 'next/image';
-
-type Trabajo = {
-  _id: string;
-  titulo: string;
-  imagenes: string[];
-  categoria: string;
-  descripcion: string;
-};
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function SearchResults() {
   const searchParams = useSearchParams();
-  const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const query = searchParams.get("q") || "";
+  const [products, setProducts] = useState([]);
 
   useEffect(() => {
-    const fetchTrabajos  = async () => {
-      const query = searchParams.get('q');
+    if (!query) return;
 
-      if (!query) {
-        setLoading(false);
-        return;
-      }
-
+    const fetchResults = async () => {
       try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
-
-        if (response.ok) {
-          setTrabajos(data.products || []);
-        } else {
-          console.error('Error al buscar productos:', data.error);
-        }
-      } catch (error) {
-        console.error('Error al buscar productos:', error);
-      } finally {
-        setLoading(false);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        setProducts(Array.isArray(data.products) ? data.products : []);
+      } catch (err) {
+        setProducts([]);
       }
     };
 
-    fetchTrabajos();
-  }, [searchParams]);
-
-  if (loading) {
-    return <p className="text-center">Cargando...</p>;
-  }
-
-  if (trabajos.length === 0) {
-    return <p className="text-center">No se encontraron trabajos.</p>;
-  }
+    fetchResults();
+  }, [query]);
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Resultados de la búsqueda</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {
-          trabajos.map((trabajo) => (
-            <div
-              key={trabajo._id}
-              className="bg-white shadow-md hover:shadow-lg transition-shadow duration-300 rounded-lg p-4"
-            >
-              <h2 className="text-lg font-semibold">{trabajo.titulo}</h2>
-              <Image
-                src={trabajo.imagenes[0]}
-                alt={trabajo.titulo}
-                width={270}
-                height={250}
-                className="object-cover mb-4 mx-auto rounded-lg"
-                priority={true}
-                loading="eager"
-              />
-              <p className="text-gray-500">{trabajo.categoria}</p>
-              <p className="text-gray-600">{trabajo.descripcion}</p>
+    <div className="p-6">
+      <h1 className="text-2xl mb-4">Resultados para: "{query}"</h1>
+
+      {products.length === 0 ? (
+        <p>No se encontraron productos.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {products.map((p: any) => (
+            <div key={p._id} className="border rounded-lg p-4 shadow-sm">
+              <img src={p.imagen} alt={p.nombre} className="w-full h-48 object-cover rounded-t-lg" />
+              <h2 className="text-lg font-bold">{p.nombre}</h2>
+              <p className="text-sm">{p.categoria}</p>
+              <p className="mt-2">Precio Minorista: ${p.precioMinorista.toFixed(2)}</p>
+              <p>Precio Mayorista: ${p.precioMayorista.toFixed(2)}</p>
             </div>
-          ))
-        }
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
