@@ -10,13 +10,15 @@ const PAGE_SIZE = 10;
 export default async function LoginsPage({
   searchParams,
 }: {
-  searchParams: { email?: string; provider?: string; page?: string };
+  searchParams: Promise<{ email?: string; provider?: string; page?: string }>;
 }) {
   await connectDB();
 
-  const emailFilter = searchParams.email || "";
-  const providerFilter = searchParams.provider || "";
-  const currentPage = Math.max(1, parseInt(searchParams.page || "1", 10));
+  const params = await searchParams;
+
+  const emailFilter = params.email || "";
+  const providerFilter = params.provider || "";
+  const currentPage = Math.max(1, parseInt(params.page || "1", 10));
 
   const query: any = {};
   if (emailFilter) {
