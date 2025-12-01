@@ -24,14 +24,14 @@ export default function MobileSearchBar({ isMenuOpen, closeMenu }: MobileSearchB
 
   return (
     <div className="px-4">
-      <form onSubmit={handleSearch} className="flex bg-gray-100 rounded-full items-center w-full">
+      <form onSubmit={handleSearch} className="flex items-center border border-gray-300 rounded-full overflow-hidden">
         <input
           type="text"
           placeholder="Buscar productos..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-transparent px-4 py-2 outline-none"
-        />
+          className="w-full bg-transparent px-4 py-2 outline-none text-gray-900 "
+                  />
         <button type="submit" className="bg-amber-800 text-white px-4 py-2 rounded-full">
           Buscar
         </button>

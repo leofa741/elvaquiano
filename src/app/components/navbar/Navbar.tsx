@@ -76,24 +76,25 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Buscador centrado en móvil, a la izquierda en escritorio */}
-        <div className="flex-1 flex justify-center lg:justify-start">
+        {/* Buscador solo visible en pantallas grandes */}
+        <div className="hidden lg:flex flex-1 justify-start">
           <div className="w-full max-w-lg">
             <SearchBar />
           </div>
         </div>
 
+
         {/* Logo centrado solo en escritorio */}
         <div className="hidden lg:block absolute left-1/2 transform -translate-x-1/2">
-         
-            <Image
-              src="/El-Vaquiano.png"
-              alt="Distribuidora El Vaquiano"
-              width={140}
-              height={45}
-              priority
-            />
-      
+
+          <Image
+            src="/El-Vaquiano.png"
+            alt="Distribuidora El Vaquiano"
+            width={140}
+            height={45}
+            priority
+          />
+
         </div>
 
         {/* Íconos y auth (derecha) */}
@@ -178,15 +179,15 @@ export default function Navbar() {
           {/* Auth en escritorio */}
           {session ? (
             <div className="ml-auto flex items-center space-x-6">
-            
-                <Link
-                    href="/profile"
-                    className="flex items-center gap-1 hover:text-amber-200 transition-colors"
-                    title="Perfil"
-                  >
-                    <FontAwesomeIcon icon={faUser} />
-                    <span className="text-sm">Perfil</span>
-                  </Link>
+
+              <Link
+                href="/profile"
+                className="flex items-center gap-1 hover:text-amber-200 transition-colors"
+                title="Perfil"
+              >
+                <FontAwesomeIcon icon={faUser} />
+                <span className="text-sm">Perfil</span>
+              </Link>
               {(role === 'admin' || role === 'vendedor') && (
                 <>
                   <Link
