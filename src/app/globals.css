@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@import 'slick-carousel/slick/slick.css';
+@import 'slick-carousel/slick/slick-theme.css';
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --font-primary: var(--font-montserrat);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-primary);
+  margin: 0;
+  padding: 0;
+}
+
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+@layer utilities {
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+.swiper-button-next,
+.swiper-button-prev {
+  color: #d97706 !important; /* amber-600 */
+}
+.dark .swiper-button-next,
+.dark .swiper-button-prev {
+  color: #f59e0b !important; /* amber-400 */
+}
+.swiper-pagination-bullet {
+  background: #d97706 !important;
+}
+.dark .swiper-pagination-bullet {
+  background: #f59e0b !important;
+}
