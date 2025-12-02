@@ -35,11 +35,11 @@ interface ProductResponse {
 }
 
 export default function ProductosPage() {
-  return (
-    <Suspense fallback={<div className="text-gray-400">Cargando...</div>}>
-      <PageContent />
-    </Suspense>
-  );
+    return (
+        <Suspense fallback={<div className="text-gray-400">Cargando...</div>}>
+            <PageContent />
+        </Suspense>
+    );
 }
 
 function PageContent() {
@@ -48,7 +48,7 @@ function PageContent() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const pathname = usePathname();
-    
+
 
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [products, setProducts] = useState<Product[]>([]);
@@ -61,7 +61,7 @@ function PageContent() {
         totalPages: 1,
     });
 
- 
+
     const limit = 10;
 
     // 🔒 Validación de acceso
@@ -184,16 +184,6 @@ function PageContent() {
 
     };
 
-    // const updateProduct = async (id: string, formData: any) => {
-    //     const res = await fetch(`/api/gestion/productos/${id}`, {
-    //         method: "PUT",
-    //         headers: { "Content-Type": "application/json" },
-    //         body: JSON.stringify(formData),
-    //     });
-
-    //     if (res.ok) toast.success("Producto actualizado");
-    //     else toast.error("Error al actualizar");
-    // };
 
     const updateProduct = async (id: string, formData: any) => {
         const res = await fetch(`/api/gestion/productos/${id}`, {
@@ -209,7 +199,27 @@ function PageContent() {
         else toast.error("Error al actualizar");
     };
 
-
+    function formatCantidadUnidad(cantidad: number, unidad: string): string {
+  if (unidad === 'kg') {
+    if (cantidad >= 1) {
+      return `${cantidad} kg`;
+    } else {
+      const gramos = Math.round(cantidad * 1000);
+      return `${gramos} g`;
+    }
+  } else if (unidad === 'litro') {
+    if (cantidad >= 1) {
+      return `${cantidad} L`;
+    } else {
+      const mililitros = Math.round(cantidad * 1000);
+      return `${mililitros} ml`;
+    }
+  } else {
+    // Para 'unidad', 'caja', 'pack' → sin conversión
+    const label = unidad === 'unidad' ? 'unid.' : unidad;
+    return `${cantidad} ${label}`;
+  }
+}
 
 
     return (
@@ -289,7 +299,7 @@ function PageContent() {
                                                     )}
                                                 </td>
                                                 <td className="py-3 px-4 text-white">
-                                                    {product.nombre} ({product.cantidadUnidad} {product.unidad})
+                                                    {product.nombre} <span>{formatCantidadUnidad(product.cantidadUnidad, product.unidad)}</span>
                                                 </td>
                                                 <td className="py-3 px-4 text-gray-300">{product.categoria}</td>
                                                 <td className="py-3 px-4 text-gray-300">{product.unidad}</td>
@@ -347,6 +357,64 @@ function PageContent() {
                             </table>
                         </div>
                     </div>
+                    
+                    <br />
+
+                    <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-gray-900 text-gray-300">
+                                    <tr>
+                                        <th className="text-left py-3 px-4">Lotes</th>
+                                        <th className="text-left py-3 px-4">Depósito</th>
+                                        <th className="text-left py-3 px-4">Cantidad</th>
+                                        <th className="text-left py-3 px-4">Vencimiento</th>
+
+
+                                        <th className="text-left py-3 px-4">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-700">
+                                    {products.map((product) =>
+                                        product.lotes.map((lote, index) => (
+                                            <tr key={`${product._id}-lote-${index}`} className="hover:bg-gray-750 transition">
+                                                <td className="py-3 px-4 text-white">{product.nombre}</td>
+                                                <td className="py-3 px-4 text-gray-300">{lote.deposito}</td>
+                                                <td className="py-3 px-4 text-white">{lote.cantidad}</td>
+                                                <td className="py-3 px-4 text-gray-300">
+                                                    {new Date(lote.vencimiento).toLocaleDateString('es-AR')}
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <button
+                                                        onClick={async () => {
+                                                            const updatedLotes = product.lotes.filter((_, i) => i !== index);
+                                                            const updatedData = { ...product, lotes: updatedLotes };
+                                                            await updateProduct(product._id, updatedData);
+                                                            setProducts((prev) =>
+                                                                prev.map((p) =>
+                                                                    p._id === product._id ? updatedData : p
+                                                                )
+                                                            );
+                                                        }}
+                                                        className="text-red-400 hover:underline"
+                                                    >
+                                                        Borrar Lote
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )
+
+
+
+
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                    </div>
+
 
                     {pagination.totalPages > 1 && (
                         <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">

@@ -17,6 +17,7 @@ import { AuthContext } from '@/app/context/AuthContext';
 import SearchBar from '../searchbar/SearchBar';
 import MobileSearchBar from '../mobilesearch/MobileSearchBar';
 import { faInstagram } from '@fortawesome/free-brands-svg-icons';
+import DarkModeToggle from '../darkmode/DarkModeToggle';
 
 const CATEGORIES = [
   { id: 'carnes', name: 'Carnes y Embutidos' },
@@ -99,6 +100,7 @@ export default function Navbar() {
 
         {/* Íconos y auth (derecha) */}
         <div className="flex items-center space-x-4">
+          <DarkModeToggle />
           <a
             href="https://www.instagram.com/el_vaquiano"
             target="_blank"

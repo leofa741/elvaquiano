@@ -1,22 +1,26 @@
 // app/providers/Providers.tsx
-'use client'; // Marcar este archivo como Client Component
-
+'use client';
 
 import { SessionProvider } from 'next-auth/react';
 import { AuthProvider } from '../context/AuthContext';
 import { LoadingProvider } from '../context/LoadingContext';
+import { ThemeProvider } from 'next-themes';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider>
-      <AuthProvider>
-   
-        <LoadingProvider>
-          {children}
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      enableSystem={false}
+      disableTransitionOnChange
+    >
+      <SessionProvider>
+        <AuthProvider>
+          <LoadingProvider>
+            {children}
           </LoadingProvider>
-       
-     
-      </AuthProvider>
-    </SessionProvider>
+        </AuthProvider>
+      </SessionProvider>
+    </ThemeProvider>
   );
 }
