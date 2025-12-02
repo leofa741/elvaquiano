@@ -226,7 +226,7 @@ function PageContent() {
         <div className="p-4 sm:p-6 md:p-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-white">Gestión de Productos</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold ">Gestión de Productos</h1>
                     <p className="text-gray-400 mt-1">
                         Administra nombres, categorías, stock, lotes y vencimientos.
                     </p>

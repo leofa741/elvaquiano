@@ -6,20 +6,26 @@ import { AuthProvider } from '../context/AuthContext';
 import { LoadingProvider } from '../context/LoadingContext';
 import { ThemeProvider } from 'next-themes';
 
+
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="light"
-      enableSystem={false}
-    >
-      <SessionProvider>
-        <AuthProvider>
-          <LoadingProvider>
+
+
+
+    <SessionProvider>
+
+      <AuthProvider>
+        <LoadingProvider>
+          <ThemeProvider
+           attribute="class"
+            enableSystem={false}>
             {children}
-          </LoadingProvider>
-        </AuthProvider>
-      </SessionProvider>
-    </ThemeProvider>
+          </ThemeProvider>
+        </LoadingProvider>
+      </AuthProvider>
+
+    </SessionProvider>
+
+
   );
 }

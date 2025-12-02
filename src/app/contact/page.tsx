@@ -54,12 +54,12 @@ export default function Contact() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white py-16 px-4">
+    <div className="min-h-screen   py-16 px-4">
       <div className="max-w-6xl mx-auto text-center mb-16">
-        <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
+        <h1 className="text-3xl md:text-4xl font-bold  mb-4">
           ¿Querés abastecer tu negocio con El Vaquiano?
         </h1>
-        <p className="text-gray-300 max-w-2xl mx-auto">
+        <p className=" max-w-2xl mx-auto">
           Somos distribuidores mayoristas de productos alimenticios de primera calidad.
           Contactanos para acceder a precios exclusivos, listas de precios y atención personalizada.
         </p>

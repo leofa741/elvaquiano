@@ -9,7 +9,12 @@ const config: Config = {
     './pages/**/*.{js,ts,jsx,tsx,mdx}', // si usas pages dir (pero vos usás app dir)
   ],
   theme: {
-    extend: {},
+     extend: {
+    colors: {
+      bg: "rgb(var(--color-bg) / <alpha-value>)",
+      text: "rgb(var(--color-text) / <alpha-value>)",
+    },
+  },
   },
   plugins: [],
 };

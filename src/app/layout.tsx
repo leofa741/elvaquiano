@@ -13,6 +13,7 @@ import Loader from "./components/loading/Loader";
 
 
 
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -63,13 +64,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-    lang="es" 
-    suppressHydrationWarning={true}
-    className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable}`}
+    <html lang="es"
+      className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable} dark`}
+      suppressHydrationWarning={true}
+
+     
 
     >
-      <body className="bg-neutral-900 dark:bg-neutral-900 text-black dark:text-white">
+      <body className="bg-white text-gray-600 dark:bg-[#0d0d0d] dark:text-white transition-colors duration-500">
+
+
 
         <Providers>
           <header>
@@ -137,6 +141,7 @@ export default function RootLayout({
 
           <Footer />
         </Providers>
+
       </body>
     </html>
   );

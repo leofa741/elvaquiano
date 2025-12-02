@@ -88,8 +88,8 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center  dark:bg-gray-900 p-4">
+      <div className="bg-gray-200 dark:bg-gray-800 p-8 rounded-xl shadow-lg w-full max-w-md">
 
         <div className="flex justify-center mb-6">
           <Image src="/img/El-Vaquiano.png" alt="Logo" width={120} height={180} />

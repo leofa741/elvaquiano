@@ -284,7 +284,7 @@ export default function NuevoProductoPage() {
                 <Link href="/gestion/productos" className="text-amber-500 hover:text-amber-400">
                     ← Volver a productos
                 </Link>
-                <h1 className="text-2xl md:text-3xl font-bold text-white">Nuevo Producto</h1>
+                <h1 className="text-2xl md:text-3xl font-bold ">Nuevo Producto</h1>
             </div>
 
             <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">

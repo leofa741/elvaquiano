@@ -19,6 +19,8 @@ import MobileSearchBar from '../mobilesearch/MobileSearchBar';
 import { faInstagram } from '@fortawesome/free-brands-svg-icons';
 import DarkModeToggle from '../darkmode/DarkModeToggle';
 
+
+
 const CATEGORIES = [
   { id: 'carnes', name: 'Carnes y Embutidos' },
   { id: 'lácteos', name: 'Lácteos y Huevos' },
@@ -100,7 +102,11 @@ export default function Navbar() {
 
         {/* Íconos y auth (derecha) */}
         <div className="flex items-center space-x-4">
+
           <DarkModeToggle />
+
+         
+    
           <a
             href="https://www.instagram.com/el_vaquiano"
             target="_blank"

@@ -25,7 +25,7 @@ const CategoryCard = ({
 }) => (
   <a
     href={href}
-    className="group block bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+    className="group block  dark:bg-gray-800 rounded-xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
   >
     <div className="h-48 overflow-hidden">
       <img
@@ -35,7 +35,7 @@ const CategoryCard = ({
       />
     </div>
     <div className="p-5">
-      <h3 className="text-xl font-bold text-gray-900 dark:text-white group-hover:text-amber-600 transition-colors">
+      <h3 className="text-xl font-bold  dark:text-white group-hover:text-amber-600 transition-colors">
         {title}
       </h3>
       <p className="text-gray-600 dark:text-gray-300 text-sm mt-2">
@@ -51,8 +51,8 @@ const Benefit = ({ icon, title, description }: { icon: string; title: string; de
     <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/30 mb-4">
       <span className="text-amber-700 dark:text-amber-400 text-2xl">{icon}</span>
     </div>
-    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{title}</h3>
-    <p className="text-gray-600 dark:text-gray-400 text-sm">{description}</p>
+    <h3 className="text-lg font-bold  dark:text-white mb-2">{title}</h3>
+    <p className="text-gray-500 dark:text-gray-400 text-sm">{description}</p>
   </div>
 );
 
@@ -63,19 +63,17 @@ export default function Home() {
       <div className="relative">
         <Banner />
       </div>
-      <div className="h-32 bg-white dark:bg-black text-black dark:text-white">
-        TEST MODE
-      </div>
+     
 
 
       {/* Sección: Valor principal + CTAs */}
-      <section className="bg-gray-50 dark:bg-gray-900 py-16 md:py-24">
+      <section className="py-16  dark:bg-gray-900">
         <div className="container mx-auto px-4 md:px-6 flex flex-col md:flex-row items-center gap-12">
           <div className="md:w-1/2">
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-gray-900 dark:text-white leading-tight">
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold  dark:text-white leading-tight">
               Suministros Alimenticios <span className="text-amber-600">de Calidad Profesional</span>
             </h1>
-            <p className="text-lg text-gray-700 dark:text-gray-300 mt-6 mb-8 leading-relaxed">
+            <p className="text-lg  dark:text-gray-300 mt-6 mb-8 leading-relaxed">
               Abastecé tu negocio con productos frescos, envasados y de primera línea.
               Precios mayoristas, entrega rápida y atención personalizada para kioscos, bodegas, restaurantes y minimercados.
             </p>
@@ -95,7 +93,7 @@ export default function Home() {
             </div>
           </div>
           <div className="md:w-1/2 flex justify-center">
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg max-w-md w-full">
+            <div className=" dark:bg-gray-800 p-4 rounded-xl shadow-lg max-w-md w-full">
               <Image
                 src="/img/El-Vaquiano.png"
                 alt="Productos alimenticios de Distribuidora El Vaquiano"
@@ -109,9 +107,9 @@ export default function Home() {
       </section>
 
       {/* Beneficios clave */}
-      <section className="py-16 bg-white dark:bg-gray-950">
+      <section className="py-16 dark:bg-gray-950">
         <div className="container mx-auto px-4 md:px-6">
-          <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-4">
+          <h2 className="text-3xl font-bold text-center  dark:text-white mb-4">
             ¿Por qué elegirnos?
           </h2>
           <p className="text-gray-600 dark:text-gray-400 text-center max-w-2xl mx-auto mb-12">
@@ -143,10 +141,10 @@ export default function Home() {
       </section>
 
       {/* Categorías destacadas */}
-      <section className="py-16 bg-gray-50 dark:bg-gray-900">
+      <section className="py-16  dark:bg-gray-900">
         <div className="container mx-auto px-4 md:px-6">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+            <h2 className="text-3xl font-bold  dark:text-white">
               Nuestras Categorías
             </h2>
             <p className="text-gray-600 dark:text-gray-400 mt-4">
