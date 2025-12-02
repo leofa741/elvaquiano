@@ -63,6 +63,10 @@ export default function Home() {
       <div className="relative">
         <Banner />
       </div>
+      <div className="h-32 bg-white dark:bg-black text-black dark:text-white">
+        TEST MODE
+      </div>
+
 
       {/* Sección: Valor principal + CTAs */}
       <section className="bg-gray-50 dark:bg-gray-900 py-16 md:py-24">
