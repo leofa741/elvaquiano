@@ -3,13 +3,19 @@ import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
 import { NextRequest, NextResponse } from 'next/server';
 
+connectDB();
 
-connectDB()
+// Función utilitaria para obtener el ID de la URL
+function getIdFromUrl(request: NextRequest) {
+  return request.nextUrl.pathname.split("/").pop() as string;
+}
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+// PUT
+export async function PUT(request: NextRequest) {
   try {
-    const { id } = params;
+    const id = getIdFromUrl(request);
     const body = await request.json();
+
     const {
       razonSocial,
       nombre,
@@ -88,24 +94,27 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-// GET individual
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+// GET
+export async function GET(request: NextRequest) {
   try {
-    const { id } = params;
+    const id = getIdFromUrl(request);
     const cliente = await Cliente.findById(id);
+
     if (!cliente) {
       return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
     }
+
     return NextResponse.json(cliente, { status: 200 });
+
   } catch (error) {
     return NextResponse.json({ error: 'Error al cargar cliente' }, { status: 500 });
   }
 }
 
-// DELETE: Baja lógica (desactivar cliente)
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+// DELETE
+export async function DELETE(request: NextRequest) {
   try {
-    const { id } = params;
+    const id = getIdFromUrl(request);
 
     const cliente = await Cliente.findByIdAndUpdate(
       id,
@@ -124,10 +133,10 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   }
 }
 
-// PATCH: Reactivar cliente (volver a activo: true)
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+// PATCH
+export async function PATCH(request: NextRequest) {
   try {
-    const { id } = params;
+    const id = getIdFromUrl(request);
 
     const cliente = await Cliente.findByIdAndUpdate(
       id,
