@@ -27,7 +27,7 @@ const modules = [
         title: 'Gestión de Clientes',
         description: 'Comercios, restaurantes, kioscos y sus condiciones comerciales.',
         icon: <FaUsers className="text-3xl text-amber-400" />,
-        href: '/gestion/clientes',
+        href: '/gestion/clientes'
     },
     {
         id: 'pedidos',
