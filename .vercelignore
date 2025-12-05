@@ -1,0 +1,6 @@
+.eslintrc.js
+.eslintignore
+eslint.config.mjs
+node_modules
+.next
+.git
