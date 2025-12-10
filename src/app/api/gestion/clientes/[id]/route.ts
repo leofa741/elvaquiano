@@ -136,7 +136,7 @@ export async function DELETE(
     return NextResponse.json({ message: 'Cliente desactivado con éxito' }, { status: 200 });
   } catch (error) {
     console.error('Error al desactivar cliente:', error);
-    return NextResponse.json({ error: 'Error al desactivar cliente' }, { status: 500 });
+    return NextResponse.json({ error: 'Error al desactivar clientes' }, { status: 500 });
   }
 }
 
