@@ -33,7 +33,10 @@ export async function PUT(
 }
 
 // PATCH: reactivar cliente
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: any }
+) {
   const cliente = await Cliente.findByIdAndUpdate(params.id, { activo: true }, { new: true });
   notifyClients({ type: 'cliente_reactivado', data: cliente });
   return NextResponse.json(cliente, { status: 200 });
