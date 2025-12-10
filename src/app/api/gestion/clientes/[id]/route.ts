@@ -1,6 +1,6 @@
 import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 connectDB();
 
@@ -8,12 +8,11 @@ connectDB();
 // GET
 // --------------------------------------------------
 export async function GET(
-  req: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
-    const cliente = await Cliente.findById(id);
+    const cliente = await Cliente.findById(params.id);
 
     if (!cliente) {
       return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
@@ -30,12 +29,12 @@ export async function GET(
 // PUT
 // --------------------------------------------------
 export async function PUT(
-  req: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    const body = await request.json();
     const { id } = params;
-    const body = await req.json();
 
     const {
       razonSocial,
@@ -50,6 +49,7 @@ export async function PUT(
       formaPago,
     } = body;
 
+    // Validaciones
     if (!razonSocial?.trim() || !nombre?.trim() || !apellido?.trim() || !telefono?.trim()) {
       return NextResponse.json(
         { error: 'Razón social, nombre, apellido y teléfono son obligatorios.' },
@@ -117,14 +117,12 @@ export async function PUT(
 // DELETE
 // --------------------------------------------------
 export async function DELETE(
-  req: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
-
     const cliente = await Cliente.findByIdAndUpdate(
-      id,
+      params.id,
       { activo: false },
       { new: true }
     );
@@ -136,7 +134,7 @@ export async function DELETE(
     return NextResponse.json({ message: 'Cliente desactivado con éxito' }, { status: 200 });
   } catch (error) {
     console.error('Error al desactivar cliente:', error);
-    return NextResponse.json({ error: 'Error al desactivar clientes' }, { status: 500 });
+    return NextResponse.json({ error: 'Error al desactivar cliente' }, { status: 500 });
   }
 }
 
@@ -144,14 +142,12 @@ export async function DELETE(
 // PATCH
 // --------------------------------------------------
 export async function PATCH(
-  req: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
-
     const cliente = await Cliente.findByIdAndUpdate(
-      id,
+      params.id,
       { activo: true },
       { new: true }
     );
