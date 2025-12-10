@@ -14,7 +14,7 @@ import Product from '@/app/models/Product';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: any }
 ) {
   try {
     const { id } = params;
