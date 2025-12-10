@@ -40,7 +40,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE: desactivar cliente
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: any }
+) {
   const cliente = await Cliente.findByIdAndUpdate(params.id, { activo: false }, { new: true });
   notifyClients({ type: 'cliente_eliminado', data: cliente });
   return NextResponse.json(cliente, { status: 200 });
