@@ -59,7 +59,7 @@ export default function ClientesPage() {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         if (!['admin', 'superadmin'].includes(payload.role)) {
-          toast.error('Acceso restringido a administradores');
+          toast.error('Acceso restringido a administradoress');
           router.push('/');
           return;
         }
