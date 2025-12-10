@@ -22,8 +22,11 @@ export async function GET(
 }
 
 // PUT: actualizar cliente
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const body = await req.json();
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: any }
+) {
+  const body = await request.json();
   const clienteActualizado = await Cliente.findByIdAndUpdate(params.id, body, { new: true });
   notifyClients({ type: 'cliente_actualizado', data: clienteActualizado });
   return NextResponse.json(clienteActualizado, { status: 200 });
