@@ -2,7 +2,8 @@
 import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
 import { NextRequest, NextResponse } from 'next/server';
-import { notifyClients } from './events/route';
+import { notifyClients } from './events/clientsNotifier';
+
 
 
 
