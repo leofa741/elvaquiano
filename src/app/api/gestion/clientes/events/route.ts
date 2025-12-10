@@ -1,5 +1,6 @@
-import { NextRequest } from "next/server";
-import { addClient, removeClient } from "./clientsNotifier";
+// app/api/gestion/clientes/events/route.ts
+import { NextRequest } from 'next/server';
+import { addClient, removeClient } from './clientsNotifier';
 
 export function GET(req: NextRequest) {
   return new Response(
@@ -10,20 +11,22 @@ export function GET(req: NextRequest) {
 
         // Mantener viva la conexión
         const keepAlive = setInterval(() => {
-          controller.enqueue(encoder.encode("data: ping\n\n"));
+          controller.enqueue(encoder.encode('data: ping\n\n'));
         }, 25000);
 
-        req.signal.onabort = () => {
+        // Detectar cierre de conexión
+        req.signal.addEventListener('abort', () => {
           clearInterval(keepAlive);
           removeClient(controller);
-        };
+          controller.close();
+        });
       },
     }),
     {
       headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
       },
     }
   );

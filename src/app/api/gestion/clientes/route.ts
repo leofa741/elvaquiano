@@ -5,67 +5,51 @@ import { NextRequest, NextResponse } from 'next/server';
 import { notifyClients } from './events/clientsNotifier';
 
 
-
 connectDB();
+
+// GET: Listar todos los clientes
+export async function GET() {
+  try {
+    const clientes = await Cliente.find({}).sort({ createdAt: -1 });
+    return NextResponse.json(clientes, { status: 200 });
+  } catch (error) {
+    console.error('Error al listar clientes:', error);
+    return NextResponse.json({ error: 'Error al cargar clientes' }, { status: 500 });
+  }
+}
 
 // POST: Crear cliente
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      razonSocial,
-      nombre,
-      apellido,
-      dni,
-      telefono,
-      email,
-      direccion,
-      ciudad,
-      provincia,
-      formaPago,
-    } = body;
+    const { razonSocial, nombre, apellido, telefono, dni, email, direccion, ciudad, provincia, formaPago } = body;
 
-    // Validaciones obligatorias
     if (!razonSocial?.trim() || !nombre?.trim() || !apellido?.trim() || !telefono?.trim()) {
-      return NextResponse.json(
-        { error: 'Razón social, nombre, apellido y teléfono son obligatorios.' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Razon social, nombre, apellido y teléfono son obligatorios.' }, { status: 400 });
     }
 
-    // Limpiar y validar DNI
-    let dniLimpio: string | undefined;
+    let dniLimpio;
     if (dni?.trim()) {
       dniLimpio = dni.replace(/\D/g, '');
-      if (dniLimpio && !/^\d{7,8}$/.test(dniLimpio)) {
-        return NextResponse.json({ error: 'DNI debe tener 7 u 8 dígitos.' }, { status: 400 });
-      }
+      if (!/^\d{7,8}$/.test(dniLimpio)) return NextResponse.json({ error: 'DNI debe tener 7 u 8 dígitos.' }, { status: 400 });
       const dniExistente = await Cliente.findOne({ dni: dniLimpio });
-      if (dniExistente) {
-        return NextResponse.json({ error: 'Ya existe un cliente con ese DNI.' }, { status: 409 });
-      }
+      if (dniExistente) return NextResponse.json({ error: 'Ya existe un cliente con ese DNI.' }, { status: 409 });
     }
 
-    // Validar email
-    let emailLimpio: string | undefined;
+    let emailLimpio;
     if (email?.trim()) {
       emailLimpio = email.trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLimpio!)) {
-        return NextResponse.json({ error: 'El correo electrónico no es válido.' }, { status: 400 });
-      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLimpio)) return NextResponse.json({ error: 'Email inválido.' }, { status: 400 });
       const emailExistente = await Cliente.findOne({ email: emailLimpio });
-      if (emailExistente) {
-        return NextResponse.json({ error: 'Ya existe un cliente con ese correo electrónico.' }, { status: 409 });
-      }
+      if (emailExistente) return NextResponse.json({ error: 'Ya existe un cliente con ese email.' }, { status: 409 });
     }
 
-    // Crear cliente
     const nuevoCliente = new Cliente({
       razonSocial: razonSocial.trim(),
       nombre: nombre.trim(),
       apellido: apellido.trim(),
-      dni: dniLimpio,
       telefono: telefono.trim(),
+      dni: dniLimpio,
       email: emailLimpio,
       direccion: direccion?.trim() || null,
       ciudad: ciudad?.trim() || null,
@@ -76,27 +60,12 @@ export async function POST(request: NextRequest) {
 
     const clienteGuardado = await nuevoCliente.save();
 
-    // 🔥 ENVIAR EVENTO A TODAS LAS SESIONES
-    notifyClients({ type: "nuevo_cliente", data: clienteGuardado });
+    notifyClients({ type: 'nuevo_cliente', data: clienteGuardado });
 
     return NextResponse.json(clienteGuardado, { status: 201 });
-
   } catch (error: any) {
     console.error('Error al crear cliente:', error);
-    if (error.code === 11000) {
-      return NextResponse.json({ error: 'Dato duplicado (DNI o email ya existente).' }, { status: 409 });
-    }
+    if (error.code === 11000) return NextResponse.json({ error: 'Dato duplicado (DNI o email ya existente).' }, { status: 409 });
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
-  }
-}
-
-// GET: Listar clientes
-export async function GET() {
-  try {
-    const clientes = await Cliente.find({}).sort({ createdAt: -1 });
-    return NextResponse.json(clientes, { status: 200 });
-  } catch (error) {
-    console.error('Error al listar clientes:', error);
-    return NextResponse.json({ error: 'Error al cargar clientes' }, { status: 500 });
   }
 }

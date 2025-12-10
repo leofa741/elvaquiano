@@ -1,3 +1,4 @@
+// app/api/gestion/clientes/clientsNotifier.ts
 let clients: ReadableStreamDefaultController[] = [];
 
 export function addClient(controller: ReadableStreamDefaultController) {

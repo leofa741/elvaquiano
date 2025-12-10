@@ -132,16 +132,16 @@ export default function ClientesPage() {
   // -------------------------------
   // 🔄 Escuchar eventos SSE
   // -------------------------------
- useEffect(() => {
+useEffect(() => {
   if (!isAuthorized) return;
 
   const eventSource = new EventSource('/api/gestion/clientes/events');
 
   eventSource.onmessage = (event) => {
-    try {
-      if (event.data === 'ping') return;
-      const data = JSON.parse(event.data);
+    if (event.data === 'ping') return;
 
+    try {
+      const data = JSON.parse(event.data);
       switch (data.type) {
         case 'nuevo_cliente':
           setClientes(prev => [data.data, ...prev]);
@@ -153,12 +153,12 @@ export default function ClientesPage() {
           break;
       }
     } catch (err) {
-      console.error('Error SSE:', err);
+      console.error('SSE error:', err);
     }
   };
 
   eventSource.onerror = () => {
-    console.warn('SSE desconectado');
+    console.warn('SSE disconnected, closing');
     eventSource.close();
   };
 
