@@ -1,45 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server';
-
 import connectDB from '@/app/lib/mongoose';
 import Pedido from '@/app/models/Pedido';
 import Presupuesto from '@/app/models/Presupuesto';
+import { NextApiRequest, NextApiResponse } from 'next';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Método no permitido' });
+  }
+
   try {
+    const { id } = req.query;
+
+    // Conectar DB
     await connectDB();
 
-    const { id } = params;
-
     const presupuesto = await Presupuesto.findById(id);
+
     if (!presupuesto) {
-      return NextResponse.json(
-        { error: 'Presupuesto no encontrado' },
-        { status: 404 }
-      );
+      return res.status(404).json({ error: 'Presupuesto no encontrado' });
     }
 
     if (presupuesto.estado === 'convertido') {
-      return NextResponse.json(
-        { error: 'Este presupuesto ya fue convertido' },
-        { status: 400 }
-      );
+      return res.status(400).json({ error: 'Ya está convertido' });
     }
 
     const nuevoPedido = new Pedido({
       cliente: presupuesto.cliente,
-      productos: presupuesto.productos.map((p: any) => ({
-        producto: p.producto,
-        nombre: p.nombre,
-        unidad: p.unidad,
-        deposito: p.deposito,
-        cantidad: p.cantidad,
-        tipoPrecio: p.tipoPrecio,
-        precioAplicado: p.precioAplicado,
-        subtotal: p.subtotal,
-      })),
+      productos: presupuesto.productos,
       deposito: presupuesto.productos[0]?.deposito || 'principal',
       total: presupuesto.total,
       estado: 'pendiente',
@@ -51,19 +39,13 @@ export async function POST(
     presupuesto.estado = 'convertido';
     await presupuesto.save();
 
-    return NextResponse.json(
-      {
-        message: 'Presupuesto convertido en pedido',
-        pedidoId: pedidoGuardado._id.toString(),
-      },
-      { status: 201 }
-    );
+    return res.status(201).json({
+      message: 'Presupuesto convertido',
+      pedidoId: pedidoGuardado._id,
+    });
 
   } catch (error) {
-    console.error('Error al convertir presupuesto:', error);
-    return NextResponse.json(
-      { error: 'Error al convertir el presupuesto' },
-      { status: 500 }
-    );
+    console.error(error);
+    return res.status(500).json({ error: 'Error interno' });
   }
 }
