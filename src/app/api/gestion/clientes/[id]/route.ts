@@ -91,13 +91,12 @@ export async function PUT(
   }
 }
 
-// GET — Obtener cliente por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
-    const id = params.id;
+    const { id } = context.params;
     const cliente = await Cliente.findById(id);
 
     if (!cliente) {
@@ -105,11 +104,11 @@ export async function GET(
     }
 
     return NextResponse.json(cliente, { status: 200 });
-
   } catch (error) {
     return NextResponse.json({ error: 'Error al cargar cliente' }, { status: 500 });
   }
 }
+
 
 // DELETE — Desactivar cliente
 export async function DELETE(
