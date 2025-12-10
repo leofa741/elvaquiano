@@ -38,7 +38,7 @@ export async function PATCH(
   { params }: { params: any }
 ) {
   const cliente = await Cliente.findByIdAndUpdate(params.id, { activo: true }, { new: true });
-  notifyClients({ type: 'cliente_reactivados', data: cliente });
+  notifyClients({ type: 'cliente_reactivado', data: cliente });
   return NextResponse.json(cliente, { status: 200 });
 }
 
