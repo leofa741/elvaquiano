@@ -2,6 +2,8 @@
 import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
 import { NextRequest, NextResponse } from 'next/server';
+import { notifyClients } from './events/route';
+
 
 
 connectDB();
@@ -73,6 +75,10 @@ export async function POST(request: NextRequest) {
     });
 
     const clienteGuardado = await nuevoCliente.save();
+
+    // 🔥 ENVIAR EVENTO A TODAS LAS SESIONES
+    notifyClients({ type: "nuevo_cliente", data: clienteGuardado });
+
     return NextResponse.json(clienteGuardado, { status: 201 });
 
   } catch (error: any) {
@@ -94,4 +100,3 @@ export async function GET() {
     return NextResponse.json({ error: 'Error al cargar clientes' }, { status: 500 });
   }
 }
-

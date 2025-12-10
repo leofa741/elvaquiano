@@ -26,19 +26,24 @@ interface Cliente {
 export default function ClientesPage() {
   const { status, data: session } = useSession();
   const router = useRouter();
+
+  // Estados principales
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [clientes, setClientes] = useState<Cliente[]>([]);
 
-  // 🔍 Filtros
+  // 🔍 Filtros y paginación
   const [busqueda, setBusqueda] = useState('');
   const [paginaActual, setPaginaActual] = useState(1);
   const clientesPorPagina = 10;
 
+  // -------------------------------
   // 🔒 Validación de acceso
+  // -------------------------------
   useEffect(() => {
     const validateAccess = async () => {
       if (status === 'loading') return;
+
       if (status === 'unauthenticated') {
         router.push('/');
         return;
@@ -68,15 +73,15 @@ export default function ClientesPage() {
     validateAccess();
   }, [status, session, router]);
 
+  // -------------------------------
   // 📥 Cargar clientes
+  // -------------------------------
   useEffect(() => {
     if (!isAuthorized) return;
 
     const fetchClientes = async () => {
       try {
-        const res = await fetch('/api/gestion/clientes', {
-          cache: 'no-store',
-        });
+        const res = await fetch('/api/gestion/clientes', { cache: 'no-store' });
         if (!res.ok) throw new Error('Error al cargar clientes');
         const data = await res.json();
         setClientes(data);
@@ -96,7 +101,9 @@ export default function ClientesPage() {
     fetchClientes();
   }, [isAuthorized]);
 
+  // -------------------------------
   // 🔍 Filtrado y paginación
+  // -------------------------------
   const clientesFiltrados = useMemo(() => {
     if (!busqueda.trim()) return clientes;
     const termino = busqueda.toLowerCase();
@@ -122,9 +129,37 @@ export default function ClientesPage() {
     setPaginaActual(1);
   }, [busqueda]);
 
-  if (!isAuthorized) return null;
+  // -------------------------------
+  // 🔄 Escuchar eventos SSE
+  // -------------------------------
+  useEffect(() => {
+    if (!isAuthorized) return;
 
-  // ✅ Desactivar cliente
+    const eventSource = new EventSource('/api/events');
+
+    eventSource.onmessage = (event) => {
+      try {
+        if (event.data === 'ping') return;
+        const data = JSON.parse(event.data);
+        if (data.type === 'nuevo_cliente') {
+          setClientes((prev) => [data.data, ...prev]);
+        }
+      } catch (err) {
+        console.error('Error SSE:', err);
+      }
+    };
+
+    eventSource.onerror = () => {
+      console.warn('SSE desconectado');
+      eventSource.close();
+    };
+
+    return () => eventSource.close();
+  }, [isAuthorized]);
+
+  // -------------------------------
+  // ✅ Funciones para desactivar/reactivar clientes
+  // -------------------------------
   const handleDesactivar = async (cliente: Cliente) => {
     const result = await Swal.fire({
       title: '¿Desactivar cliente?',
@@ -138,44 +173,19 @@ export default function ClientesPage() {
       reverseButtons: true,
     });
 
-    if (result.isConfirmed) {
-      try {
-        const res = await fetch(`/api/gestion/clientes/${cliente._id}`, {
-          method: 'DELETE',
-        });
+    if (!result.isConfirmed) return;
 
-        if (res.ok) {
-          Swal.fire({
-            icon: 'success',
-            title: '¡Desactivado!',
-            text: 'El cliente ha sido desactivado.',
-            timer: 2000,
-            showConfirmButton: false,
-          });
-          setClientes((prev) =>
-            prev.map((c) => (c._id === cliente._id ? { ...c, activo: false } : c))
-          );
-        } else {
-          const error = await res.json();
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: error.error || 'No se pudo desactivar el cliente.',
-            confirmButtonColor: '#d33',
-          });
-        }
-      } catch (err) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Error de conexión',
-          text: 'No se pudo comunicar con el servidor.',
-          confirmButtonColor: '#d33',
-        });
-      }
+    try {
+      const res = await fetch(`/api/gestion/clientes/${cliente._id}`, { method: 'DELETE' });
+      if (!res.ok) throw await res.json();
+
+      Swal.fire({ icon: 'success', title: '¡Desactivado!', text: 'Cliente desactivado', timer: 2000, showConfirmButton: false });
+      setClientes(prev => prev.map(c => (c._id === cliente._id ? { ...c, activo: false } : c)));
+    } catch (error: any) {
+      Swal.fire({ icon: 'error', title: 'Error', text: error.error || 'No se pudo desactivar el cliente.', confirmButtonColor: '#d33' });
     }
   };
 
-  // ✅ Reactivar cliente
   const handleReactivar = async (cliente: Cliente) => {
     const result = await Swal.fire({
       title: '¿Reactivar cliente?',
@@ -189,45 +199,30 @@ export default function ClientesPage() {
       reverseButtons: true,
     });
 
-    if (result.isConfirmed) {
-      try {
-        const res = await fetch(`/api/gestion/clientes/${cliente._id}`, {
-          method: 'PATCH',
-        });
+    if (!result.isConfirmed) return;
 
-        if (res.ok) {
-          Swal.fire({
-            icon: 'success',
-            title: '¡Reactivado!',
-            text: 'El cliente ha sido reactivado.',
-            timer: 2000,
-            showConfirmButton: false,
-          });
-          setClientes((prev) =>
-            prev.map((c) => (c._id === cliente._id ? { ...c, activo: true } : c))
-          );
-        } else {
-          const error = await res.json();
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: error.error || 'No se pudo reactivar el cliente.',
-            confirmButtonColor: '#d33',
-          });
-        }
-      } catch (err) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Error de conexión',
-          text: 'No se pudo comunicar con el servidor.',
-          confirmButtonColor: '#d33',
-        });
-      }
+    try {
+      const res = await fetch(`/api/gestion/clientes/${cliente._id}`, { method: 'PATCH' });
+      if (!res.ok) throw await res.json();
+
+      Swal.fire({ icon: 'success', title: '¡Reactivado!', text: 'Cliente reactivado', timer: 2000, showConfirmButton: false });
+      setClientes(prev => prev.map(c => (c._id === cliente._id ? { ...c, activo: true } : c)));
+    } catch (error: any) {
+      Swal.fire({ icon: 'error', title: 'Error', text: error.error || 'No se pudo reactivar el cliente.', confirmButtonColor: '#d33' });
     }
   };
 
+  // -------------------------------
+  // 🚨 Render condicional de autorización
+  // -------------------------------
+  if (!isAuthorized) return <div className="p-6 text-center text-gray-400">Validando acceso...</div>;
+
+  // -------------------------------
+  // 🌟 JSX Principal
+  // -------------------------------
   return (
     <div className="p-4 sm:p-6 md:p-8">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
@@ -237,15 +232,15 @@ export default function ClientesPage() {
           <p className="text-gray-400 mt-1">
             Administrá contactos, datos fiscales y condiciones de tus clientes.
           </p>
-          <p className="text-gray-400 mt-1">volver a la sección de <a href="/gestion" className="text-amber-400 underline">Gestión</a>.</p>
-
+          <p className="text-gray-400 mt-1">
+            volver a la sección de <a href="/gestion" className="text-amber-400 underline">Gestión</a>.
+          </p>
         </div>
         <Link
           href="/gestion/clientes/nuevo"
           className="bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-4 rounded-lg transition flex items-center gap-2"
         >
-          <FaPlus />
-          Nuevo Cliente
+          <FaPlus /> Nuevo Cliente
         </Link>
       </div>
 
@@ -269,9 +264,7 @@ export default function ClientesPage() {
           <div className="p-6 text-center text-gray-300">Cargando clientes...</div>
         ) : clientesPaginados.length === 0 ? (
           <div className="p-6 text-center text-gray-400">
-            {busqueda
-              ? 'No se encontraron clientes que coincidan con la búsqueda.'
-              : 'No hay clientes registrados.'}
+            {busqueda ? 'No se encontraron clientes que coincidan con la búsqueda.' : 'No hay clientes registrados.'}
             {!busqueda && (
               <>
                 <br />
@@ -298,9 +291,7 @@ export default function ClientesPage() {
                               </span>
                             )}
                           </div>
-                          <div className="text-sm text-gray-300">
-                            {cliente.nombre} {cliente.apellido}
-                          </div>
+                          <div className="text-sm text-gray-300">{cliente.nombre} {cliente.apellido}</div>
                           <div className="text-sm text-gray-400">
                             Tel: {cliente.telefono}
                             {cliente.email && ` • ${cliente.email}`}
@@ -310,46 +301,27 @@ export default function ClientesPage() {
                             {cliente.direccion && `${cliente.direccion}, `}
                             {cliente.ciudad && `${cliente.ciudad}, `}
                             {cliente.provincia && cliente.provincia}
-
                           </div>
-
-
                         </div>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Link
-                        href={`/gestion/clientes/editar/${cliente._id}`}
-                        className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center gap-1"
-                      >
+                      <Link href={`/gestion/clientes/editar/${cliente._id}`} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center gap-1">
                         Editar
                       </Link>
-
-                      {/* 👇 BOTÓN DE PEDIDO RÁPIDO */}
-                      <Link
-                        href={`/gestion/pedidos/nuevo?clienteId=${cliente._id}`}
-                        className="text-blue-400 hover:text-blue-300 text-sm font-medium flex items-center gap-1"
-                      >
+                      <Link href={`/gestion/pedidos/nuevo?clienteId=${cliente._id}`} className="text-blue-400 hover:text-blue-300 text-sm font-medium flex items-center gap-1">
                         Pedido rápido
                       </Link>
-
                       {cliente.activo ? (
-                        <button
-                          onClick={() => handleDesactivar(cliente)}
-                          className="text-red-400 hover:text-red-300 text-sm font-medium flex items-center gap-1"
-                        >
+                        <button onClick={() => handleDesactivar(cliente)} className="text-red-400 hover:text-red-300 text-sm font-medium flex items-center gap-1">
                           Eliminar
                         </button>
                       ) : (
-                        <button
-                          onClick={() => handleReactivar(cliente)}
-                          className="text-green-400 hover:text-green-300 text-sm font-medium flex items-center gap-1"
-                        >
+                        <button onClick={() => handleReactivar(cliente)} className="text-green-400 hover:text-green-300 text-sm font-medium flex items-center gap-1">
                           Reactivar
                         </button>
                       )}
                     </div>
-
                   </div>
                 </div>
               ))}
@@ -388,3 +360,12 @@ export default function ClientesPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+   
