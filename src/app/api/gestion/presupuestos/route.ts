@@ -2,11 +2,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Presupuesto from '@/app/models/Presupuesto';
 import connectDB from '@/app/lib/mongoose';
+import Cliente from '@/app/models/Cliente';
+
+const _ = (() => {
+  void Cliente.modelName;
+  void Presupuesto.modelName;
+
+})();
 
 connectDB();
 
 // POST: Crear presupuesto
 export async function POST(request: NextRequest) {
+
+
+
+
   try {
     const body = await request.json();
     const { clienteId, productos, validoHasta } = body;
@@ -36,6 +47,8 @@ export async function POST(request: NextRequest) {
 
 // GET: Listar presupuestos
 export async function GET() {
+
+
   try {
     const presupuestos = await Presupuesto.find()
       .populate('cliente', 'razonSocial pedidoAsociado')
@@ -46,3 +59,4 @@ export async function GET() {
     return NextResponse.json({ error: 'Error al cargar presupuestos' }, { status: 500 });
   }
 }
+
