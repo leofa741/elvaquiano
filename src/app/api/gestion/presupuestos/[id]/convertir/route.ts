@@ -6,14 +6,14 @@ import connectDB from '@/app/lib/mongoose';
 import Pedido from '@/app/models/Pedido';
 import Presupuesto from '@/app/models/Presupuesto';
 
-connectDB();
-
 export async function POST(
   request: NextRequest,
-  { params }: { params: any}
+  { params }: { params: { id: string } }
 ) {
   try {
     const { id } = params;
+
+    await connectDB();
 
     // 1. Buscar el presupuesto
     const presupuesto = await Presupuesto.findById(id);
@@ -39,7 +39,7 @@ export async function POST(
         precioAplicado: p.precioAplicado,
         subtotal: p.subtotal
       })),
-      deposito: presupuesto.productos[0]?.deposito || 'principal', // fallback seguro
+      deposito: presupuesto.productos[0]?.deposito || 'principal',
       total: presupuesto.total,
       estado: 'pendiente'
     });
@@ -51,7 +51,6 @@ export async function POST(
     presupuesto.estado = 'convertido';
     await presupuesto.save();
 
-    // 5. Responder con el ID del nuevo pedido
     return NextResponse.json(
       { message: 'Presupuesto convertido en pedido', pedidoId: pedidoGuardado._id.toString() },
       { status: 201 }
