@@ -7,10 +7,13 @@ connectDB();
 // --------------------------------------------------
 // GET
 // --------------------------------------------------
-export async function GET(request:any, { params }: { params: { id: string } }) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+)  {
 
   try {
-    const cliente = await Cliente.findById(params.id);
+    const cliente = await Cliente.findById((await params).id);
 
     if (!cliente) {
       return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
@@ -100,7 +103,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
   } catch (error) {
     console.error('Error al actualizar cliente:', error);
-    if (error.code === 11000) {
+    if ((error as any).code === 11000) {
       return NextResponse.json({ error: 'Dato duplicado (DNI o email ya existente).' }, { status: 409 });
     }
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
