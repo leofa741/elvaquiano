@@ -4,9 +4,12 @@ import connectDB from '@/app/lib/mongoose';
 import Pedido from '@/app/models/Pedido';
 import Presupuesto from '@/app/models/Presupuesto';
 
-export async function POST(request: NextRequest, { params }: any) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     await connectDB();
 
