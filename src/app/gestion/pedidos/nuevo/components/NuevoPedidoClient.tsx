@@ -1,6 +1,6 @@
-// app/gestion/pedidos/nuevo/NuevoPedidoClient.tsx
 'use client';
 
+import { use } from 'react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
@@ -35,11 +35,15 @@ interface ProductoEnPedido {
   tipoPrecio: 'minorista' | 'mayorista';
 }
 
+// ✅ Recibimos searchParams como Promise
 export default function NuevoPedidoClient({
-  clienteIdFromUrl,
+  searchParams,
 }: {
-  clienteIdFromUrl: string;
+  searchParams: Promise<{ clienteId?: string }>;
 }) {
+  // ✅ Usamos `use()` para leer la Promise (solo funciona dentro de <Suspense>)
+  const { clienteId: clienteIdFromUrl = '' } = use(searchParams);
+
   const isAuthorized = useAdminAuthorization();
   const router = useRouter();
 
