@@ -4,19 +4,15 @@ import { NextResponse } from 'next/server';
 
 connectDB();
 
-// Helper type (optional but clarifies)
-type Context = {
-  params: {
-    id: string;
-  };
-};
-
+// -----------------------------
+// GET
+// -----------------------------
 export async function GET(
   request: Request,
-  context: Context
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = context.params;
+    const { id } = params;
     const cliente = await Cliente.findById(id);
 
     if (!cliente) {
@@ -30,12 +26,15 @@ export async function GET(
   }
 }
 
+// -----------------------------
+// PUT
+// -----------------------------
 export async function PUT(
   request: Request,
-  context: Context
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = context.params;
+    const { id } = params;
     const body = await request.json();
 
     const {
@@ -114,12 +113,15 @@ export async function PUT(
   }
 }
 
+// -----------------------------
+// DELETE
+// -----------------------------
 export async function DELETE(
   request: Request,
-  context: Context
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = context.params;
+    const { id } = params;
 
     const cliente = await Cliente.findByIdAndUpdate(
       id,
@@ -138,12 +140,15 @@ export async function DELETE(
   }
 }
 
+// -----------------------------
+// PATCH
+// -----------------------------
 export async function PATCH(
   request: Request,
-  context: Context
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = context.params;
+    const { id } = params;
 
     const cliente = await Cliente.findByIdAndUpdate(
       id,
