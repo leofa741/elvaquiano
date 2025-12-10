@@ -91,7 +91,10 @@ export async function PUT(
   }
 }
 
-export async function GET(req: NextRequest, { params }: any) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const { id } = params;
     const cliente = await Cliente.findById(id);
@@ -105,6 +108,7 @@ export async function GET(req: NextRequest, { params }: any) {
     return NextResponse.json({ error: 'Error al cargar cliente' }, { status: 500 });
   }
 }
+
 
 
 // DELETE — Desactivar cliente
