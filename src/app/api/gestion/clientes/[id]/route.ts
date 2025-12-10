@@ -1,19 +1,16 @@
-// PUT: Actualizar cliente
 import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
 import { NextRequest, NextResponse } from 'next/server';
 
 connectDB();
 
-// Función utilitaria para obtener el ID de la URL
-function getIdFromUrl(request: NextRequest) {
-  return request.nextUrl.pathname.split("/").pop() as string;
-}
-
-// PUT
-export async function PUT(request: NextRequest) {
+// PUT — Actualizar cliente
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const id = getIdFromUrl(request);
+    const id = params.id;
     const body = await request.json();
 
     const {
@@ -94,10 +91,13 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// GET
-export async function GET(request: NextRequest) {
+// GET — Obtener cliente por ID
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const id = getIdFromUrl(request);
+    const id = params.id;
     const cliente = await Cliente.findById(id);
 
     if (!cliente) {
@@ -111,10 +111,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// DELETE
-export async function DELETE(request: NextRequest) {
+// DELETE — Desactivar cliente
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const id = getIdFromUrl(request);
+    const id = params.id;
 
     const cliente = await Cliente.findByIdAndUpdate(
       id,
@@ -133,10 +136,13 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-// PATCH
-export async function PATCH(request: NextRequest) {
+// PATCH — Reactivar cliente
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const id = getIdFromUrl(request);
+    const id = params.id;
 
     const cliente = await Cliente.findByIdAndUpdate(
       id,
