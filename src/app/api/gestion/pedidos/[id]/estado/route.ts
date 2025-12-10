@@ -7,12 +7,9 @@ import connectDB from '@/app/lib/mongoose';
 
 connectDB();
 
-export async function PATCH(
-  request: NextRequest,
-  context: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest, { params }: any) {
   try {
-    const { id } = context.params;
+    const { id } = params;
     const { estado } = await request.json();
 
     const estadosValidos = ['pendiente', 'preparacion', 'enviado', 'entregado', 'cancelado'];
@@ -27,7 +24,6 @@ export async function PATCH(
 
     const estadoAnterior = pedido.estado;
 
-    // ✅ 1. Si pasa a "preparacion", verificar y descontar stock
     if (estadoAnterior !== 'preparacion' && estado === 'preparacion') {
       for (const item of pedido.productos) {
         const producto = await Producto.findById(item.producto);
@@ -43,7 +39,6 @@ export async function PATCH(
         }
       }
 
-      // Si pasa la validación, descontar stock
       for (const item of pedido.productos) {
         const producto = await Producto.findById(item.producto);
         const stockDeposito = producto.stock.find((s: any) => s.deposito === pedido.deposito)!;
@@ -52,11 +47,10 @@ export async function PATCH(
       }
     }
 
-    // 🔁 2. Si se cancela desde "preparacion", devolver stock
     if (estadoAnterior === 'preparacion' && estado === 'cancelado') {
       for (const item of pedido.productos) {
         const producto = await Producto.findById(item.producto);
-        if (!producto) continue; // Si el producto ya no existe, ignorar
+        if (!producto) continue;
         const stockDeposito = producto.stock.find((s: any) => s.deposito === pedido.deposito);
         if (stockDeposito) {
           stockDeposito.cantidad += item.cantidad;
@@ -65,7 +59,6 @@ export async function PATCH(
       }
     }
 
-    // 📝 3. Actualizar estado del pedido
     pedido.estado = estado;
     await pedido.save();
 
@@ -73,6 +66,6 @@ export async function PATCH(
 
   } catch (error: any) {
     console.error('Error al actualizar estado del pedido:', error);
-    return NextResponse.json({ error: error.message || 'Error interno al actualizar el pedido' }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
