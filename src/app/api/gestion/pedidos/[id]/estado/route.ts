@@ -9,10 +9,10 @@ connectDB();
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
+    const { id } = context.params;
     const { estado } = await request.json();
 
     const estadosValidos = ['pendiente', 'preparacion', 'enviado', 'entregado', 'cancelado'];
