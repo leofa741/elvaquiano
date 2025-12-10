@@ -91,12 +91,9 @@ export async function PUT(
   }
 }
 
-export async function GET(
-  request: NextRequest,
-  context: { params: { id: string } }
-) {
+export async function GET(req: NextRequest, { params }: any) {
   try {
-    const { id } = context.params;
+    const { id } = params;
     const cliente = await Cliente.findById(id);
 
     if (!cliente) {
