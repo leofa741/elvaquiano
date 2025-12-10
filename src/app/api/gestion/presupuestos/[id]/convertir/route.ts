@@ -1,14 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
+import {  NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongoose';
 import Pedido from '@/app/models/Pedido';
 import Presupuesto from '@/app/models/Presupuesto';
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     await connectDB();
 
     // Obtener el ID desde la URL
-    const id = request.nextUrl.pathname.split('/').slice(-2)[0];
+    const id = request.url.split('/').slice(-2, -1)[0];
 
     const presupuesto = await Presupuesto.findById(id);
     if (!presupuesto) {
