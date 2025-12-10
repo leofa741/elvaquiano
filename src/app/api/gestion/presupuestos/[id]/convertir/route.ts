@@ -8,7 +8,7 @@ import Presupuesto from '@/app/models/Presupuesto';
 
 export async function POST(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: { params: any}
 ) {
   try {
     const { id } = context.params;
