@@ -88,7 +88,7 @@ export default function NuevoPedidoPage() {
     }
   }, [clienteIdFromUrl, clientes]);
 
-  // Actualizar fecha estimada según cliente
+  // Actualizar fecha estimada según clientes
   useEffect(() => {
     if (!clienteId) {
       setDeposito('');
