@@ -1,103 +1,40 @@
-// app/api/gestion/clientes/route.ts
 import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
 import { NextRequest, NextResponse } from 'next/server';
 import { notifyClients } from './events/clientsNotifier';
 
-
-
-
 connectDB();
 
-// POST: Crear cliente
+// POST: crear cliente
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const {
-      razonSocial,
-      nombre,
-      apellido,
-      dni,
-      telefono,
-      email,
-      direccion,
-      ciudad,
-      provincia,
-      formaPago,
-    } = body;
+  const body = await request.json();
+  const nuevoCliente = new Cliente(body);
+  const clienteGuardado = await nuevoCliente.save();
 
-    // Validaciones obligatorias
-    if (!razonSocial?.trim() || !nombre?.trim() || !apellido?.trim() || !telefono?.trim()) {
-      return NextResponse.json(
-        { error: 'Razón social, nombre, apellido y teléfono son obligatorios.' },
-        { status: 400 }
-      );
-    }
+  // Notificar a todos los clientes conectados
+  notifyClients({ type: 'nuevo_cliente', data: clienteGuardado });
 
-    // Limpiar y validar DNI
-    let dniLimpio: string | undefined;
-    if (dni?.trim()) {
-      dniLimpio = dni.replace(/\D/g, '');
-      if (dniLimpio && !/^\d{7,8}$/.test(dniLimpio)) {
-        return NextResponse.json({ error: 'DNI debe tener 7 u 8 dígitos.' }, { status: 400 });
-      }
-      const dniExistente = await Cliente.findOne({ dni: dniLimpio });
-      if (dniExistente) {
-        return NextResponse.json({ error: 'Ya existe un cliente con ese DNI.' }, { status: 409 });
-      }
-    }
-
-    // Validar email
-    let emailLimpio: string | undefined;
-    if (email?.trim()) {
-      emailLimpio = email.trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLimpio!)) {
-        return NextResponse.json({ error: 'El correo electrónico no es válido.' }, { status: 400 });
-      }
-      const emailExistente = await Cliente.findOne({ email: emailLimpio });
-      if (emailExistente) {
-        return NextResponse.json({ error: 'Ya existe un cliente con ese correo electrónico.' }, { status: 409 });
-      }
-    }
-
-    // Crear cliente
-    const nuevoCliente = new Cliente({
-      razonSocial: razonSocial.trim(),
-      nombre: nombre.trim(),
-      apellido: apellido.trim(),
-      dni: dniLimpio,
-      telefono: telefono.trim(),
-      email: emailLimpio,
-      direccion: direccion?.trim() || null,
-      ciudad: ciudad?.trim() || null,
-      provincia: provincia?.trim() || null,
-      formaPago: formaPago || 'efectivo',
-      activo: true,
-    });
-
-    const clienteGuardado = await nuevoCliente.save();
-
-    // 🔥 ENVIAR EVENTO A TODAS LAS SESIONES
-    notifyClients({ type: "nuevo_cliente", data: clienteGuardado });
-
-    return NextResponse.json(clienteGuardado, { status: 201 });
-
-  } catch (error: any) {
-    console.error('Error al crear cliente:', error);
-    if (error.code === 11000) {
-      return NextResponse.json({ error: 'Dato duplicado (DNI o email ya existente).' }, { status: 409 });
-    }
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
-  }
+  return NextResponse.json(clienteGuardado, { status: 201 });
 }
 
-// GET: Listar clientes
-export async function GET() {
-  try {
-    const clientes = await Cliente.find({}).sort({ createdAt: -1 });
-    return NextResponse.json(clientes, { status: 200 });
-  } catch (error) {
-    console.error('Error al listar clientes:', error);
-    return NextResponse.json({ error: 'Error al cargar clientes' }, { status: 500 });
-  }
+// PUT: actualizar cliente
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+  const body = await request.json();
+  const clienteActualizado = await Cliente.findByIdAndUpdate(params.id, body, { new: true });
+  notifyClients({ type: 'cliente_actualizado', data: clienteActualizado });
+  return NextResponse.json(clienteActualizado, { status: 200 });
+}
+
+// PATCH: reactivar cliente
+export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+  const cliente = await Cliente.findByIdAndUpdate(params.id, { activo: true }, { new: true });
+  notifyClients({ type: 'cliente_reactivado', data: cliente });
+  return NextResponse.json(cliente, { status: 200 });
+}
+
+// DELETE: desactivar cliente
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const cliente = await Cliente.findByIdAndUpdate(params.id, { activo: false }, { new: true });
+  notifyClients({ type: 'cliente_eliminado', data: cliente });
+  return NextResponse.json(cliente, { status: 200 });
 }

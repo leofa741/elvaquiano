@@ -132,30 +132,38 @@ export default function ClientesPage() {
   // -------------------------------
   // 🔄 Escuchar eventos SSE
   // -------------------------------
-  useEffect(() => {
-    if (!isAuthorized) return;
+ useEffect(() => {
+  if (!isAuthorized) return;
 
-    const eventSource = new EventSource('/api/gestion/clientes/events');
+  const eventSource = new EventSource('/api/gestion/clientes/events');
 
-    eventSource.onmessage = (event) => {
-      try {
-        if (event.data === 'ping') return;
-        const data = JSON.parse(event.data);
-        if (data.type === 'nuevo_cliente') {
-          setClientes((prev) => [data.data, ...prev]);
-        }
-      } catch (err) {
-        console.error('Error SSE:', err);
+  eventSource.onmessage = (event) => {
+    try {
+      if (event.data === 'ping') return;
+      const data = JSON.parse(event.data);
+
+      switch (data.type) {
+        case 'nuevo_cliente':
+          setClientes(prev => [data.data, ...prev]);
+          break;
+        case 'cliente_actualizado':
+        case 'cliente_reactivado':
+        case 'cliente_eliminado':
+          setClientes(prev => prev.map(c => (c._id === data.data._id ? data.data : c)));
+          break;
       }
-    };
+    } catch (err) {
+      console.error('Error SSE:', err);
+    }
+  };
 
-    eventSource.onerror = () => {
-      console.warn('SSE desconectado');
-      eventSource.close();
-    };
+  eventSource.onerror = () => {
+    console.warn('SSE desconectado');
+    eventSource.close();
+  };
 
-    return () => eventSource.close();
-  }, [isAuthorized]);
+  return () => eventSource.close();
+}, [isAuthorized]);
 
   // -------------------------------
   // ✅ Funciones para desactivar/reactivar clientes
