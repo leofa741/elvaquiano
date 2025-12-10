@@ -1,16 +1,41 @@
 import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 connectDB();
 
-// PUT — Actualizar cliente
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+// Helper type (optional but clarifies)
+type Context = {
+  params: {
+    id: string;
+  };
+};
+
+export async function GET(
+  request: Request,
+  context: Context
 ) {
   try {
-    const id = params.id;
+    const { id } = context.params;
+    const cliente = await Cliente.findById(id);
+
+    if (!cliente) {
+      return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
+    }
+
+    return NextResponse.json(cliente, { status: 200 });
+  } catch (error) {
+    console.error('Error al cargar cliente:', error);
+    return NextResponse.json({ error: 'Error al cargar cliente' }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  request: Request,
+  context: Context
+) {
+  try {
+    const { id } = context.params;
     const body = await request.json();
 
     const {
@@ -33,7 +58,6 @@ export async function PUT(
       );
     }
 
-    // Validar DNI
     let dniLimpio: string | null = null;
     if (dni?.trim()) {
       dniLimpio = dni.replace(/\D/g, '');
@@ -46,7 +70,6 @@ export async function PUT(
       }
     }
 
-    // Validar email
     let emailLimpio: string | null = null;
     if (email?.trim()) {
       emailLimpio = email.trim().toLowerCase();
@@ -91,33 +114,12 @@ export async function PUT(
   }
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const { id } = params;
-    const cliente = await Cliente.findById(id);
-
-    if (!cliente) {
-      return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
-    }
-
-    return NextResponse.json(cliente, { status: 200 });
-  } catch (error) {
-    return NextResponse.json({ error: 'Error al cargar cliente' }, { status: 500 });
-  }
-}
-
-
-
-// DELETE — Desactivar cliente
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: Context
 ) {
   try {
-    const id = params.id;
+    const { id } = context.params;
 
     const cliente = await Cliente.findByIdAndUpdate(
       id,
@@ -136,13 +138,12 @@ export async function DELETE(
   }
 }
 
-// PATCH — Reactivar cliente
 export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: Context
 ) {
   try {
-    const id = params.id;
+    const { id } = context.params;
 
     const cliente = await Cliente.findByIdAndUpdate(
       id,
