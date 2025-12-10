@@ -1,13 +1,12 @@
 import { NextRequest } from "next/server";
-
-let clients: any[] = [];
+import { addClient, removeClient } from "./clientsNotifier";
 
 export function GET(req: NextRequest) {
   return new Response(
     new ReadableStream({
       start(controller) {
         const encoder = new TextEncoder();
-        clients.push(controller);
+        addClient(controller);
 
         // Mantener viva la conexión
         const keepAlive = setInterval(() => {
@@ -16,7 +15,7 @@ export function GET(req: NextRequest) {
 
         req.signal.onabort = () => {
           clearInterval(keepAlive);
-          clients = clients.filter((c) => c !== controller);
+          removeClient(controller);
         };
       },
     }),
@@ -27,13 +26,5 @@ export function GET(req: NextRequest) {
         Connection: "keep-alive",
       },
     }
-  );
-}
-
-// Función para emitir eventos
-export function notifyClients(event: any) {
-  const encoder = new TextEncoder();
-  clients.forEach((controller) =>
-    controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
   );
 }
