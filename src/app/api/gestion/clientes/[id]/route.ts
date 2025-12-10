@@ -1,14 +1,14 @@
 import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 connectDB();
 
-// -----------------------------
+// --------------------------------------------------
 // GET
-// -----------------------------
+// --------------------------------------------------
 export async function GET(
-  request: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -26,16 +26,16 @@ export async function GET(
   }
 }
 
-// -----------------------------
+// --------------------------------------------------
 // PUT
-// -----------------------------
+// --------------------------------------------------
 export async function PUT(
-  request: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const { id } = params;
-    const body = await request.json();
+    const body = await req.json();
 
     const {
       razonSocial,
@@ -60,7 +60,7 @@ export async function PUT(
     let dniLimpio: string | null = null;
     if (dni?.trim()) {
       dniLimpio = dni.replace(/\D/g, '');
-      if (dniLimpio && !/^\d{7,8}$/.test(dniLimpio)) {
+      if (!/^\d{7,8}$/.test(dniLimpio)) {
         return NextResponse.json({ error: 'DNI debe tener 7 u 8 dígitos.' }, { status: 400 });
       }
       const dniExistente = await Cliente.findOne({ dni: dniLimpio, _id: { $ne: id } });
@@ -72,7 +72,7 @@ export async function PUT(
     let emailLimpio: string | null = null;
     if (email?.trim()) {
       emailLimpio = email.trim().toLowerCase();
-      if (emailLimpio && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLimpio)) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLimpio)) {
         return NextResponse.json({ error: 'El correo electrónico no es válido.' }, { status: 400 });
       }
       const emailExistente = await Cliente.findOne({ email: emailLimpio, _id: { $ne: id } });
@@ -113,11 +113,11 @@ export async function PUT(
   }
 }
 
-// -----------------------------
+// --------------------------------------------------
 // DELETE
-// -----------------------------
+// --------------------------------------------------
 export async function DELETE(
-  request: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -140,11 +140,11 @@ export async function DELETE(
   }
 }
 
-// -----------------------------
+// --------------------------------------------------
 // PATCH
-// -----------------------------
+// --------------------------------------------------
 export async function PATCH(
-  request: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
