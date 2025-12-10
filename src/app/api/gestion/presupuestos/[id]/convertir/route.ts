@@ -6,12 +6,12 @@ import connectDB from '@/app/lib/mongoose';
 import Pedido from '@/app/models/Pedido';
 import Presupuesto from '@/app/models/Presupuesto';
 
-
 export async function POST(
   request: NextRequest,
   context: { params: { id: string } }
 ) {
-  const { id } = context.params;
+  try {
+    const { id } = context.params;
 
     await connectDB();
 
