@@ -38,3 +38,14 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   notifyClients({ type: 'cliente_eliminado', data: cliente });
   return NextResponse.json(cliente, { status: 200 });
 }
+
+// GET: Listar clientes
+export async function GET() {
+  try {
+    const clientes = await Cliente.find({}).sort({ createdAt: -1 });
+    return NextResponse.json(clientes, { status: 200 });
+  } catch (error) {
+    console.error('Error al listar clientes:', error);
+    return NextResponse.json({ error: 'Error al cargar clientes' }, { status: 500 });
+  }
+}
