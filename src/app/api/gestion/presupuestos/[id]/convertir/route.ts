@@ -1,28 +1,28 @@
+import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongoose';
 import Pedido from '@/app/models/Pedido';
 import Presupuesto from '@/app/models/Presupuesto';
-import { NextApiRequest, NextApiResponse } from 'next';
 
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método no permitido' });
-  }
-
+export async function POST(request: NextRequest) {
   try {
-    const { id } = req.query;
-
-    // Conectar DB
     await connectDB();
 
-    const presupuesto = await Presupuesto.findById(id);
+    // Obtener el ID desde la URL
+    const id = request.nextUrl.pathname.split('/').slice(-2)[0];
 
+    const presupuesto = await Presupuesto.findById(id);
     if (!presupuesto) {
-      return res.status(404).json({ error: 'Presupuesto no encontrado' });
+      return NextResponse.json(
+        { error: 'Presupuesto no encontrado' },
+        { status: 404 }
+      );
     }
 
     if (presupuesto.estado === 'convertido') {
-      return res.status(400).json({ error: 'Ya está convertido' });
+      return NextResponse.json(
+        { error: 'Este presupuesto ya fue convertido' },
+        { status: 400 }
+      );
     }
 
     const nuevoPedido = new Pedido({
@@ -39,13 +39,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     presupuesto.estado = 'convertido';
     await presupuesto.save();
 
-    return res.status(201).json({
-      message: 'Presupuesto convertido',
-      pedidoId: pedidoGuardado._id,
-    });
-
+    return NextResponse.json(
+      {
+        message: 'Presupuesto convertido',
+        pedidoId: pedidoGuardado._id.toString(),
+      },
+      { status: 201 }
+    );
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: 'Error interno' });
+    console.error('Error al convertir presupuesto:', error);
+    return NextResponse.json(
+      { error: 'Error al convertir el presupuesto' },
+      { status: 500 }
+    );
   }
 }
