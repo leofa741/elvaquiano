@@ -37,6 +37,13 @@ const modules = [
         href: '/gestion/pedidos',
     },
     {
+        id: 'presupuestos',
+        title: 'Presupuestos',
+        description: 'Crear, imprimir y convertir cotizaciones en pedidos.',
+        icon: <FaFileInvoice className="text-3xl text-amber-400" />,
+        href: '/gestion/presupuestos',
+    },
+    {
         id: 'logistica',
         title: 'Reparto y Logística',
         description: 'Gestionar rutas, choferes y confirmaciones de entrega.',

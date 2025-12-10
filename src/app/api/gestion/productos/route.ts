@@ -2,7 +2,7 @@ import { authOptions } from "@/app/lib/auth";
 import connectDB from "@/app/lib/mongoose";
 import Product from "@/app/models/Product";
 import { getServerSession } from "next-auth/next";
-import { NextRequest, NextResponse as Response } from "next/server";
+import { NextRequest, NextResponse, NextResponse as Response } from "next/server";
 
 connectDB();
 
@@ -36,44 +36,52 @@ export async function GET(req: NextRequest) {
 }
 
 
+
+
+// 👇 POST: crear nuevo producto 
 export async function POST(req: NextRequest) {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || !['admin', 'superadmin'].includes(session.user.role)) {
-        return Response.json({ error: 'Acceso denegado' }, { status: 403 });
+  const session = await getServerSession(authOptions);
+  if (!session?.user || !['admin', 'superadmin'].includes(session.user.role)) {
+    return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
+  }
+
+  try {
+    const data = await req.json();
+
+    if (typeof data.precioMayorista !== 'number' || data.precioMayorista < 0) {
+      return NextResponse.json({ error: 'Precio mayorista inválido' }, { status: 400 });
+    }
+    if (typeof data.precioMinorista !== 'number' || data.precioMinorista < 0) {
+      return NextResponse.json({ error: 'Precio minorista inválido' }, { status: 400 });
     }
 
-    try {
-        const data = await req.json();
+    const productData = {
+      nombre: data.nombre,
+      categoria: data.categoria,
+      unidad: data.unidad,
+      cantidadUnidad: Number(data.cantidadUnidad),
+      precioMayorista: data.precioMayorista,
+      precioMinorista: data.precioMinorista,
+      stock: data.stock || [],
+      lotes: data.lotes || [],
+      imagen: data.imagen || null,
+    };
 
-        // ✅ Validaciones de precios
-        if (typeof data.precioMayorista !== 'number' || data.precioMayorista < 0) {
-            return Response.json({ error: 'Precio mayorista inválido' }, { status: 400 });
-        }
-        if (typeof data.precioMinorista !== 'number' || data.precioMinorista < 0) {
-            return Response.json({ error: 'Precio minorista inválido' }, { status: 400 });
-        }
-
-        // ✅ Construir el objeto con todos los campos explícitos
-        const productData = {
-            nombre: data.nombre,
-            categoria: data.categoria,
-            unidad: data.unidad,
-            cantidadUnidad: Number(data.cantidadUnidad),
-            precioMayorista: data.precioMayorista,
-            precioMinorista: data.precioMinorista,
-            stock: data.stock || [],
-            lotes: data.lotes || [],
-            imagen: data.imagen || null, // ← ✅ clave: usar null en vez de undefined
-        };
-
-        const product = new Product(productData);
-        await product.save();
-        return Response.json(product, { status: 201 });
-    } catch (error: any) {
-        console.error('Error al crear producto:', error);
-        return Response.json(
-            { error: error.message || 'Error al crear producto' },
-            { status: 400 }
-        );
+    const product = new Product(productData);
+    await product.save();
+    return NextResponse.json(product, { status: 201 });
+  } catch (error: any) {
+    console.error('Error al crear producto:', error);
+    // 👇 Agregá esto para manejar duplicados
+    if (error.code === 11000) {
+      return NextResponse.json(
+        { error: 'Ya existe un producto con ese nombre y categoría.' },
+        { status: 409 }
+      );
     }
+    return NextResponse.json(
+      { error: error.message || 'Error al crear producto' },
+      { status: 400 }
+    );
+  }
 }

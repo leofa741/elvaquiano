@@ -230,6 +230,7 @@ function PageContent() {
                     <p className="text-gray-400 mt-1">
                         Administra nombres, categorías, stock, lotes y vencimientos.
                     </p>
+                    <p className="text-gray-400 mt-1">volver a la sección de <a href="/gestion" className="text-amber-400 underline">Gestión</a>.</p>
                 </div>
                 <Link
                     href="/gestion/productos/nuevo"

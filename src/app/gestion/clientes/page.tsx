@@ -15,6 +15,9 @@ interface Cliente {
   nombre: string;
   apellido: string;
   telefono: string;
+  direccion?: string;
+  ciudad?: string;
+  provincia?: string;
   email?: string;
   dni?: string;
   activo: boolean;
@@ -26,7 +29,7 @@ export default function ClientesPage() {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  
+
   // 🔍 Filtros
   const [busqueda, setBusqueda] = useState('');
   const [paginaActual, setPaginaActual] = useState(1);
@@ -234,6 +237,8 @@ export default function ClientesPage() {
           <p className="text-gray-400 mt-1">
             Administrá contactos, datos fiscales y condiciones de tus clientes.
           </p>
+          <p className="text-gray-400 mt-1">volver a la sección de <a href="/gestion" className="text-amber-400 underline">Gestión</a>.</p>
+
         </div>
         <Link
           href="/gestion/clientes/nuevo"
@@ -301,10 +306,17 @@ export default function ClientesPage() {
                             {cliente.email && ` • ${cliente.email}`}
                             {cliente.dni && ` • DNI: ${cliente.dni}`}
                           </div>
+                          <div className="text-sm text-gray-400">
+                            {cliente.direccion && `${cliente.direccion}, `}
+                            {cliente.ciudad && `${cliente.ciudad}, `}
+                            {cliente.provincia && cliente.provincia}
+
+                          </div>
+
+
                         </div>
                       </div>
                     </div>
-
                     <div className="flex flex-wrap gap-2">
                       <Link
                         href={`/gestion/clientes/editar/${cliente._id}`}
@@ -312,6 +324,15 @@ export default function ClientesPage() {
                       >
                         Editar
                       </Link>
+
+                      {/* 👇 BOTÓN DE PEDIDO RÁPIDO */}
+                      <Link
+                        href={`/gestion/pedidos/nuevo?clienteId=${cliente._id}`}
+                        className="text-blue-400 hover:text-blue-300 text-sm font-medium flex items-center gap-1"
+                      >
+                        Pedido rápido
+                      </Link>
+
                       {cliente.activo ? (
                         <button
                           onClick={() => handleDesactivar(cliente)}
@@ -328,6 +349,7 @@ export default function ClientesPage() {
                         </button>
                       )}
                     </div>
+
                   </div>
                 </div>
               ))}

@@ -32,5 +32,8 @@ const productSchema = new Schema({
   timestamps: true,
 });
 
+
+productSchema.index({ nombre: 1, categoria: 1 }, { unique: true });
+
 const Product = models.Product || model('Product', productSchema);
 export default Product;
