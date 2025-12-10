@@ -29,10 +29,13 @@ export async function GET(
 // --------------------------------------------------
 // PUT
 // --------------------------------------------------
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const body = await request.json();
-    const { id } = params;
+    const { id } = await params;
 
     const {
       razonSocial,
@@ -113,32 +116,36 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 // --------------------------------------------------
 // DELETE
 // --------------------------------------------------
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+){
   try {
-    const cliente = await Cliente.findByIdAndUpdate(
-      params.id,
-      { activo: false },
-      { new: true }
-    );
+    const { id } = await params;
+    const clienteEliminado = await Cliente.findByIdAndDelete(id);
 
-    if (!cliente) {
+    if (!clienteEliminado) {
       return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
     }
 
-    return NextResponse.json({ message: 'Cliente desactivado con éxito' }, { status: 200 });
+    return NextResponse.json({ message: 'Cliente eliminado con éxito' }, { status: 200 });
   } catch (error) {
-    console.error('Error al desactivar cliente:', error);
-    return NextResponse.json({ error: 'Error al desactivar cliente' }, { status: 500 });
+    console.error('Error al eliminar cliente:', error);
+    return NextResponse.json({ error: 'Error al eliminar cliente' }, { status: 500 });
   }
 }
 
 // --------------------------------------------------
 // PATCH
 // --------------------------------------------------
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH (
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params;
     const cliente = await Cliente.findByIdAndUpdate(
-      params.id,
+      id,
       { activo: true },
       { new: true }
     );
