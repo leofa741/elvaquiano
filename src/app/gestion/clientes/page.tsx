@@ -135,7 +135,7 @@ export default function ClientesPage() {
   useEffect(() => {
     if (!isAuthorized) return;
 
-    const eventSource = new EventSource('/api/events');
+    const eventSource = new EventSource('/api/gestion/clientes/events');
 
     eventSource.onmessage = (event) => {
       try {
@@ -368,4 +368,3 @@ export default function ClientesPage() {
 
 
 
-   
