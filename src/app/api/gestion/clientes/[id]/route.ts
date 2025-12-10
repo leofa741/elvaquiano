@@ -8,10 +8,13 @@ import { notifyClients } from '../events/clientsNotifier';
 connectDB();
 
 // GET: obtener cliente por id
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: any }
+) {
   try {
     const cliente = await Cliente.findById(params.id);
-    if (!cliente) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
+    if (!cliente) return NextResponse.json({ error: 'Cliente no encontrado ' }, { status: 404 });
     return NextResponse.json(cliente);
   } catch (error) {
     return NextResponse.json({ error: 'Error al buscar cliente' }, { status: 500 });
