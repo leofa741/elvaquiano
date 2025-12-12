@@ -30,7 +30,7 @@ export async function GET(
 // PUT: actualizar producto (incluye detección de cambios en stock)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !isAdmin(session.user.role)) {
@@ -38,7 +38,7 @@ export async function PUT(
   }
 
   const body = await request.json();
-  const productId = params.id;
+  const productId = (await params).id;
 
   // Obtener estado anterior
   const productoAnterior = await Product.findById(productId);
