@@ -31,7 +31,14 @@ export async function GET(req: NextRequest) {
             .skip(skip)
             .limit(limit);
 
-        return Response.json({ products, total, page, totalPages: Math.ceil(total / limit) });
+        return Response.json(
+            { products, total, page, totalPages: Math.ceil(total / limit) },
+            {
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                },
+            }
+        );
     } catch (error) {
         console.error('Error al obtener productos:', error);
         return Response.json({ error: 'Error interno' }, { status: 500 });

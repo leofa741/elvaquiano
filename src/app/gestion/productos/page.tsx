@@ -120,56 +120,33 @@ function PageContent() {
     loadProducts();
   }, [currentPage, isAuthorized]);
 
-  // ✨✨✨ SSE: Escuchar eventos de stock en tiempo real ✨✨✨
-  useEffect(() => {
-   // if (!isAuthorized) return;
+// ✅ POLLING INTELIGENTE: solo cuando la pestaña está enfocada
+useEffect(() => {
+  if (!isAuthorized) return;
 
-    const eventSource = new EventSource('/api/gestion/productos/events');
+  let intervalId: NodeJS.Timeout;
 
-    eventSource.onmessage = (event) => {
-      // 👇 IGNORAR ping y mensajes vacíos
-        if (!event.data || event.data === 'ping') return;
+  const startPolling = () => {
+    // Carga inicial inmediata
+    loadProducts();
 
-      try {
-        const parsed = JSON.parse(event.data);
-
-        if (parsed.type === 'stock_modificado') {
-          const updatedProduct = parsed.data.producto;
-          const stockTotal = updatedProduct.stock.reduce((sum: number, s: any) => sum + s.cantidad, 0);
-
-          // Actualizar el producto en el estado local
-          setProducts((prev) =>
-            prev.map((p) => (p._id === updatedProduct._id ? updatedProduct : p))
-          );
-
-          // Alerta si stock bajo
-          if (parsed.data.diferencia < 0 && stockTotal < 5) {
-            toast.warn(`¡Stock bajo en ${updatedProduct.nombre}! Quedan ${stockTotal} unidades.`, {
-              autoClose: 5000,
-            });
-          }
-        }
-
-        if (parsed.type === 'producto_eliminado') {
-          const productId = parsed.data._id;
-          setProducts((prev) => prev.filter((p) => p._id !== productId));
-          toast.info('Producto eliminado', { autoClose: 3000 });
-        }
-      } catch (err) {
-        console.error('Error al procesar evento SSE:', event.data, err);
+    // Polling cada 12 segundos
+    intervalId = setInterval(() => {
+      // Solo recargar si la pestaña está visible
+      if (!document.hidden) {
+        loadProducts();
       }
-    };
+    }, 10000);
+  };
 
-    eventSource.onerror = () => {
-      console.warn('Conexión SSE perdida');
-      eventSource.close();
-    };
+  // Arrancar polling cuando autorizado
+  startPolling();
 
-    return () => {
-      eventSource.close();
-    };
-  }, []); // 👈 Solo depende de isAuthorized
-
+  // Cleanup
+  return () => {
+    if (intervalId) clearInterval(intervalId);
+  };
+}, [isAuthorized]);
   if (!isAuthorized) return null;
 
   const buildUrl = (page: number) => {
