@@ -122,13 +122,13 @@ function PageContent() {
 
   // ✨✨✨ SSE: Escuchar eventos de stock en tiempo real ✨✨✨
   useEffect(() => {
-    if (!isAuthorized) return;
+   // if (!isAuthorized) return;
 
     const eventSource = new EventSource('/api/gestion/productos/events');
 
     eventSource.onmessage = (event) => {
       // 👇 IGNORAR ping y mensajes vacíos
-      //   if (!event.data || event.data === 'ping') return;
+        if (!event.data || event.data === 'ping') return;
 
       try {
         const parsed = JSON.parse(event.data);
@@ -168,7 +168,7 @@ function PageContent() {
     return () => {
       eventSource.close();
     };
-  }, [isAuthorized]); // 👈 Solo depende de isAuthorized
+  }, []); // 👈 Solo depende de isAuthorized
 
   if (!isAuthorized) return null;
 
