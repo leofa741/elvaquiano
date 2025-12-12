@@ -4,8 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Pedido from '@/app/models/Pedido';
 import Producto from '@/app/models/Product';
 import connectDB from '@/app/lib/mongoose';
-import { notifyProducts } from '../../../productos/events/productsNotifier';
-
+import { notifyProductClients } from '../../../productos/events/productsNotifier';
 
 connectDB();
 
@@ -47,9 +46,9 @@ export async function PATCH(request: NextRequest, { params }: any) {
         stockDeposito.cantidad -= item.cantidad;
         await producto.save();
 
-        notifyProducts({ type: "stock_modificado", data: { productoId: producto._id, deposito: pedido.deposito, nuevaCantidad: stockDeposito.cantidad } });
-        
-      }
+        notifyProductClients({ type: "stock_modificado", data: { productoId: producto._id, deposito: pedido.deposito, nuevaCantidad: stockDeposito.cantidad } });
+
+     }
     }
 
     if (estadoAnterior === 'preparacion' && estado === 'cancelado') {
@@ -60,7 +59,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
         if (stockDeposito) {
           stockDeposito.cantidad += item.cantidad;
           await producto.save();
-          notifyProducts({ type: "stock_modificado", data: { productoId: producto._id, deposito: pedido.deposito, nuevaCantidad: stockDeposito.cantidad } });
+          notifyProductClients({ type: "stock_modificado", data: { productoId: producto._id, deposito: pedido.deposito, nuevaCantidad: stockDeposito.cantidad } });
         }
       }
     }
@@ -73,6 +72,6 @@ export async function PATCH(request: NextRequest, { params }: any) {
   } catch (error: any) {
     console.error('Error al actualizar estado del pedido:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
-    
+
   }
 }

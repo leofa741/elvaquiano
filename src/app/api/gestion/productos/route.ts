@@ -3,7 +3,8 @@ import connectDB from "@/app/lib/mongoose";
 import Product from "@/app/models/Product";
 import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse, NextResponse as Response } from "next/server";
-import { notifyProducts } from "./events/productsNotifier";
+import { notifyProductClients } from "./events/productsNotifier";
+
 
 connectDB();
 
@@ -71,19 +72,12 @@ export async function POST(req: NextRequest) {
     const product = new Product(productData);
     await product.save();
     // Dentro de POST, justo después de await product.save();
-notifyProducts({
-  type: 'stock_modificado',
-  data: {
-    producto: product,
-    stockAnterior: 0,
-    stockNuevo: Array.isArray(product.lotes)
-      ? product.lotes.reduce((sum: number, l: any) => sum + (l.cantidad || 0), 0)
-      : product.stock || 0,
-    diferencia: Array.isArray(product.lotes)
-      ? product.lotes.reduce((sum: number, l: any) => sum + (l.cantidad || 0), 0)
-      : product.stock || 0,
-  },
-});
+    // Notificar a los clientes conectados sobre el nuevo producto
+    notifyProductClients({
+      type: "producto_creado",
+      data: product,
+    });
+
     return NextResponse.json(product, { status: 201 });
   } catch (error: any) {
     console.error('Error al crear producto:', error);

@@ -1,22 +1,23 @@
-// app/api/gestion/productos/productsNotifier.ts
-let productStreams: ReadableStreamDefaultController[] = [];
+let clients: ReadableStreamDefaultController[] = [];
 
-export function addProductStream(controller: ReadableStreamDefaultController) {
-  productStreams.push(controller);
+export function addProductClient(controller: ReadableStreamDefaultController) {
+  clients.push(controller);
 }
 
-export function removeProductStream(controller: ReadableStreamDefaultController) {
-  productStreams = productStreams.filter(c => c !== controller);
+export function removeProductClient(controller: ReadableStreamDefaultController) {
+  clients = clients.filter((c) => c !== controller);
 }
 
-export function notifyProducts(event: { type: string; data: any }) {
+export function notifyProductClients(event: { type: string; data: any }) {
   const encoder = new TextEncoder();
-  productStreams.forEach(controller => {
+
+  clients.forEach((controller) => {
     try {
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      controller.enqueue(
+        encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+      );
     } catch (err) {
-      console.error('Error notificando SSE de productos:', err);
-      removeProductStream(controller);
+      console.error("Error notificando SSE a cliente:", err);
     }
   });
 }

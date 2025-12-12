@@ -4,7 +4,8 @@ import Product from '@/app/models/Product';
 import { authOptions } from '@/app/lib/auth';
 import { getServerSession } from 'next-auth/next';
 import { NextRequest, NextResponse } from 'next/server';
-import { notifyProducts } from '../events/productsNotifier';
+import { notifyProductClients } from '../events/productsNotifier';
+
 
 connectDB();
 
@@ -67,8 +68,8 @@ export async function PUT(
 
   // 👇 Notificar SOLO si el stock cambió
   if (stockAnterior !== stockNuevo) {
-    notifyProducts({
-      type: 'stock_modificado',
+    notifyProductClients({
+      type: "stock_modificado",
       data: {
         producto: productoActualizado,
         stockAnterior,
@@ -94,8 +95,10 @@ export async function DELETE(req: NextRequest, { params }: any) {
 
     try {
         const deleted = await Product.findByIdAndDelete(params.id);
-        notifyProducts({ type: "producto_eliminado", data: { id: params.id } });
-
+       notifyProductClients({
+      type: "producto_eliminado",
+      data: deleted,
+    });
         if (!deleted) {
             return Response.json({ error: "Producto no encontrado" }, { status: 404 });
         }
