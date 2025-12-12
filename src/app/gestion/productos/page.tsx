@@ -121,63 +121,78 @@ function PageContent() {
   }, [currentPage, isAuthorized]);
 
   // ✨✨✨ SSE: Escuchar eventos de producto en tiempo real ✨✨✨
-  useEffect(() => {
-    if (!isAuthorized) return;
+useEffect(() => {
+  if (!isAuthorized) return;
 
-    const eventSource = new EventSource('/api/gestion/productos/events');
+  const eventSource = new EventSource('/api/gestion/productos/events');
 
-    eventSource.onmessage = (event) => {
-      if (!event.data || event.data === 'ping') return;
+  eventSource.onmessage = (event) => {
+    if (!event.data || event.data === 'ping') return;
 
-      try {
-        const parsed = JSON.parse(event.data);
-        if (parsed.type === 'producto_creado') {
-          setProducts(prev => [...prev, parsed.data]);
-          toast.success('Producto creado correctamente');
-        }
+    try {
+      const parsed = JSON.parse(event.data);
 
+      // ➤ Producto creado
+      if (parsed.type === 'producto_creado') {
+        setProducts(prev => [...prev, parsed.data]);
+        toast.success('Producto creado correctamente');
+      }
 
-        // ➤ Producto actualizado (stock, precios o activo)
-        if (parsed.type === 'producto_actualizado') {
-          const updatedProduct = parsed.data;
+      // ➤ Producto actualizado (stock, precios o activo)
+      if (parsed.type === 'producto_actualizado' || parsed.type === 'stock_modificado') {
 
-          setProducts((prev) =>
-            prev.map((p) => (p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p))
-          );
+        const updatedProduct = parsed.data.producto || parsed.data;
 
-          const stockTotal = updatedProduct.stock?.reduce(
-            (sum: number, s: any) => sum + s.cantidad,
+        // ---- NORMALIZAR STOCK ----
+        let stockTotal = 0;
+
+        // stock como array (lotes)
+        if (Array.isArray(updatedProduct.stock)) {
+          stockTotal = updatedProduct.stock.reduce(
+            (sum: number, s: any) => sum + (s.cantidad || 0),
             0
           );
-
-          if (stockTotal !== undefined && stockTotal < 5) {
-            toast.warn(
-              `¡Stock bajo en ${updatedProduct.nombre}! Quedan ${stockTotal} unidades.`,
-              { autoClose: 5000 }
-            );
-          }
+        } 
+        // stock como número
+        else {
+          stockTotal = updatedProduct.stock || 0;
         }
 
-        // ➤ Producto eliminado
-        if (parsed.type === 'producto_eliminado') {
-          const productId = parsed.data._id;
-          setProducts((prev) => prev.filter((p) => p._id !== productId));
-          toast.info('Producto eliminado', { autoClose: 3000 });
-        }
+        // ---- ACTUALIZAR LISTA ----
+        setProducts((prev) =>
+          prev.map((p) => (p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p))
+        );
 
-      } catch (err) {
-        console.error('Error al procesar evento SSE:', event.data, err);
+        // ---- ALERTA STOCK BAJO ----
+        if (stockTotal < 5) {
+          toast.warn(
+            `¡Stock bajo en ${updatedProduct.nombre}! Quedan ${stockTotal} unidades.`,
+            { autoClose: 5000 }
+          );
+        }
       }
-    };
 
-    eventSource.onerror = () => {
-      console.warn('Conexión SSE perdida');
-      eventSource.close();
-    };
+      // ➤ Producto eliminado
+      if (parsed.type === 'producto_eliminado') {
+        const productId = parsed.data._id;
+        setProducts((prev) => prev.filter((p) => p._id !== productId));
+        toast.info('Producto eliminado', { autoClose: 3000 });
+      }
 
-    return () => eventSource.close();
+    } catch (err) {
+      console.error('Error al procesar evento SSE:', event.data, err);
+    }
+  };
 
-  }, [isAuthorized]);
+  eventSource.onerror = () => {
+    console.warn('Conexión SSE perdida');
+    eventSource.close();
+  };
+
+  return () => eventSource.close();
+
+}, [isAuthorized]);
+
 
 
   if (!isAuthorized) return null;
