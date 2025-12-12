@@ -103,7 +103,7 @@ export async function DELETE(req: NextRequest, { params }: any) {
         }
 
         notifyProducts({
-          type: "producto_eliminado",
+          type: "stock_modificado",
           data: deleted,
         });
 

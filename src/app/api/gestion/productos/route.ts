@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     // Notificar a los clientes conectados sobre el nuevo producto
 
     notifyProducts({
-      type: "producto_creado",
+      type: "stock_modificado",
       data: product,
     });
     return NextResponse.json(product, { status: 201 });
