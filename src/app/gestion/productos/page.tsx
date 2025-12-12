@@ -275,6 +275,15 @@ useEffect(() => {
       return `${cantidad} ${label}`;
     }
   }
+const getStockTotal = (product: any) => {
+  if (Array.isArray(product.stock)) {
+    return product.stock.reduce(
+      (sum: number, s: any) => sum + (s.cantidad || 0),
+      0
+    );
+  }
+  return product.stock || 0;
+};
 
   return (
     <div className="p-4 sm:p-6 md:p-8">
@@ -336,7 +345,8 @@ useEffect(() => {
                 </thead>
                 <tbody className="divide-y divide-gray-700">
                   {filteredProducts.map((product) => {
-                    const stockTotal = product.stock.reduce((sum, s) => sum + s.cantidad, 0);
+                   const stockTotal = getStockTotal(product);
+
                     return (
                       <tr key={product._id} className="hover:bg-gray-750 transition">
                         <td className="py-3 px-4">
