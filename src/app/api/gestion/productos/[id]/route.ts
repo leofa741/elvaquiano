@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { notifyProducts } from '../events/productsNotifier';
 
 
+import { normalizeProduct } from '../events/productsNotifier';
+
 
 
 connectDB();
@@ -31,6 +33,7 @@ export async function GET(
 }
 
 // PUT: actualizar producto (incluye detección de cambios en stock)
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -49,39 +52,24 @@ export async function PUT(
     return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
   }
 
-  // Actualizar
+  // Actualizar producto
   const productoActualizado = await Product.findByIdAndUpdate(productId, body, {
     new: true,
   });
+
   if (!productoActualizado) {
     return NextResponse.json({ error: 'Error al actualizar producto' }, { status: 500 });
   }
 
-  // Función para calcular stock total
-  const calcularStockTotal = (p: any): number => {
-    if (Array.isArray(p.lotes)) {
-      return p.lotes.reduce((sum: number, lote: any) => sum + (lote.cantidad || 0), 0);
-    }
-    return p.stock || 0;
-  };
-
-  const stockAnterior = calcularStockTotal(productoAnterior);
-  const stockNuevo = calcularStockTotal(productoActualizado);
-
-  // 🔴 IMPORTANTE: Notificar a los clientes SSE
+  // ——— NORMALIZADOR SSE ———
   notifyProducts({
     type: "producto_actualizado",
-    data: {
-      _id: productoActualizado._id,
-      precioMayorista: productoActualizado.precioMayorista,
-      precioMinorista: productoActualizado.precioMinorista,
-      stock: stockNuevo,
-      activo: productoActualizado.activo,
-    }
+    data: normalizeProduct(productoActualizado)   // 🔥 CLAVE
   });
 
   return NextResponse.json(productoActualizado, { status: 200 });
 }
+
 
 
 // PATCH y DELETE pueden implementarse de forma similar si afectan stock.
