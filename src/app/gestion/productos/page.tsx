@@ -136,7 +136,7 @@ useEffect(() => {
       if (!document.hidden) {
         loadProducts();
       }
-    }, 10000);
+    }, 80000);
   };
 
   // Arrancar polling cuando autorizado
