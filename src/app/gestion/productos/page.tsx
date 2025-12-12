@@ -128,7 +128,7 @@ function PageContent() {
 
     eventSource.onmessage = (event) => {
       // 👇 IGNORAR ping y mensajes vacíos
-      if (!event.data || event.data === 'ping') return;
+      //   if (!event.data || event.data === 'ping') return;
 
       try {
         const parsed = JSON.parse(event.data);
