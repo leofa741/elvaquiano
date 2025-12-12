@@ -12,11 +12,11 @@ const isAdmin = (role: string) => ['admin', 'superadmin'].includes(role);
 
 // GET: obtener producto por ID
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const producto = await Product.findById(params.id);
+    const producto = await Product.findById((await params).id);
     if (!producto) {
       return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
     }
