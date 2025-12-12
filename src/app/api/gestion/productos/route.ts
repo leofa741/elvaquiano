@@ -3,7 +3,8 @@ import connectDB from "@/app/lib/mongoose";
 import Product from "@/app/models/Product";
 import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse, NextResponse as Response } from "next/server";
-import { notifyProductClients } from "./events/productsNotifier";
+
+ import { notifyProducts } from './events/productsNotifier';
 
 
 connectDB();
@@ -73,11 +74,11 @@ export async function POST(req: NextRequest) {
     await product.save();
     // Dentro de POST, justo después de await product.save();
     // Notificar a los clientes conectados sobre el nuevo producto
-    notifyProductClients({
+
+    notifyProducts({
       type: "producto_creado",
       data: product,
     });
-
     return NextResponse.json(product, { status: 201 });
   } catch (error: any) {
     console.error('Error al crear producto:', error);
