@@ -120,33 +120,66 @@ function PageContent() {
     loadProducts();
   }, [currentPage, isAuthorized]);
 
-// ✅ POLLING INTELIGENTE: solo cuando la pestaña está enfocada
-useEffect(() => {
-  if (!isAuthorized) return;
+  // ✨✨✨ SSE: Escuchar eventos de producto en tiempo real ✨✨✨
+  useEffect(() => {
+    if (!isAuthorized) return;
 
-  let intervalId: NodeJS.Timeout;
+    const eventSource = new EventSource('/api/gestion/productos/events');
 
-  const startPolling = () => {
-    // Carga inicial inmediata
-    loadProducts();
+    eventSource.onmessage = (event) => {
+      if (!event.data || event.data === 'ping') return;
 
-    // Polling cada 12 segundos
-    intervalId = setInterval(() => {
-      // Solo recargar si la pestaña está visible
-      if (!document.hidden) {
-        loadProducts();
+      try {
+        const parsed = JSON.parse(event.data);
+        if (parsed.type === 'producto_creado') {
+          setProducts(prev => [...prev, parsed.data]);
+          toast.success('Producto creado correctamente');
+        }
+
+
+        // ➤ Producto actualizado (stock, precios o activo)
+        if (parsed.type === 'producto_actualizado') {
+          const updatedProduct = parsed.data;
+
+          setProducts((prev) =>
+            prev.map((p) => (p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p))
+          );
+
+          const stockTotal = updatedProduct.stock?.reduce(
+            (sum: number, s: any) => sum + s.cantidad,
+            0
+          );
+
+          if (stockTotal !== undefined && stockTotal < 5) {
+            toast.warn(
+              `¡Stock bajo en ${updatedProduct.nombre}! Quedan ${stockTotal} unidades.`,
+              { autoClose: 5000 }
+            );
+          }
+        }
+
+        // ➤ Producto eliminado
+        if (parsed.type === 'producto_eliminado') {
+          const productId = parsed.data._id;
+          setProducts((prev) => prev.filter((p) => p._id !== productId));
+          toast.info('Producto eliminado', { autoClose: 3000 });
+        }
+
+      } catch (err) {
+        console.error('Error al procesar evento SSE:', event.data, err);
       }
-    }, 80000);
-  };
+    };
 
-  // Arrancar polling cuando autorizado
-  startPolling();
+    eventSource.onerror = () => {
+      console.warn('Conexión SSE perdida');
+      eventSource.close();
+    };
 
-  // Cleanup
-  return () => {
-    if (intervalId) clearInterval(intervalId);
-  };
-}, [isAuthorized]);
+    return () => eventSource.close();
+
+  }, [isAuthorized]);
+
+
   if (!isAuthorized) return null;
 
   const buildUrl = (page: number) => {

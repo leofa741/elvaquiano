@@ -20,6 +20,7 @@ export function GET(req: NextRequest) {
           removeClient(controller);
           controller.close();
         });
+        
       },
     }),
     {

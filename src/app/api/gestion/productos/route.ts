@@ -49,6 +49,9 @@ export async function GET(req: NextRequest) {
 
 
 // 👇 POST: crear nuevo producto 
+
+
+// 👇 POST: crear nuevo producto 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !['admin', 'superadmin'].includes(session.user.role)) {
@@ -79,23 +82,25 @@ export async function POST(req: NextRequest) {
 
     const product = new Product(productData);
     await product.save();
-    // Dentro de POST, justo después de await product.save();
-    // Notificar a los clientes conectados sobre el nuevo producto
 
+    // ⬅️ **ENVIAR EVENTO SSE A TODOS LOS CLIENTES**
     notifyProducts({
-      type: "stock_modificado",
-      data: product,
+      type: 'producto_creado',
+      data: product
     });
+
     return NextResponse.json(product, { status: 201 });
+
   } catch (error: any) {
     console.error('Error al crear producto:', error);
-    // 👇 Agregá esto para manejar duplicados
+
     if (error.code === 11000) {
       return NextResponse.json(
         { error: 'Ya existe un producto con ese nombre y categoría.' },
         { status: 409 }
       );
     }
+
     return NextResponse.json(
       { error: error.message || 'Error al crear producto' },
       { status: 400 }

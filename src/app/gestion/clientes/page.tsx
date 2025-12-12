@@ -139,6 +139,7 @@ useEffect(() => {
 
   eventSource.onmessage = (event) => {
     if (event.data === 'ping') return;
+    
 
     try {
       const data = JSON.parse(event.data);

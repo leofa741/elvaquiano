@@ -9,6 +9,7 @@ export function GET(req: NextRequest) {
         const encoder = new TextEncoder();
 
         addProductClient(controller);
+        
 
         const keepAlive = setInterval(() => {
           controller.enqueue(encoder.encode("data: ping\n\n"));
