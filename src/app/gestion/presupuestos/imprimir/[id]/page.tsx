@@ -4,38 +4,26 @@ import { notFound } from 'next/navigation';
 import BotonImprimir from './BotonImprimir';
 import BotonConvertir from './BotonConvertir';
 
-/* 👇 TIPO LEAN REAL */
-interface PresupuestoLean {
-  _id: any;
-  cliente: {
-    razonSocial: string;
-  };
-  productos: {
-    nombre: string;
-    unidad: string;
-    cantidad: number;
-    tipoPrecio: string;
-    precioAplicado: number;
-  }[];
-  total: number;
-  estado: string;
-  validoHasta?: Date;
-}
-
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default async function ImprimirPresupuesto({ params }: PageProps) {
-  const { id } = await params;
-
+export default async function ImprimirPresupuesto({
+  params,
+}: {
+  params: { id: string };
+}) {
   await connectDB();
 
-  const presupuesto = await Presupuesto.findById(id)
+  const presupuesto = await Presupuesto.findById(params.id)
     .populate('cliente', 'razonSocial')
-    .lean<PresupuestoLean | null>();
+    .lean<any>(); // 👈 IMPORTANTE
 
+    console.log("Presupuesto:", presupuesto);
+
+  // ❌ No existe
   if (!presupuesto) return notFound();
+
+  // ❌ Cliente no poblado (borrado o inválido)
+  if (!presupuesto.cliente || typeof presupuesto.cliente !== 'object') {
+    return notFound();
+  }
 
   return (
     <>
@@ -58,21 +46,24 @@ export default async function ImprimirPresupuesto({ params }: PageProps) {
         </div>
 
         <div className="mb-3">
-          <strong>{presupuesto.cliente.razonSocial}</strong>
+          <p>
+            <strong>{presupuesto.cliente.razonSocial}</strong>
+          </p>
         </div>
 
         <hr className="my-2 border-gray-400" />
 
-        {presupuesto.productos.map((p, i) => (
-          <div key={i} className="flex justify-between mb-1">
-            <span>
-              {p.cantidad} {p.unidad} {p.nombre}
-              <br />
-              <span className="text-[10px]">({p.tipoPrecio})</span>
-            </span>
-            <span>${(p.cantidad * p.precioAplicado).toFixed(2)}</span>
-          </div>
-        ))}
+        {Array.isArray(presupuesto.productos) &&
+          presupuesto.productos.map((p: any, i: number) => (
+            <div key={i} className="flex justify-between mb-1">
+              <span>
+                {p.cantidad} {p.unidad} {p.nombre}
+                <br />
+                <span className="text-[10px]">({p.tipoPrecio})</span>
+              </span>
+              <span>${(p.cantidad * p.precioAplicado).toFixed(2)}</span>
+            </div>
+          ))}
 
         <hr className="my-2 border-gray-400" />
 
