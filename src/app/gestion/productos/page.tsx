@@ -139,7 +139,7 @@ useEffect(() => {
       }
 
       // ➤ Producto actualizado (stock, precios o activo)
-      if (parsed.type === 'producto_actualizado' || parsed.type === 'stock_modificado' || parsed.type === 'producto_creado') {
+      if (parsed.type === 'producto_actualizado' || parsed.type === 'stock_modificado' || parsed.type === 'pedido_creado') {
 
         const updatedProduct = parsed.data.producto || parsed.data;
 
