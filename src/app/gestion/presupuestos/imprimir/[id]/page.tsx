@@ -11,14 +11,19 @@ interface PresupuestoPoblado extends Omit<PresupuestoDocument, 'cliente'> {
   };
 }
 
-export default async function ImprimirPresupuesto({ params }: any) {
-  const { id } = await params; // ← obligatorio
+export default async function ImprimirPresupuesto({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const { id } = params;
+
 
   await connectDB();
 
   const presupuesto = await Presupuesto.findById(id)
-    .populate<{ cliente: { razonSocial: string } }>('cliente', 'razonSocial')
-    .lean<PresupuestoPoblado>();
+    .populate('cliente', 'razonSocial')
+    .lean();
 
   if (!presupuesto) return notFound();
 
