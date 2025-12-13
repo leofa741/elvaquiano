@@ -91,7 +91,7 @@ useEffect(() => {
       const parsed = JSON.parse(event.data);
 
       // ➕ Pedido creado
-      if (parsed.type === 'producto_actualizado') {
+      if (parsed.type === 'stock_modificado') {
         setPedidos(prev => [parsed.data, ...prev]);
 
         Swal.fire({
@@ -105,7 +105,7 @@ useEffect(() => {
       }
 
       // 🔄 Cambio de estado (pendiente → preparación / enviado / entregado)
-      if (parsed.type === 'producto_actualizado') {
+      if (parsed.type === 'stock_modificado') {
         setPedidos(prev =>
           prev.map(p =>
             p._id === parsed.data._id ? parsed.data : p
@@ -123,7 +123,7 @@ useEffect(() => {
       }
 
       // ❌ Pedido cancelado
-      if (parsed.type === 'producto_actualizado') {
+      if (parsed.type === 'stock_modificado') {
         setPedidos(prev =>
           prev.map(p =>
             p._id === parsed.data._id ? parsed.data : p
