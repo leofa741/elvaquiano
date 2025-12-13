@@ -1,14 +1,24 @@
-import {  NextResponse } from 'next/server';
+// app/api/gestion/presupuestos/[id]/convertir/route.ts
+import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongoose';
 import Pedido from '@/app/models/Pedido';
 import Presupuesto from '@/app/models/Presupuesto';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/lib/auth';
 
-export async function POST(request: Request) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     await connectDB();
 
-    // Obtener el ID desde la URL
-    const id = request.url.split('/').slice(-2, -1)[0];
+    const session = await getServerSession(authOptions);
+    if (!session?.user || !['admin', 'superadmin'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
+    }
+
+    const { id } = await params; // ✅ Forma correcta de obtener el ID
 
     const presupuesto = await Presupuesto.findById(id);
     if (!presupuesto) {
@@ -41,7 +51,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message: 'Presupuesto convertido',
+        message: 'Presupuesto convertido a pedido',
         pedidoId: pedidoGuardado._id.toString(),
       },
       { status: 201 }
@@ -49,7 +59,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error al convertir presupuesto:', error);
     return NextResponse.json(
-      { error: 'Error al convertir el presupuesto' },
+      { error: 'Error interno al convertir el presupuesto' },
       { status: 500 }
     );
   }

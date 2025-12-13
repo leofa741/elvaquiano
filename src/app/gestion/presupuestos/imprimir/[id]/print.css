@@ -1,0 +1,39 @@
+@media print {
+  @page {
+    size: 80mm auto; /* Ticket thermal 80mm width */
+    margin: 0;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: white !important;
+    color: black !important;
+  }
+
+  .ticket {
+    width: 80mm;
+    padding: 6mm;
+    font-family: monospace !important;
+    font-size: 11px !important;
+    line-height: 1.4;
+    margin: 0 auto !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px dashed #000;
+    margin: 6px 0;
+  }
+
+  /* Forzar que todo sea visible y sin fondos */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    background: transparent !important;
+  }
+}
