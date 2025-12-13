@@ -109,6 +109,13 @@ export default function ImprimirPresupuestoPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 p-4 flex flex-col items-center justify-start">
+      <p className="text-white text-center mb-4">
+        <strong>Presupuesto:</strong> #{presupuesto._id.slice(-6).toUpperCase()}
+        <br />
+          <span className="text-gray-400 mt-1">volver a la sección de <a href="/gestion/presupuestos" className="text-amber-400 underline">Presupuestos</a>.</span>
+      
+      </p>
+   
       <div className="ticket bg-white text-black p-4 rounded shadow max-w-[300px]">
         <div className="text-center">
           <h2 className="font-bold text-lg">PRESUPUESTO</h2>

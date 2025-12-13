@@ -78,6 +78,84 @@ useEffect(() => {
   return () => clearInterval(intervalId);
 }, [isAuthorized]);
 
+ 
+useEffect(() => {
+  if (!isAuthorized) return;
+
+  const eventSource = new EventSource('/api/gestion/pedidos/events');
+
+  eventSource.onmessage = (event) => {
+    if (!event.data || event.data === 'ping') return;
+
+    try {
+      const parsed = JSON.parse(event.data);
+
+      // ➕ Pedido creado
+      if (parsed.type === 'producto_actualizado') {
+        setPedidos(prev => [parsed.data, ...prev]);
+
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: 'Nuevo pedido creado',
+          timer: 3000,
+          showConfirmButton: false,
+        });
+      }
+
+      // 🔄 Cambio de estado (pendiente → preparación / enviado / entregado)
+      if (parsed.type === 'producto_actualizado') {
+        setPedidos(prev =>
+          prev.map(p =>
+            p._id === parsed.data._id ? parsed.data : p
+          )
+        );
+
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'info',
+          title: `Pedido actualizado a "${parsed.data.estado}"`,
+          timer: 2500,
+          showConfirmButton: false,
+        });
+      }
+
+      // ❌ Pedido cancelado
+      if (parsed.type === 'producto_actualizado') {
+        setPedidos(prev =>
+          prev.map(p =>
+            p._id === parsed.data._id ? parsed.data : p
+          )
+        );
+
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'warning',
+          title: 'Pedido cancelado',
+          timer: 3000,
+          showConfirmButton: false,
+        });
+      }
+
+    } catch (err) {
+      console.error('Error procesando SSE pedidos:', err);
+    }
+  };
+
+  eventSource.onerror = () => {
+    console.warn('SSE pedidos desconectado');
+    eventSource.close();
+  };
+
+  return () => eventSource.close();
+}, [isAuthorized]);
+
+  
+
+
   return (
     <div className="p-4 sm:p-6 md:p-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
