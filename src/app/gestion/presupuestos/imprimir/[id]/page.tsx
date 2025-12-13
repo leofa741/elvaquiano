@@ -4,6 +4,27 @@ import { notFound } from 'next/navigation';
 import BotonImprimir from './BotonImprimir';
 import BotonConvertir from './BotonConvertir';
 
+import { Types } from 'mongoose';
+
+interface PresupuestoLean {
+  _id: Types.ObjectId;
+  cliente: {
+    _id: Types.ObjectId;
+    razonSocial: string;
+  };
+  productos: Array<{
+    nombre: string;
+    unidad: string;
+    cantidad: number;
+    tipoPrecio: string;
+    precioAplicado: number;
+  }>;
+  total: number;
+  estado: string;
+  validoHasta?: Date | null;
+}
+
+
 interface PresupuestoPoblado extends Omit<PresupuestoDocument, 'cliente'> {
   cliente: {
     _id: string;
@@ -22,9 +43,8 @@ export default async function ImprimirPresupuesto({
   await connectDB();
 
   const presupuesto = await Presupuesto.findById(id)
-    .populate('cliente', 'razonSocial')
-    .lean();
-
+  .populate('cliente', 'razonSocial')
+  .lean<PresupuestoLean>();
   if (!presupuesto) return notFound();
 
   return (
