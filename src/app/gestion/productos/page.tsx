@@ -164,12 +164,12 @@ useEffect(() => {
         );
 
         // ---- ALERTA STOCK BAJO ----
-        if (stockTotal < 5) {
-          toast.warn(
-            `¡Stock bajo en ${updatedProduct.nombre}! Quedan ${stockTotal} unidades.`,
-            { autoClose: 5000 }
-          );
-        }
+        //  if (stockTotal < 5) {
+        //    toast.warn(
+        //      `¡Stock bajo en ${updatedProduct.nombre}! Quedan ${stockTotal} unidades.`,
+          //    { autoClose: 5000 }
+        //    );
+        //  }
       }
 
       // ➤ Producto eliminado

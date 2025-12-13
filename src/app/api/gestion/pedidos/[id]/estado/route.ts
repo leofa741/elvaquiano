@@ -47,7 +47,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
         await producto.save();
 
         notifyProducts({
-          type: "stock_modificado",
+          type: "pedido_creado",
           data: {
             productoId: producto._id,
             deposito: pedido.deposito,
@@ -69,7 +69,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
           await producto.save();
 
           notifyProducts({
-            type: "stock_modificado",
+            type: "pedido_cancelado",
             data: {
               productoId: producto._id,
               deposito: pedido.deposito,

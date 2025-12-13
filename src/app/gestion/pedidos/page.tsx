@@ -82,7 +82,7 @@ useEffect(() => {
 useEffect(() => {
   if (!isAuthorized) return;
 
-  const eventSource = new EventSource('/api/gestion/pedidos/events');
+  const eventSource = new EventSource('/api/gestion/productos/events');
 
   eventSource.onmessage = (event) => {
     if (!event.data || event.data === 'ping') return;
