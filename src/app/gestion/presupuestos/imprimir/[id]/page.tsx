@@ -7,20 +7,19 @@ import BotonConvertir from './BotonConvertir';
 export default async function ImprimirPresupuesto({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params; // ✅ OBLIGATORIO
+
   await connectDB();
 
-  const presupuesto = await Presupuesto.findById(params.id)
+  const presupuesto = await Presupuesto.findById(id)
     .populate('cliente', 'razonSocial')
-    .lean<any>(); // 👈 IMPORTANTE
+    .lean<any>();
 
-    console.log("Presupuesto:", presupuesto);
-
-  // ❌ No existe
   if (!presupuesto) return notFound();
 
-  // ❌ Cliente no poblado (borrado o inválido)
+  // seguridad extra
   if (!presupuesto.cliente || typeof presupuesto.cliente !== 'object') {
     return notFound();
   }
@@ -46,24 +45,21 @@ export default async function ImprimirPresupuesto({
         </div>
 
         <div className="mb-3">
-          <p>
-            <strong>{presupuesto.cliente.razonSocial}</strong>
-          </p>
+          <strong>{presupuesto.cliente.razonSocial}</strong>
         </div>
 
         <hr className="my-2 border-gray-400" />
 
-        {Array.isArray(presupuesto.productos) &&
-          presupuesto.productos.map((p: any, i: number) => (
-            <div key={i} className="flex justify-between mb-1">
-              <span>
-                {p.cantidad} {p.unidad} {p.nombre}
-                <br />
-                <span className="text-[10px]">({p.tipoPrecio})</span>
-              </span>
-              <span>${(p.cantidad * p.precioAplicado).toFixed(2)}</span>
-            </div>
-          ))}
+        {presupuesto.productos.map((p: any, i: number) => (
+          <div key={i} className="flex justify-between mb-1">
+            <span>
+              {p.cantidad} {p.unidad} {p.nombre}
+              <br />
+              <span className="text-[10px]">({p.tipoPrecio})</span>
+            </span>
+            <span>${(p.cantidad * p.precioAplicado).toFixed(2)}</span>
+          </div>
+        ))}
 
         <hr className="my-2 border-gray-400" />
 
