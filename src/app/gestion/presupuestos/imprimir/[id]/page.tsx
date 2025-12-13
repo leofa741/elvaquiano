@@ -1,51 +1,40 @@
 import connectDB from '@/app/lib/mongoose';
-import Presupuesto, { PresupuestoDocument } from '@/app/models/Presupuesto';
+import Presupuesto from '@/app/models/Presupuesto';
 import { notFound } from 'next/navigation';
 import BotonImprimir from './BotonImprimir';
 import BotonConvertir from './BotonConvertir';
 
-import { Types } from 'mongoose';
-
+/* 👇 TIPO LEAN REAL */
 interface PresupuestoLean {
-  _id: Types.ObjectId;
+  _id: any;
   cliente: {
-    _id: Types.ObjectId;
     razonSocial: string;
   };
-  productos: Array<{
+  productos: {
     nombre: string;
     unidad: string;
     cantidad: number;
     tipoPrecio: string;
     precioAplicado: number;
-  }>;
+  }[];
   total: number;
   estado: string;
-  validoHasta?: Date | null;
+  validoHasta?: Date;
 }
 
-
-interface PresupuestoPoblado extends Omit<PresupuestoDocument, 'cliente'> {
-  cliente: {
-    _id: string;
-    razonSocial: string;
-  };
-}
-
-export default async function ImprimirPresupuesto({
-  params,
-}: {
+interface PageProps {
   params: Promise<{ id: string }>;
-}) {
+}
+
+export default async function ImprimirPresupuesto({ params }: PageProps) {
   const { id } = await params;
-
-
 
   await connectDB();
 
   const presupuesto = await Presupuesto.findById(id)
-  .populate('cliente', 'razonSocial')
-  .lean<PresupuestoLean>();
+    .populate('cliente', 'razonSocial')
+    .lean<PresupuestoLean | null>();
+
   if (!presupuesto) return notFound();
 
   return (
@@ -56,17 +45,20 @@ export default async function ImprimirPresupuesto({
       >
         <div className="text-center mb-3">
           <h1 className="font-bold text-lg">PRESUPUESTO</h1>
-          <p className="text-sm">#{presupuesto._id.toString().slice(-6).toUpperCase()}</p>
+          <p className="text-sm">
+            #{presupuesto._id.toString().slice(-6).toUpperCase()}
+          </p>
 
           {presupuesto.validoHasta && (
             <p className="text-xs">
-              Válido hasta: {new Date(presupuesto.validoHasta).toLocaleDateString()}
+              Válido hasta:{' '}
+              {new Date(presupuesto.validoHasta).toLocaleDateString()}
             </p>
           )}
         </div>
 
         <div className="mb-3">
-          <p><strong>{presupuesto.cliente.razonSocial}</strong></p>
+          <strong>{presupuesto.cliente.razonSocial}</strong>
         </div>
 
         <hr className="my-2 border-gray-400" />
