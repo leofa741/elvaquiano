@@ -4,25 +4,32 @@ import { notFound } from 'next/navigation';
 import BotonImprimir from './BotonImprimir';
 import BotonConvertir from './BotonConvertir';
 
+
+
+// 🔐 Helper DEFENSIVO (clave para prod)
+function getRazonSocial(cliente: any): string {
+  if (!cliente) return 'Cliente desconocido';
+  if (typeof cliente === 'string') return 'Cliente eliminado';
+  if (typeof cliente === 'object' && 'razonSocial' in cliente) {
+    return cliente.razonSocial;
+  }
+  return 'Cliente sin nombre';
+}
+
 export default async function ImprimirPresupuesto({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params; // ✅ OBLIGATORIO
+  const { id } = params;
 
   await connectDB();
 
   const presupuesto = await Presupuesto.findById(id)
     .populate('cliente', 'razonSocial')
-    .lean<any>();
+    .lean() as any;
 
   if (!presupuesto) return notFound();
-
-  // seguridad extra
-  if (!presupuesto.cliente || typeof presupuesto.cliente !== 'object') {
-    return notFound();
-  }
 
   return (
     <>
@@ -45,7 +52,9 @@ export default async function ImprimirPresupuesto({
         </div>
 
         <div className="mb-3">
-          <strong>{presupuesto.cliente.razonSocial}</strong>
+          <p>
+            <strong>{getRazonSocial(presupuesto.cliente)}</strong>
+          </p>
         </div>
 
         <hr className="my-2 border-gray-400" />
