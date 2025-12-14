@@ -1,5 +1,6 @@
+// route.ts
 import { NextRequest } from 'next/server';
-import { addPedidoClient, removePedidoClient, notifyPedidoClients } from './pedidoClientsNotifier';
+import { addPedidoClient, removePedidoClient } from './pedidoClientsNotifier';
 
 export async function GET(req: NextRequest) {
   return new Response(
@@ -9,14 +10,22 @@ export async function GET(req: NextRequest) {
         addPedidoClient(controller);
 
         const keepAlive = setInterval(() => {
-          controller.enqueue(encoder.encode('data: ping\n\n'));
+          try {
+            controller.enqueue(encoder.encode('data: ping\n\n'));
+          } catch {
+            clearInterval(keepAlive);
+            removePedidoClient(controller);
+          }
         }, 25000);
 
         controller.enqueue(encoder.encode('data: connected\n\n'));
 
+        // Sobrescribir close para limpiar
+        const originalClose = controller.close;
         controller.close = () => {
           clearInterval(keepAlive);
           removePedidoClient(controller);
+          originalClose?.();
         };
       },
     }),
@@ -29,6 +38,3 @@ export async function GET(req: NextRequest) {
     }
   );
 }
-
-// Export para notificar cambios desde el backend
-export { notifyPedidoClients };
