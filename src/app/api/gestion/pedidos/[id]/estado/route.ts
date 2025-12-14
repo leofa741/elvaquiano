@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import Pedido from '@/app/models/Pedido';
 import Producto from '@/app/models/Product';
 import connectDB from '@/app/lib/mongoose';
-import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/route';
+import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClientsNotifier';
+
 
 connectDB();
 

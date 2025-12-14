@@ -1,21 +1,26 @@
-const clients = new Set<ReadableStreamDefaultController>();
+// app/api/gestion/pedidos/events/pedidoClientsNotifier.ts
 
-export function addPedidoClient(controller: ReadableStreamDefaultController) {
-  clients.add(controller);
+type PedidoController = ReadableStreamDefaultController<Uint8Array>;
+
+const pedidoClients = new Set<PedidoController>();
+
+export function addPedidoClient(controller: PedidoController) {
+  pedidoClients.add(controller);
 }
 
-export function removePedidoClient(controller: ReadableStreamDefaultController) {
-  clients.delete(controller);
+export function removePedidoClient(controller: PedidoController) {
+  pedidoClients.delete(controller);
 }
 
-export function notifyPedidoClients(event: any) {
-  const data = `data: ${JSON.stringify(event)}\n\n`;
+export function notifyPedidoClients(payload: any) {
   const encoder = new TextEncoder();
-  clients.forEach((controller) => {
+  const message = `data: ${JSON.stringify(payload)}\n\n`;
+
+  for (const controller of pedidoClients) {
     try {
-      controller.enqueue(encoder.encode(data));
-    } catch (err) {
-      console.error('Error notifying pedido client:', err);
+      controller.enqueue(encoder.encode(message));
+    } catch {
+      pedidoClients.delete(controller);
     }
-  });
+  }
 }

@@ -6,7 +6,8 @@ import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
 import Product from '@/app/models/Product';
 import Pedido from '@/app/models/Pedido';
-import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/route';
+import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClientsNotifier';
+
 
 // ✅ Aseguramos que los modelos se registren en Mongoose
 // (evita MissingSchemaError al usar .populate)

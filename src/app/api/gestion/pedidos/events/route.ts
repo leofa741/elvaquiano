@@ -1,14 +1,19 @@
-// route.ts
+// app/api/gestion/pedidos/events/route.ts
 import { NextRequest } from 'next/server';
-import { addPedidoClient, removePedidoClient } from './pedidoClientsNotifier';
+import {
+  addPedidoClient,
+  removePedidoClient,
+} from './pedidoClientsNotifier';
 
 export async function GET(req: NextRequest) {
   return new Response(
     new ReadableStream({
       start(controller) {
         const encoder = new TextEncoder();
+
         addPedidoClient(controller);
 
+        // keep-alive
         const keepAlive = setInterval(() => {
           try {
             controller.enqueue(encoder.encode('data: ping\n\n'));
@@ -20,12 +25,11 @@ export async function GET(req: NextRequest) {
 
         controller.enqueue(encoder.encode('data: connected\n\n'));
 
-        // Sobrescribir close para limpiar
-        const originalClose = controller.close;
+        const originalClose = controller.close.bind(controller);
         controller.close = () => {
           clearInterval(keepAlive);
           removePedidoClient(controller);
-          originalClose?.();
+          originalClose();
         };
       },
     }),
