@@ -4,7 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import Pedido from '@/app/models/Pedido';
 import Producto from '@/app/models/Product';
 import connectDB from '@/app/lib/mongoose';
+
 import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClientsNotifier';
+import { notifyProducts } from '../../../productos/events/productsNotifier';
+
 
 
 connectDB();
@@ -26,56 +29,109 @@ export async function PATCH(request: NextRequest, { params }: any) {
 
     const estadoAnterior = pedido.estado;
 
-    if (estadoAnterior !== 'preparacion' && estado === 'preparacion') {
+    /* =========================
+       1️⃣ DESCONTAR STOCK
+       pendiente → preparacion
+    ========================= */
+    if (estadoAnterior === 'pendiente' && estado === 'preparacion') {
+      // validar stock
       for (const item of pedido.productos) {
         const producto = await Producto.findById(item.producto);
         if (!producto) {
-          return NextResponse.json({ error: `Producto no encontrado: ${item.nombre}` }, { status: 400 });
+          return NextResponse.json(
+            { error: `Producto no encontrado` },
+            { status: 400 }
+          );
         }
 
-        const stockDeposito = producto.stock.find((s: any) => s.deposito === pedido.deposito);
-        if (!stockDeposito || stockDeposito.cantidad < item.cantidad) {
-          return NextResponse.json({
-            error: `Stock insuficiente para "${item.nombre}" en depósito "${pedido.deposito}". Disponible: ${stockDeposito?.cantidad || 0}`
-          }, { status: 400 });
+        const stock = producto.stock.find(
+          (s: any) => s.deposito === pedido.deposito
+        );
+
+        if (!stock || stock.cantidad < item.cantidad) {
+          return NextResponse.json(
+            {
+              error: `Stock insuficiente para "${item.nombre}" en depósito "${pedido.deposito}". Disponible: ${stock?.cantidad || 0}`,
+            },
+            { status: 400 }
+          );
         }
       }
 
+      // descontar stock
       for (const item of pedido.productos) {
         const producto = await Producto.findById(item.producto);
-        const stockDeposito = producto.stock.find((s: any) => s.deposito === pedido.deposito)!;
-        stockDeposito.cantidad -= item.cantidad;
+        const stock = producto.stock.find(
+          (s: any) => s.deposito === pedido.deposito
+        )!;
+        stock.cantidad -= item.cantidad;
         await producto.save();
 
-        notifyPedidoClients({ type: 'pedido_estado_actualizado', data: pedido });
-
-     
-     }
+        // 🔥 EVENTO DE STOCK
+         notifyProducts({
+          type: 'stock_modificado',
+          data: {
+            producto,
+            motivo: 'pedido_en_preparacion',
+            pedidoId: pedido._id,
+          },
+        });
+      }
     }
 
+    /* =========================
+       2️⃣ DEVOLVER STOCK
+       preparacion → cancelado
+    ========================= */
     if (estadoAnterior === 'preparacion' && estado === 'cancelado') {
       for (const item of pedido.productos) {
         const producto = await Producto.findById(item.producto);
         if (!producto) continue;
-        const stockDeposito = producto.stock.find((s: any) => s.deposito === pedido.deposito);
-        if (stockDeposito) {
-          stockDeposito.cantidad += item.cantidad;
+
+        const stock = producto.stock.find(
+          (s: any) => s.deposito === pedido.deposito
+        );
+
+        if (stock) {
+          stock.cantidad += item.cantidad;
           await producto.save();
 
-         notifyPedidoClients({ type: 'pedido_cancelado', data: pedido });
-
+          // 🔥 EVENTO DE STOCK
+          notifyProducts({
+            type: 'stock_modificado',
+            data: {
+              producto,
+              motivo: 'pedido_cancelado',
+              pedidoId: pedido._id,
+            },
+          });
         }
       }
     }
 
+    /* =========================
+       3️⃣ ACTUALIZAR PEDIDO
+    ========================= */
     pedido.estado = estado;
     await pedido.save();
+
+    /* =========================
+       4️⃣ EVENTO DE PEDIDO
+    ========================= */
+    notifyPedidoClients({
+      type: estado === 'cancelado'
+        ? 'pedido_cancelado'
+        : 'pedido_estado_actualizado',
+      data: pedido,
+    });
 
     return NextResponse.json(pedido, { status: 200 });
 
   } catch (error: any) {
     console.error('Error al actualizar estado del pedido:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 }
+    );
   }
 }
