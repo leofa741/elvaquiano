@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Pedido from '@/app/models/Pedido';
 import Producto from '@/app/models/Product';
 import connectDB from '@/app/lib/mongoose';
-import { notifyProducts } from '../../../productos/events/productsNotifier';
+import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/route';
 
 connectDB();
 
@@ -46,14 +46,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
         stockDeposito.cantidad -= item.cantidad;
         await producto.save();
 
-        notifyProducts({
-          type: "pedido_creado",
-          data: {
-            productoId: producto._id,
-            deposito: pedido.deposito,
-            nuevaCantidad: stockDeposito.cantidad
-          }
-        });
+        notifyPedidoClients({ type: 'pedido_estado_actualizado', data: pedido });
 
      
      }
@@ -68,14 +61,8 @@ export async function PATCH(request: NextRequest, { params }: any) {
           stockDeposito.cantidad += item.cantidad;
           await producto.save();
 
-          notifyProducts({
-            type: "pedido_cancelado",
-            data: {
-              productoId: producto._id,
-              deposito: pedido.deposito,
-              nuevaCantidad: stockDeposito.cantidad
-            }
-          });
+         notifyPedidoClients({ type: 'pedido_cancelado', data: pedido });
+
         }
       }
     }

@@ -6,6 +6,7 @@ import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
 import Product from '@/app/models/Product';
 import Pedido from '@/app/models/Pedido';
+import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/route';
 
 // ✅ Aseguramos que los modelos se registren en Mongoose
 // (evita MissingSchemaError al usar .populate)
@@ -62,6 +63,9 @@ export async function POST(request: NextRequest) {
         model: 'Product',
         select: 'nombre precio'
       });
+
+    // Notificar a los clientes conectados sobre el nuevo pedido
+    notifyPedidoClients({ type: 'pedido_creado', data: pedidoConDatos });
 
     return NextResponse.json(pedidoConDatos, { status: 201 });
 

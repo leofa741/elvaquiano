@@ -45,115 +45,126 @@ export default function PedidosPage() {
   const [loading, setLoading] = useState(true);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
 
-// Cargar pedidos con actualización automática
-useEffect(() => {
-  if (!isAuthorized) return;
+  // Cargar pedidos con actualización automática
+  useEffect(() => {
+    if (!isAuthorized) return;
 
-  // Función para cargar pedidos
-  const fetchPedidos = async () => {
-    try {
-      const res = await fetch('/api/gestion/pedidos', { cache: 'no-store' });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Error desconocido');
+    // Función para cargar pedidos
+    const fetchPedidos = async () => {
+      try {
+        const res = await fetch('/api/gestion/pedidos', { cache: 'no-store' });
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || 'Error desconocido');
+        }
+        const data = await res.json();
+        setPedidos(data);
+      } catch (err: any) {
+        console.error('Error al cargar pedidos:', err);
+        // 👇 Opcional: no mostrar alerta en cada fallo del polling
+        // Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudieron cargar los pedidos.', confirmButtonColor: '#d33' });
+      } finally {
+        setLoading(false);
       }
-      const data = await res.json();
-      setPedidos(data);
-    } catch (err: any) {
-      console.error('Error al cargar pedidos:', err);
-      // 👇 Opcional: no mostrar alerta en cada fallo del polling
-      // Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudieron cargar los pedidos.', confirmButtonColor: '#d33' });
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  // Cargar inmediatamente
-  fetchPedidos();
+    // Cargar inmediatamente
+    fetchPedidos();
 
-  // 👇 Repetir cada 12 segundos
-  const intervalId = setInterval(fetchPedidos, 12000);
+    // 👇 Repetir cada 12 segundos
+    const intervalId = setInterval(fetchPedidos, 12000);
 
-  // Limpiar el intervalo al desmontar
-  return () => clearInterval(intervalId);
-}, [isAuthorized]);
+    // Limpiar el intervalo al desmontar
+    return () => clearInterval(intervalId);
+  }, [isAuthorized]);
 
- 
-useEffect(() => {
-  if (!isAuthorized) return;
 
-  const eventSource = new EventSource('/api/gestion/productos/events');
+  useEffect(() => {
+    if (!isAuthorized) return;
 
-  eventSource.onmessage = (event) => {
-    if (!event.data || event.data === 'ping') return;
+    const eventSource = new EventSource('/api/gestion/pedidos/events');
 
-    try {
-      const parsed = JSON.parse(event.data);
+    eventSource.onmessage = (event) => {
+      if (!event.data) return;
 
-      // ➕ Pedido creado
-      if (parsed.type === 'pedido_creado') {
-        setPedidos(prev => [parsed.data, ...prev]);
+      const dataStr = event.data.trim();
 
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'success',
-          title: 'Nuevo pedido creado',
-          timer: 3000,
-          showConfirmButton: false,
-        });
+      // Ignorar mensajes de control o que no sean JSON
+      if (dataStr === 'ping' || dataStr === 'connected') return;
+      if (!dataStr.startsWith('{')) return;
+      console.log('SSE pedido recibido:', event.data);
+
+      try {
+        const parsed = JSON.parse(event.data);
+
+        // ➕ Pedido creado
+        if (parsed.type === 'pedido_creado') {
+          setPedidos(prev => [parsed.data, ...prev]);
+
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Nuevo pedido creado',
+            timer: 3000,
+            showConfirmButton: false,
+          });
+        }
+
+        // 🔄 Cambio de estado (pendiente → preparación / enviado / entregado)
+        if (parsed.type === 'pedido_estado_actualizado') {
+          setPedidos(prev =>
+            prev.map(p =>
+              p._id === parsed.data._id ? parsed.data : p
+            )
+          );
+          const nuevoEstado = parsed.data.estado as 'pendiente' | 'preparacion' | 'enviado' | 'entregado' | 'cancelado';
+       
+          const estadoLabel = nuevoEstado;
+
+
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'info',
+            title: `Pedido actualizado a "${estadoLabel}"`,
+            timer: 2500,
+            showConfirmButton: false,
+          });
+        }
+
+        // ❌ Pedido cancelado
+        if (parsed.type === 'pedido_cancelado') {
+          setPedidos(prev =>
+            prev.map(p =>
+              p._id === parsed.data._id ? parsed.data : p
+            )
+          );
+
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'warning',
+            title: 'Pedido cancelado',
+            timer: 3000,
+            showConfirmButton: false,
+          });
+        }
+
+      } catch (err) {
+        console.error('Error procesando SSE pedidos:', err);
       }
+    };
 
-      // 🔄 Cambio de estado (pendiente → preparación / enviado / entregado)
-      if (parsed.type === 'pedido_estado_actualizado') {
-        setPedidos(prev =>
-          prev.map(p =>
-            p._id === parsed.data._id ? parsed.data : p
-          )
-        );
+    eventSource.onerror = () => {
+      console.warn('SSE pedidos desconectado');
+      eventSource.close();
+    };
 
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'info',
-          title: `Pedido actualizado a "${parsed.data.estado}"`,
-          timer: 2500,
-          showConfirmButton: false,
-        });
-      }
+    return () => eventSource.close();
+  }, [isAuthorized]);
 
-      // ❌ Pedido cancelado
-      if (parsed.type === 'pedido_cancelado') {
-        setPedidos(prev =>
-          prev.map(p =>
-            p._id === parsed.data._id ? parsed.data : p
-          )
-        );
 
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'warning',
-          title: 'Pedido cancelado',
-          timer: 3000,
-          showConfirmButton: false,
-        });
-      }
-
-    } catch (err) {
-      console.error('Error procesando SSE pedidos:', err);
-    }
-  };
-
-  eventSource.onerror = () => {
-    console.warn('SSE pedidos desconectado');
-    eventSource.close();
-  };
-
-  return () => eventSource.close();
-}, [isAuthorized]);
-
-  
 
 
   return (
@@ -202,10 +213,10 @@ useEffect(() => {
                       <div className="flex items-start gap-3">
                         <div>
 
-                           <div className="font-medium text-white">
+                          <div className="font-medium text-white">
                             Pedido # {pedido._id.slice(-6).toUpperCase()}
                           </div>
-                          
+
                           <div className="font-medium text-white">
                             {pedido.cliente.razonSocial}
                           </div>

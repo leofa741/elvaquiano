@@ -27,7 +27,7 @@ const productSchema = new Schema({
   stock: [stockSchema],
   lotes: [loteSchema],
   activo: { type: Boolean, default: true },
-  imagen: { type: String }, // ✅ ← AGREGA ESTA LÍNEA
+  imagen: { type: String }, 
 }, {
   timestamps: true,
 });
