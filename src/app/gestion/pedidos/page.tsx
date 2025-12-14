@@ -1,22 +1,31 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
-import Link from 'next/link';
-import { FaShoppingCart, FaPlus, FaClock, FaWarehouse, FaDollarSign, FaEye } from 'react-icons/fa';
+import {
+  FaShoppingCart,
+  FaPlus,
+  FaClock,
+  FaDollarSign,
+  FaEye,
+} from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
+/* =======================
+   TIPOS
+======================= */
 interface ClientePedido {
-  _id: string;
+  _id?: string;
   razonSocial: string;
 }
 
 interface ProductoPedido {
-  nombre: string;
+  nombre?: string;
   cantidad: number;
-  tipoPrecio: 'minorista' | 'mayorista';
+  tipoPrecio?: 'minorista' | 'mayorista';
 }
 
 interface Pedido {
@@ -27,11 +36,16 @@ interface Pedido {
   deposito: string;
   fechaEstimadaEntrega?: string;
   total: number;
-  createdAt: string;
+  createdAt?: string;
 }
 
-// Colores por estado
-const ESTADO_CONFIG = {
+/* =======================
+   CONFIG ESTADOS
+======================= */
+const ESTADO_CONFIG: Record<
+  Pedido['estado'],
+  { label: string; color: string; text: string }
+> = {
   pendiente: { label: 'Pendiente', color: 'bg-gray-500', text: 'text-gray-200' },
   preparacion: { label: 'En preparación', color: 'bg-amber-600', text: 'text-white' },
   enviado: { label: 'Enviado', color: 'bg-blue-600', text: 'text-white' },
@@ -39,219 +53,209 @@ const ESTADO_CONFIG = {
   cancelado: { label: 'Cancelado', color: 'bg-red-600', text: 'text-white' },
 };
 
+/* =======================
+   SANITIZADOR (CLAVE)
+======================= */
+const sanitizePedido = (p: any): Pedido => ({
+  _id: String(p?._id ?? ''),
+  cliente: p?.cliente ?? { razonSocial: 'Cliente desconocido' },
+  productos: Array.isArray(p?.productos) ? p.productos : [],
+  estado: p?.estado ?? 'pendiente',
+  deposito: p?.deposito ?? '-',
+  fechaEstimadaEntrega: p?.fechaEstimadaEntrega,
+  total: Number(p?.total) || 0,
+  createdAt: p?.createdAt,
+});
+
+/* =======================
+   COMPONENTE
+======================= */
 export default function PedidosPage() {
   const isAuthorized = useAdminAuthorization();
   const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
 
-  // Cargar pedidos con actualización automática
+  /* =======================
+     FETCH INICIAL + POLLING
+  ======================= */
   useEffect(() => {
     if (!isAuthorized) return;
 
-    // Función para cargar pedidos
     const fetchPedidos = async () => {
       try {
         const res = await fetch('/api/gestion/pedidos', { cache: 'no-store' });
-        if (!res.ok) {
-          const error = await res.json();
-          throw new Error(error.error || 'Error desconocido');
-        }
         const data = await res.json();
-        setPedidos(data);
-      } catch (err: any) {
+
+        const list = Array.isArray(data)
+          ? data.map(sanitizePedido)
+          : [];
+
+        setPedidos(list);
+      } catch (err) {
         console.error('Error al cargar pedidos:', err);
-        // 👇 Opcional: no mostrar alerta en cada fallo del polling
-        // Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudieron cargar los pedidos.', confirmButtonColor: '#d33' });
       } finally {
         setLoading(false);
       }
     };
 
-    // Cargar inmediatamente
     fetchPedidos();
-
-    // 👇 Repetir cada 12 segundos
-    const intervalId = setInterval(fetchPedidos, 12000);
-
-    // Limpiar el intervalo al desmontar
-    return () => clearInterval(intervalId);
+    const interval = setInterval(fetchPedidos, 12000);
+    return () => clearInterval(interval);
   }, [isAuthorized]);
 
-
+  /* =======================
+     SSE
+  ======================= */
   useEffect(() => {
     if (!isAuthorized) return;
 
-    const eventSource = new EventSource('/api/gestion/pedidos/events');
+    const es = new EventSource('/api/gestion/pedidos/events');
 
-    eventSource.onmessage = (event) => {
+    es.onmessage = (event) => {
       if (!event.data) return;
-
-      const dataStr = event.data.trim();
-
-      // Ignorar mensajes de control o que no sean JSON
-      if (dataStr === 'ping' || dataStr === 'connected') return;
-      if (!dataStr.startsWith('{')) return;
-      console.log('SSE pedido recibido:', event.data);
+      if (event.data === 'ping' || event.data === 'connected') return;
+      if (!event.data.startsWith('{')) return;
 
       try {
         const parsed = JSON.parse(event.data);
 
-        // ➕ Pedido creado
         if (parsed.type === 'pedido_creado') {
-          setPedidos(prev => [parsed.data, ...prev]);
+          setPedidos((prev) => [
+            sanitizePedido(parsed.data),
+            ...prev,
+          ]);
 
           Swal.fire({
             toast: true,
             position: 'top-end',
             icon: 'success',
             title: 'Nuevo pedido creado',
-            timer: 3000,
-            showConfirmButton: false,
-          });
-        }
-
-        // 🔄 Cambio de estado (pendiente → preparación / enviado / entregado)
-        if (parsed.type === 'pedido_estado_actualizado') {
-          setPedidos(prev =>
-            prev.map(p =>
-              p._id === parsed.data._id ? parsed.data : p
-            )
-          );
-          const nuevoEstado = parsed.data.estado as 'pendiente' | 'preparacion' | 'enviado' | 'entregado' | 'cancelado';
-       
-          const estadoLabel = nuevoEstado;
-
-
-          Swal.fire({
-            toast: true,
-            position: 'top-end',
-            icon: 'info',
-            title: `Pedido actualizado a "${estadoLabel}"`,
             timer: 2500,
             showConfirmButton: false,
           });
         }
 
-        // ❌ Pedido cancelado
-        if (parsed.type === 'pedido_cancelado') {
-          setPedidos(prev =>
-            prev.map(p =>
-              p._id === parsed.data._id ? parsed.data : p
+        if (
+          parsed.type === 'pedido_estado_actualizado' ||
+          parsed.type === 'pedido_cancelado'
+        ) {
+          setPedidos((prev) =>
+            prev.map((p) =>
+              p._id === parsed.data._id
+                ? sanitizePedido(parsed.data)
+                : p
             )
           );
 
           Swal.fire({
             toast: true,
             position: 'top-end',
-            icon: 'warning',
-            title: 'Pedido cancelado',
-            timer: 3000,
+            icon: 'info',
+            title: 'Pedido actualizado',
+            timer: 2500,
             showConfirmButton: false,
           });
         }
-
       } catch (err) {
-        console.error('Error procesando SSE pedidos:', err);
+        console.error('Error procesando SSE:', err);
       }
     };
 
-    eventSource.onerror = () => {
+    es.onerror = () => {
       console.warn('SSE pedidos desconectado');
-      eventSource.close();
+      es.close();
     };
 
-    return () => eventSource.close();
+    return () => es.close();
   }, [isAuthorized]);
 
-
-
-
+  /* =======================
+     RENDER
+  ======================= */
   return (
     <div className="p-4 sm:p-6 md:p-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      {/* HEADER */}
+      <div className="flex flex-col sm:flex-row sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
             <FaShoppingCart className="text-amber-400" />
             Gestión de Pedidos
           </h1>
           <p className="text-gray-400 mt-1">
-            Cargar, seguir y gestionar pedidos desde el inicio hasta la entrega.
+            Seguimiento completo de pedidos.
           </p>
-          <p className="text-gray-400 mt-1">volver a la sección de <a href="/gestion" className="text-amber-400 underline">Gestión</a>.</p>
         </div>
+
         <Link
           href="/gestion/pedidos/nuevo"
-          className="bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-4 rounded-lg transition flex items-center gap-2"
+          className="bg-amber-600 hover:bg-amber-700 text-white py-2 px-4 rounded-lg flex items-center gap-2"
         >
-          <FaPlus />
-          Nuevo Pedido
+          <FaPlus /> Nuevo Pedido
         </Link>
       </div>
 
-      {/* Listado */}
+      {/* LISTADO */}
       <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
         {loading ? (
-          <div className="p-6 text-center text-gray-300">Cargando pedidos...</div>
+          <div className="p-6 text-center text-gray-300">
+            Cargando pedidos...
+          </div>
         ) : pedidos.length === 0 ? (
           <div className="p-6 text-center text-gray-400">
-            No hay pedidos registrados.{' '}
-            <Link href="/gestion/pedidos/nuevo" className="text-amber-400 hover:underline">
-              Crear uno nuevo
-            </Link>
+            No hay pedidos registrados.
           </div>
         ) : (
           <div className="divide-y divide-gray-700">
             {pedidos.map((pedido) => {
-              const estado = ESTADO_CONFIG[pedido.estado] || ESTADO_CONFIG.pendiente;
-              const totalProductos = pedido.productos.reduce((sum, p) => sum + p.cantidad, 0);
+              const estado = ESTADO_CONFIG[pedido.estado];
+              const totalProductos = pedido.productos.reduce(
+                (sum, p) => sum + (p?.cantidad || 0),
+                0
+              );
 
               return (
-                <div key={pedido._id} className="p-4 hover:bg-gray-750 transition">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-start gap-3">
-                        <div>
-
-                          <div className="font-medium text-white">
-                            Pedido # {pedido._id.slice(-6).toUpperCase()}
-                          </div>
-
-                          <div className="font-medium text-white">
-                            {pedido.cliente.razonSocial}
-                          </div>
-                          <div className="text-sm text-gray-300">
-                            {totalProductos} producto(s) • {pedido.deposito}
-                          </div>
-                          <div className="text-sm text-gray-400 mt-1">
-                            <span className="flex items-center gap-1">
-                              <FaDollarSign className="text-xs" />
-                              ${pedido.total.toFixed(2)}
-                            </span>
-                            {pedido.fechaEstimadaEntrega && (
-                              <span className="ml-3 flex items-center gap-1">
-                                <FaClock className="text-xs" />
-                                Entrega: {new Date(pedido.fechaEstimadaEntrega).toLocaleDateString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                <div key={pedido._id} className="p-4 hover:bg-gray-750">
+                  <div className="flex flex-col md:flex-row md:justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-white">
+                        Pedido #{pedido._id.slice(-6).toUpperCase()}
+                      </div>
+                      <div className="text-gray-300">
+                        {pedido.cliente?.razonSocial ?? 'Cliente desconocido'}
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        {totalProductos} producto(s) • {pedido.deposito}
+                      </div>
+                      <div className="text-sm text-gray-400 flex gap-3 mt-1">
+                        <span className="flex items-center gap-1">
+                          <FaDollarSign />
+                          ${pedido.total.toFixed(2)}
+                        </span>
+                        {pedido.fechaEstimadaEntrega && (
+                          <span className="flex items-center gap-1">
+                            <FaClock />
+                            {new Date(
+                              pedido.fechaEstimadaEntrega
+                            ).toLocaleDateString()}
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      {/* Estado con color */}
-                      <span className={`px-2 py-1 text-xs rounded-full ${estado.color} ${estado.text}`}>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`px-2 py-1 text-xs rounded-full ${estado.color} ${estado.text}`}
+                      >
                         {estado.label}
                       </span>
 
-                      {/* Botón ver detalle */}
                       <Link
                         href={`/gestion/pedidos/${pedido._id}`}
-                        className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center gap-1"
+                        className="text-amber-400 hover:text-amber-300 flex items-center gap-1"
                       >
-                        <FaEye />
-                        Ver
+                        <FaEye /> Ver
                       </Link>
                     </div>
                   </div>

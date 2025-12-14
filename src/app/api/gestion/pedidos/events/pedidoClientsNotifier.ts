@@ -15,7 +15,7 @@ export function notifyPedidoClients(event: any) {
     try {
       controller.enqueue(encoder.encode(data));
     } catch (err) {
-      console.error('Error notifying pedido cliente:', err);
+      console.error('Error notifying pedido client:', err);
     }
   });
 }
