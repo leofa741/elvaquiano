@@ -186,6 +186,9 @@ export default function PedidosPage() {
           <p className="text-gray-400 mt-1">
             Seguimiento completo de pedidos.
           </p>
+          <p className="text-gray-400 text-sm">volver a gestion 
+            <Link href="/gestion" className="underline hover:text-amber-400"> Gestión </Link>
+          </p>
         </div>
 
         <Link
