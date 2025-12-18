@@ -52,6 +52,9 @@ export default function EditProductPage() {
     imagen: '' as string | null,
   });
 
+  // ✅ Nuevo estado para categoría
+  const [categoriaMode, setCategoriaMode] = useState<'select' | 'custom'>('select');
+
   const [displayPrecios, setDisplayPrecios] = useState({
     precioLista: '',
     precioMayorista: '',
@@ -69,35 +72,39 @@ export default function EditProductPage() {
   // ✅ Nuevo estado: cantidades a sumar
   const [stockToAdd, setStockToAdd] = useState<number[]>([]);
 
-  // Modo para depósitos: null = select, string = valor personalizado
+  // Modo para depósitos
   const [stockDepositMode, setStockDepositMode] = useState<(string | null)[]>([null]);
   const [loteDepositMode, setLoteDepositMode] = useState<(string | null)[]>([null]);
 
-  // Cargar depósitos desde la API
+  // Cargar depósitos y categorías
   const [depositos, setDepositos] = useState<string[]>([]);
-  const [loadingDepositos, setLoadingDepositos] = useState(true);
+  const [categorias, setCategorias] = useState<string[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(true);
 
   useEffect(() => {
-    const fetchDepositos = async () => {
+    const fetchOptions = async () => {
       try {
-        const res = await fetch('/api/gestion/depositos');
-        if (res.ok) {
-          const data = await res.json();
-          setDepositos(Array.isArray(data) ? data : []);
-        } else {
-          toast.error('Error al cargar depósitos');
-          setDepositos([]);
-        }
+        const [resDepositos, resCategorias] = await Promise.all([
+          fetch('/api/gestion/depositos'),
+          fetch('/api/gestion/categorias')
+        ]);
+
+        const depositosData = resDepositos.ok ? await resDepositos.json() : [];
+        const categoriasData = resCategorias.ok ? await resCategorias.json() : [];
+
+        setDepositos(Array.isArray(depositosData) ? depositosData : []);
+        setCategorias(Array.isArray(categoriasData) ? categoriasData : []);
       } catch (err) {
         console.error(err);
-        toast.error('Error de red al cargar depósitos');
+        toast.error('Error al cargar opciones');
         setDepositos([]);
+        setCategorias([]);
       } finally {
-        setLoadingDepositos(false);
+        setLoadingOptions(false);
       }
     };
 
-    fetchDepositos();
+    fetchOptions();
   }, []);
 
   // Cargar producto
@@ -131,7 +138,14 @@ export default function EditProductPage() {
           imagen: data.imagen || null,
         });
 
-        // Formatear precios para display
+        // Inicializar modo de categoría
+        if (categorias.includes(data.categoria)) {
+          setCategoriaMode('select');
+        } else {
+          setCategoriaMode('custom');
+        }
+
+        // Formatear precios
         setDisplayPrecios({
           precioLista: data.precioLista ? data.precioLista.toLocaleString('es-AR') : '',
           precioMayorista: data.precioMayorista ? data.precioMayorista.toLocaleString('es-AR') : '',
@@ -140,13 +154,13 @@ export default function EditProductPage() {
 
         setPreview(data.imagen || null);
 
-        // Inicializar stock, modos y cantidades a sumar
+        // Inicializar stock
         const initialStock = data.stock?.length
           ? data.stock.map((s) => ({ ...s }))
           : [{ deposito: '', cantidad: 0 }];
         setStock(initialStock);
         setStockDepositMode(initialStock.map(() => null));
-        setStockToAdd(initialStock.map(() => 0)); // ✅ inicializar con ceros
+        setStockToAdd(initialStock.map(() => 0));
       } catch (err) {
         console.error(err);
         toast.error('Error al cargar el producto');
@@ -157,7 +171,7 @@ export default function EditProductPage() {
     };
 
     loadProduct();
-  }, [id, router]);
+  }, [id, router, categorias]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -209,14 +223,14 @@ export default function EditProductPage() {
   const addStockField = () => {
     setStock([...stock, { deposito: '', cantidad: 0 }]);
     setStockDepositMode(prev => [...prev, null]);
-    setStockToAdd(prev => [...prev, 0]); // ✅
+    setStockToAdd(prev => [...prev, 0]);
   };
 
   const removeStockField = (index: number) => {
     if (stock.length > 1) {
       setStock(stock.filter((_, i) => i !== index));
       setStockDepositMode(prev => prev.filter((_, i) => i !== index));
-      setStockToAdd(prev => prev.filter((_, i) => i !== index)); // ✅
+      setStockToAdd(prev => prev.filter((_, i) => i !== index));
     }
   };
 
@@ -323,7 +337,6 @@ export default function EditProductPage() {
         toast.error('Todos los depósitos deben tener nombre.');
         return false;
       }
-      // Validar cantidad final (existente + a sumar)
       const total = s.cantidad + (stockToAdd[stock.indexOf(s)] || 0);
       if (total <= 0) {
         toast.error('El stock total debe ser mayor a 0.');
@@ -410,7 +423,6 @@ export default function EditProductPage() {
           (l.cantidad && l.cantidad > 0)
       );
 
-      // ✅ Actualizar stock: sumar las cantidades
       const updatedStock = stock.map((item, i) => ({
         ...item,
         cantidad: item.cantidad + (stockToAdd[i] || 0),
@@ -424,7 +436,7 @@ export default function EditProductPage() {
         precioLista: form.precioLista,
         precioMayorista: form.precioMayorista,
         precioMinorista: form.precioMinorista,
-        stock: updatedStock, // ✅
+        stock: updatedStock,
         lotes: lotesFiltrados,
         imagen: imageUrl,
       };
@@ -499,14 +511,54 @@ export default function EditProductPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Categoría *</label>
-              <input
-                type="text"
-                name="categoria"
-                value={form.categoria}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                required
-              />
+              {categoriaMode === 'select' ? (
+                <div className="flex gap-1">
+                  <select
+                    value={form.categoria}
+                    onChange={(e) => {
+                      if (e.target.value === '__OTRO__') {
+                        setCategoriaMode('custom');
+                        setForm(prev => ({ ...prev, categoria: '' }));
+                      } else {
+                        setForm(prev => ({ ...prev, categoria: e.target.value }));
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    disabled={loadingOptions}
+                  >
+                    <option value="">Seleccionar categoría</option>
+                    {categorias.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                    <option value="__OTRO__">➕ Agregar nueva categoría</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setCategoriaMode('custom')}
+                    className="px-2 bg-gray-600 text-white rounded self-end"
+                  >
+                    X
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    name="categoria"
+                    value={form.categoria}
+                    onChange={handleChange}
+                    className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCategoriaMode('select')}
+                    className="px-2 bg-gray-600 text-white rounded self-end"
+                  >
+                    X
+                  </button>
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Unidad</label>
@@ -604,7 +656,6 @@ export default function EditProductPage() {
             <div className="space-y-3">
               {stock.map((s, i) => (
                 <div key={i} className="flex gap-2 items-start">
-                  {/* Depósito */}
                   {stockDepositMode[i] !== null ? (
                     <div className="flex-1 flex gap-1">
                       <input
@@ -631,7 +682,7 @@ export default function EditProductPage() {
                       value={s.deposito}
                       onChange={(e) => handleStockDepositoSelect(i, e.target.value)}
                       className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
-                      disabled={loadingDepositos}
+                      disabled={loadingOptions}
                     >
                       <option value="">Seleccionar depósito</option>
                       {depositos.map(dep => (
@@ -641,7 +692,6 @@ export default function EditProductPage() {
                     </select>
                   )}
 
-                  {/* Cantidad actual (solo lectura) */}
                   <div className="w-24">
                     <label className="block text-xs text-gray-400">Actual</label>
                     <input
@@ -652,7 +702,6 @@ export default function EditProductPage() {
                     />
                   </div>
 
-                  {/* Agregar cantidad */}
                   <div className="w-24">
                     <label className="block text-xs text-gray-400">+ Agregar</label>
                     <input
@@ -709,7 +758,6 @@ export default function EditProductPage() {
                     onChange={(e) => handleLoteChange(i, 'vencimiento', e.target.value)}
                     className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
                   />
-                  {/* Depósito del lote */}
                   {loteDepositMode[i] !== null ? (
                     <div className="flex gap-1">
                       <input
@@ -736,7 +784,7 @@ export default function EditProductPage() {
                       value={l.deposito}
                       onChange={(e) => handleLoteDepositoSelect(i, e.target.value)}
                       className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
-                      disabled={loadingDepositos}
+                      disabled={loadingOptions}
                     >
                       <option value="">Seleccionar depósito</option>
                       {depositos.map(dep => (

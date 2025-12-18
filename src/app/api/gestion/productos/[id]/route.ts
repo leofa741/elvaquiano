@@ -30,11 +30,13 @@ export async function GET(
   }
 }
 
-// PUT: actualizar producto (incluye detección de cambios en stock)
+// PUT: actualizar producto 
+// PUT: actualizar producto (acepta actualizaciones parciales)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: any }
-){
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !isAdmin(session.user.role)) {
@@ -42,55 +44,78 @@ export async function PUT(
   }
 
   const body = await request.json();
-  const productId = params.id;
+  const productId = id;
 
-  // 🔒 NORMALIZAR PRECIOS (CLAVE)
-  const precioLista = Number(body.precioLista);
-  const precioMayorista = Number(body.precioMayorista);
-  const precioMinorista = Number(body.precioMinorista);
-
-  // ❌ Validaciones de tipo y rango
-  if (
-    Number.isNaN(precioLista) ||
-    Number.isNaN(precioMayorista) ||
-    Number.isNaN(precioMinorista) ||
-    precioLista < 0 ||
-    precioMayorista < 0 ||
-    precioMinorista < 0
-  ) {
-    return NextResponse.json({ error: 'Precios inválidos' }, { status: 400 });
-  }
-
-  // ❌ Coherencia de precios
-  if (precioLista > precioMayorista) {
-    return NextResponse.json(
-      { error: 'El precio mayorista no puede ser menor que el precio de lista.' },
-      { status: 400 }
-    );
-  }
-
-  if (precioMayorista > precioMinorista) {
-    return NextResponse.json(
-      { error: 'El precio minorista no puede ser menor que el mayorista.' },
-      { status: 400 }
-    );
-  }
-
-  // 🔍 Producto anterior
-  const productoAnterior = await Product.findById(productId);
-  if (!productoAnterior) {
+  // 🔍 Verificar que el producto existe
+  const productoExistente = await Product.findById(productId);
+  if (!productoExistente) {
     return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
   }
 
-  // ✅ Actualizar
-  const productoActualizado = await Product.findByIdAndUpdate(
-    productId,
-    {
+  // 🧠 Determinar si es una actualización PARCIAL o COMPLETA
+  const esParcial = !('nombre' in body); // Si no se envía 'nombre', asumimos parcial
+
+  let updateData: any = {};
+
+  if (esParcial) {
+    // ✅ Actualización parcial: solo campos específicos
+    if (body.activo !== undefined) updateData.activo = body.activo;
+    if (body.lotes !== undefined) updateData.lotes = body.lotes;
+
+    // ✅ Manejo seguro de stockMinimoAlerta
+    if (body.stockMinimoAlerta !== undefined) {
+      if (body.stockMinimoAlerta === null || body.stockMinimoAlerta === '') {
+        updateData.stockMinimoAlerta = undefined; // elimina el campo
+      } else {
+        const valor = Number(body.stockMinimoAlerta);
+        if (!isNaN(valor) && valor >= 0) {
+          updateData.stockMinimoAlerta = valor;
+        }
+        // Si es NaN o negativo, simplemente no lo incluimos
+      }
+    }
+  } else {
+    // 🔒 Actualización completa: validar TODO
+    const precioLista = Number(body.precioLista);
+    const precioMayorista = Number(body.precioMayorista);
+    const precioMinorista = Number(body.precioMinorista);
+
+    if (
+      Number.isNaN(precioLista) ||
+      Number.isNaN(precioMayorista) ||
+      Number.isNaN(precioMinorista) ||
+      precioLista < 0 ||
+      precioMayorista < 0 ||
+      precioMinorista < 0
+    ) {
+      return NextResponse.json({ error: 'Precios inválidos' }, { status: 400 });
+    }
+
+    if (precioLista > precioMayorista) {
+      return NextResponse.json(
+        { error: 'El precio mayorista no puede ser menor que el precio de lista.' },
+        { status: 400 }
+      );
+    }
+
+    if (precioMayorista > precioMinorista) {
+      return NextResponse.json(
+        { error: 'El precio minorista no puede ser menor que el mayorista.' },
+        { status: 400 }
+      );
+    }
+
+    updateData = {
       ...body,
       precioLista,
       precioMayorista,
       precioMinorista,
-    },
+    };
+  }
+
+  const productoActualizado = await Product.findByIdAndUpdate(
+    productId,
+    updateData,
     { new: true }
   );
 
@@ -101,7 +126,6 @@ export async function PUT(
     );
   }
 
-  // 🔥 SSE
   notifyProducts({
     type: 'producto_actualizado',
     data: normalizeProduct(productoActualizado),
@@ -110,20 +134,23 @@ export async function PUT(
   return NextResponse.json(productoActualizado, { status: 200 });
 }
 
-
 // 🔹 ELIMINAR PRODUCTO
-export async function DELETE(req: NextRequest, { params }: any) {
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params; // ✅
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !isAdmin(session.user.role)) {
-    return Response.json({ error: "Acceso denegado" }, { status: 403 });
+    return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
   }
 
   try {
-    const deleted = await Product.findByIdAndDelete(params.id);
+    const deleted = await Product.findByIdAndDelete(id); // ✅ usa id
 
     if (!deleted) {
-      return Response.json({ error: "Producto no encontrado" }, { status: 404 });
+      return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
     }
 
     notifyProducts({
@@ -131,8 +158,8 @@ export async function DELETE(req: NextRequest, { params }: any) {
       data: deleted,
     });
 
-    return Response.json({ message: "Producto eliminado" });
+    return NextResponse.json({ message: "Producto eliminado" });
   } catch (error) {
-    return Response.json({ error: "Error al eliminar producto" }, { status: 500 });
+    return NextResponse.json({ error: "Error al eliminar producto" }, { status: 500 });
   }
 }

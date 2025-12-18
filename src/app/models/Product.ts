@@ -29,6 +29,7 @@ const productSchema = new Schema({
   lotes: [loteSchema],
   activo: { type: Boolean, default: true },
   imagen: { type: String },
+  stockMinimoAlerta: { type: Number, required: false, min: 0 },
 }, {
   timestamps: true,
 });

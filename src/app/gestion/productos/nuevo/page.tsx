@@ -38,6 +38,9 @@ export default function NuevoProductoPage() {
         precioMinorista: '',
     });
 
+    // ✅ Nuevo estado: modo para categoría
+    const [categoriaMode, setCategoriaMode] = useState<'select' | 'custom'>('select');
+
     const [stock, setStock] = useState<StockEntry[]>([{ deposito: '', cantidad: 0 }]);
     const [lotes, setLotes] = useState<LoteEntry[]>([{ lote: '', vencimiento: '', cantidad: 0, deposito: '' }]);
 
@@ -47,11 +50,12 @@ export default function NuevoProductoPage() {
         precioMinorista: '',
     });
 
-    // Depósitos desde la API
+    // Depósitos y categorías desde la API
     const [depositos, setDepositos] = useState<string[]>([]);
-    const [loadingDepositos, setLoadingDepositos] = useState(true);
+    const [categorias, setCategorias] = useState<string[]>([]);
+    const [loadingOptions, setLoadingOptions] = useState(true);
 
-    // Modo para depósitos: null = select, string = valor personalizado
+    // Modo para depósitos
     const [stockDepositMode, setStockDepositMode] = useState<(string | null)[]>([null]);
     const [loteDepositMode, setLoteDepositMode] = useState<(string | null)[]>([null]);
 
@@ -88,29 +92,33 @@ export default function NuevoProductoPage() {
         validateAccess();
     }, [status, session, router]);
 
-    // 📥 Cargar depósitos
+    // 📥 Cargar depósitos y categorías
     useEffect(() => {
-        const fetchDepositos = async () => {
+        const fetchOptions = async () => {
             if (!isAuthorized) return;
+            setLoadingOptions(true);
             try {
-                const res = await fetch('/api/gestion/depositos');
-                if (res.ok) {
-                    const data = await res.json();
-                    setDepositos(Array.isArray(data) ? data : []);
-                } else {
-                    toast.error('Error al cargar depósitos');
-                    setDepositos([]);
-                }
+                // Cargar depósitos
+                const resDepositos = await fetch('/api/gestion/depositos');
+                const depositosData = resDepositos.ok ? await resDepositos.json() : [];
+
+                // Cargar categorías
+                const resCategorias = await fetch('/api/gestion/categorias');
+                const categoriasData = resCategorias.ok ? await resCategorias.json() : [];
+
+                setDepositos(Array.isArray(depositosData) ? depositosData : []);
+                setCategorias(Array.isArray(categoriasData) ? categoriasData : []);
             } catch (err) {
                 console.error(err);
-                toast.error('Error de red al cargar depósitos');
+                toast.error('Error al cargar opciones');
                 setDepositos([]);
+                setCategorias([]);
             } finally {
-                setLoadingDepositos(false);
+                setLoadingOptions(false);
             }
         };
 
-        fetchDepositos();
+        fetchOptions();
     }, [isAuthorized]);
 
     if (!isAuthorized) return null;
@@ -434,14 +442,54 @@ export default function NuevoProductoPage() {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-1">Categoría *</label>
-                            <input
-                                type="text"
-                                name="categoria"
-                                value={form.categoria}
-                                onChange={handleChange}
-                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                                required
-                            />
+                            {categoriaMode === 'select' ? (
+                                <div className="flex gap-1">
+                                    <select
+                                        value={form.categoria}
+                                        onChange={(e) => {
+                                            if (e.target.value === '__OTRO__') {
+                                                setCategoriaMode('custom');
+                                                setForm(prev => ({ ...prev, categoria: '' }));
+                                            } else {
+                                                setForm(prev => ({ ...prev, categoria: e.target.value }));
+                                            }
+                                        }}
+                                        className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        disabled={loadingOptions}
+                                    >
+                                        <option value="">Seleccionar categoría</option>
+                                        {categorias.map(cat => (
+                                            <option key={cat} value={cat}>{cat}</option>
+                                        ))}
+                                        <option value="__OTRO__">➕ Agregar nueva categoría</option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCategoriaMode('custom')}
+                                        className="px-2 bg-gray-600 text-white rounded self-end"
+                                    >
+                                        X
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex gap-1">
+                                    <input
+                                        type="text"
+                                        name="categoria"
+                                        value={form.categoria}
+                                        onChange={handleChange}
+                                        className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        required
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setCategoriaMode('select')}
+                                        className="px-2 bg-gray-600 text-white rounded self-end"
+                                    >
+                                        X
+                                    </button>
+                                </div>
+                            )}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-1">Unidad</label>
@@ -552,7 +600,7 @@ export default function NuevoProductoPage() {
                                             value={s.deposito}
                                             onChange={(e) => handleStockDepositoSelect(i, e.target.value)}
                                             className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
-                                            disabled={loadingDepositos}
+                                            disabled={loadingOptions}
                                         >
                                             <option value="">Seleccionar depósito</option>
                                             {depositos.map(dep => (
@@ -638,7 +686,7 @@ export default function NuevoProductoPage() {
                                             value={l.deposito}
                                             onChange={(e) => handleLoteDepositoSelect(i, e.target.value)}
                                             className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
-                                            disabled={loadingDepositos}
+                                            disabled={loadingOptions}
                                         >
                                             <option value="">Seleccionar depósito</option>
                                             {depositos.map(dep => (
