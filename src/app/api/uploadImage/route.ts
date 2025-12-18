@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     const file = formData.get('image') as File;
 
     if (!file) {
-      return NextResponse.json({ error: 'No se proporcionó ninguna imagen.' }, { status: 400 });
+      return NextResponse.json({ error: 'No se proporcionó ninguna imagen al producto.' }, { status: 400 });
     }
 
     const bytes = await file.arrayBuffer();

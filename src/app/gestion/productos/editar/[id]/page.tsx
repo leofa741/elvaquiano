@@ -24,6 +24,7 @@ interface Product {
   categoria: string;
   unidad: string;
   cantidadUnidad: number;
+  precioLista: number;
   precioMayorista: number;
   precioMinorista: number;
   stock: StockEntry[];
@@ -45,9 +46,16 @@ export default function EditProductPage() {
     categoria: '',
     unidad: 'kg',
     cantidadUnidad: 1,
+    precioLista: 0,
+    precioMayorista: 0,
+    precioMinorista: 0,
+    imagen: '' as string | null,
+  });
+
+  const [displayPrecios, setDisplayPrecios] = useState({
+    precioLista: '',
     precioMayorista: '',
     precioMinorista: '',
-    imagen: '' as string | null,
   });
 
   const [preview, setPreview] = useState<string | null>(null);
@@ -57,6 +65,40 @@ export default function EditProductPage() {
   const [lotes, setLotes] = useState<LoteEntry[]>([
     { lote: '', vencimiento: '', cantidad: 0, deposito: '' },
   ]);
+
+  // ✅ Nuevo estado: cantidades a sumar
+  const [stockToAdd, setStockToAdd] = useState<number[]>([]);
+
+  // Modo para depósitos: null = select, string = valor personalizado
+  const [stockDepositMode, setStockDepositMode] = useState<(string | null)[]>([null]);
+  const [loteDepositMode, setLoteDepositMode] = useState<(string | null)[]>([null]);
+
+  // Cargar depósitos desde la API
+  const [depositos, setDepositos] = useState<string[]>([]);
+  const [loadingDepositos, setLoadingDepositos] = useState(true);
+
+  useEffect(() => {
+    const fetchDepositos = async () => {
+      try {
+        const res = await fetch('/api/gestion/depositos');
+        if (res.ok) {
+          const data = await res.json();
+          setDepositos(Array.isArray(data) ? data : []);
+        } else {
+          toast.error('Error al cargar depósitos');
+          setDepositos([]);
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error('Error de red al cargar depósitos');
+        setDepositos([]);
+      } finally {
+        setLoadingDepositos(false);
+      }
+    };
+
+    fetchDepositos();
+  }, []);
 
   // Cargar producto
   useEffect(() => {
@@ -83,25 +125,28 @@ export default function EditProductPage() {
           categoria: data.categoria || '',
           unidad: data.unidad || 'kg',
           cantidadUnidad: data.cantidadUnidad || 1,
-          precioMayorista: data.precioMayorista.toString(),
-          precioMinorista: data.precioMinorista.toString(),
+          precioLista: data.precioLista ?? 0,
+          precioMayorista: data.precioMayorista ?? 0,
+          precioMinorista: data.precioMinorista ?? 0,
           imagen: data.imagen || null,
+        });
+
+        // Formatear precios para display
+        setDisplayPrecios({
+          precioLista: data.precioLista ? data.precioLista.toLocaleString('es-AR') : '',
+          precioMayorista: data.precioMayorista ? data.precioMayorista.toLocaleString('es-AR') : '',
+          precioMinorista: data.precioMinorista ? data.precioMinorista.toLocaleString('es-AR') : '',
         });
 
         setPreview(data.imagen || null);
 
-        // Inicializar stock y lotes
-        setStock(
-          data.stock?.length
-            ? data.stock.map((s) => ({ ...s }))
-            : [{ deposito: '', cantidad: 0 }]
-        );
-
-        setLotes(
-          data.lotes?.length
-            ? data.lotes.map((l) => ({ ...l }))
-            : [{ lote: '', vencimiento: '', cantidad: 0, deposito: '' }]
-        );
+        // Inicializar stock, modos y cantidades a sumar
+        const initialStock = data.stock?.length
+          ? data.stock.map((s) => ({ ...s }))
+          : [{ deposito: '', cantidad: 0 }];
+        setStock(initialStock);
+        setStockDepositMode(initialStock.map(() => null));
+        setStockToAdd(initialStock.map(() => 0)); // ✅ inicializar con ceros
       } catch (err) {
         console.error(err);
         toast.error('Error al cargar el producto');
@@ -114,16 +159,28 @@ export default function EditProductPage() {
     loadProduct();
   }, [id, router]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
-    if (['cantidadUnidad', 'precioMayorista', 'precioMinorista'].includes(name)) {
-      setForm((prev) => ({
-        ...prev,
-        [name]: value === '' ? '' : parseFloat(value),
-      }));
-    } else {
-      setForm((prev) => ({ ...prev, [name]: value }));
-    }
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handlePriceChange = (name: string, rawValue: string) => {
+    const digitsOnly = rawValue.replace(/\D/g, '');
+    const numericValue = digitsOnly === '' ? 0 : parseInt(digitsOnly, 10);
+    setForm((prev) => ({
+      ...prev,
+      [name]: numericValue,
+    }));
+    const formatted = digitsOnly === '' ? '' : numericValue.toLocaleString('es-AR');
+    setDisplayPrecios((prev) => ({
+      ...prev,
+      [name]: formatted,
+    }));
   };
 
   // === IMAGEN ===
@@ -142,14 +199,51 @@ export default function EditProductPage() {
     setStock(newStock);
   };
 
+  const handleStockToAddChange = (index: number, value: string) => {
+    const numValue = value === '' ? 0 : Number(value);
+    const newStockToAdd = [...stockToAdd];
+    newStockToAdd[index] = numValue;
+    setStockToAdd(newStockToAdd);
+  };
+
   const addStockField = () => {
     setStock([...stock, { deposito: '', cantidad: 0 }]);
+    setStockDepositMode(prev => [...prev, null]);
+    setStockToAdd(prev => [...prev, 0]); // ✅
   };
 
   const removeStockField = (index: number) => {
     if (stock.length > 1) {
       setStock(stock.filter((_, i) => i !== index));
+      setStockDepositMode(prev => prev.filter((_, i) => i !== index));
+      setStockToAdd(prev => prev.filter((_, i) => i !== index)); // ✅
     }
+  };
+
+  const handleStockDepositoSelect = (index: number, value: string) => {
+    if (value === '__OTRO__') {
+      setStockDepositMode(prev => {
+        const newArr = [...prev];
+        newArr[index] = '';
+        return newArr;
+      });
+    } else {
+      handleStockChange(index, 'deposito', value);
+      setStockDepositMode(prev => {
+        const newArr = [...prev];
+        newArr[index] = null;
+        return newArr;
+      });
+    }
+  };
+
+  const handleStockDepositoCustomChange = (index: number, value: string) => {
+    setStockDepositMode(prev => {
+      const newArr = [...prev];
+      newArr[index] = value;
+      return newArr;
+    });
+    handleStockChange(index, 'deposito', value);
   };
 
   // === LOTES ===
@@ -161,12 +255,40 @@ export default function EditProductPage() {
 
   const addLoteField = () => {
     setLotes([...lotes, { lote: '', vencimiento: '', cantidad: 0, deposito: '' }]);
+    setLoteDepositMode(prev => [...prev, null]);
   };
 
   const removeLoteField = (index: number) => {
     if (lotes.length > 1) {
       setLotes(lotes.filter((_, i) => i !== index));
+      setLoteDepositMode(prev => prev.filter((_, i) => i !== index));
     }
+  };
+
+  const handleLoteDepositoSelect = (index: number, value: string) => {
+    if (value === '__OTRO__') {
+      setLoteDepositMode(prev => {
+        const newArr = [...prev];
+        newArr[index] = '';
+        return newArr;
+      });
+    } else {
+      handleLoteChange(index, 'deposito', value);
+      setLoteDepositMode(prev => {
+        const newArr = [...prev];
+        newArr[index] = null;
+        return newArr;
+      });
+    }
+  };
+
+  const handleLoteDepositoCustomChange = (index: number, value: string) => {
+    setLoteDepositMode(prev => {
+      const newArr = [...prev];
+      newArr[index] = value;
+      return newArr;
+    });
+    handleLoteChange(index, 'deposito', value);
   };
 
   // === VALIDACIÓN ===
@@ -176,26 +298,35 @@ export default function EditProductPage() {
       return false;
     }
 
-    if ((form.cantidadUnidad as unknown as number) <= 0) {
+    if (form.cantidadUnidad <= 0) {
       toast.error('La cantidad por unidad debe ser mayor a 0.');
       return false;
     }
 
-    const pm = form.precioMayorista as unknown as number;
-    const pn = form.precioMinorista as unknown as number;
-    if (pm <= 0 || pn <= 0) {
-      toast.error('Precios deben ser mayores a 0.');
+    if (form.precioLista <= 0) {
+      toast.error('El precio de lista debe ser mayor a 0.');
       return false;
     }
 
-    if (pm > pn) {
+    if (form.precioLista > form.precioMayorista) {
+      toast.error('El precio mayorista no puede ser menor que el precio de lista.');
+      return false;
+    }
+
+    if (form.precioMayorista > form.precioMinorista) {
       toast.error('El precio minorista no puede ser menor que el mayorista.');
       return false;
     }
 
     for (const s of stock) {
-      if (!s.deposito.trim() || s.cantidad <= 0) {
-        toast.error('Todos los depósitos deben tener nombre y cantidad > 0.');
+      if (!s.deposito.trim()) {
+        toast.error('Todos los depósitos deben tener nombre.');
+        return false;
+      }
+      // Validar cantidad final (existente + a sumar)
+      const total = s.cantidad + (stockToAdd[stock.indexOf(s)] || 0);
+      if (total <= 0) {
+        toast.error('El stock total debe ser mayor a 0.');
         return false;
       }
     }
@@ -217,23 +348,23 @@ export default function EditProductPage() {
 
       if (hasSomeData) {
         if (!l.lote.trim()) {
-          toast.error('El número de lote es obligatorio si vas a cargar un lote.');
+          toast.error("El número de lote es obligatorio si vas a cargar un lote.");
           return false;
         }
         if (!l.vencimiento) {
-          toast.error('La fecha de vencimiento es obligatoria si vas a cargar un lote.');
+          toast.error("La fecha de vencimiento es obligatoria si vas a cargar un lote.");
           return false;
         }
         if (!l.deposito.trim()) {
-          toast.error('El depósito es obligatorio si vas a cargar un lote.');
+          toast.error("El depósito es obligatorio si vas a cargar un lote.");
           return false;
         }
         if (!l.cantidad || l.cantidad <= 0) {
-          toast.error('La cantidad del lote debe ser mayor a cero.');
+          toast.error("La cantidad del lote debe ser mayor a cero.");
           return false;
         }
         if (new Date(l.vencimiento) <= new Date()) {
-          toast.error('La fecha de vencimiento debe ser futura.');
+          toast.error("La fecha de vencimiento debe ser futura.");
           return false;
         }
       }
@@ -252,7 +383,6 @@ export default function EditProductPage() {
     setSaving(true);
     let imageUrl = form.imagen || null;
 
-    // Subir nueva imagen si se seleccionó una
     if (imageFile) {
       try {
         const formData = new FormData();
@@ -280,14 +410,21 @@ export default function EditProductPage() {
           (l.cantidad && l.cantidad > 0)
       );
 
+      // ✅ Actualizar stock: sumar las cantidades
+      const updatedStock = stock.map((item, i) => ({
+        ...item,
+        cantidad: item.cantidad + (stockToAdd[i] || 0),
+      }));
+
       const payload = {
         nombre: form.nombre.trim(),
         categoria: form.categoria.trim(),
         unidad: form.unidad,
         cantidadUnidad: form.cantidadUnidad,
+        precioLista: form.precioLista,
         precioMayorista: form.precioMayorista,
         precioMinorista: form.precioMinorista,
-        stock,
+        stock: updatedStock, // ✅
         lotes: lotesFiltrados,
         imagen: imageUrl,
       };
@@ -404,17 +541,33 @@ export default function EditProductPage() {
                 Ej: 1 → 1 kg, 0.5 → medio kg, 0.25 → 250 g
               </p>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Precio de Lista (costo) *
+              </label>
+              <input
+                type="text"
+                name="precioLista"
+                value={displayPrecios.precioLista}
+                onChange={(e) => handlePriceChange('precioLista', e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                required
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Precio al que se adquiere el producto.
+              </p>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
                 Precio Mayorista *
               </label>
               <input
-                type="number"
+                type="text"
                 name="precioMayorista"
-                value={form.precioMayorista}
-                onChange={handleChange}
-                min="0"
-                step="0.01"
+                value={displayPrecios.precioMayorista}
+                onChange={(e) => handlePriceChange('precioMayorista', e.target.value)}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
@@ -424,12 +577,10 @@ export default function EditProductPage() {
                 Precio Minorista *
               </label>
               <input
-                type="number"
+                type="text"
                 name="precioMinorista"
-                value={form.precioMinorista}
-                onChange={handleChange}
-                min="0"
-                step="0.01"
+                value={displayPrecios.precioMinorista}
+                onChange={(e) => handlePriceChange('precioMinorista', e.target.value)}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
@@ -452,27 +603,73 @@ export default function EditProductPage() {
             </div>
             <div className="space-y-3">
               {stock.map((s, i) => (
-                <div key={i} className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Nombre del depósito"
-                    value={s.deposito}
-                    onChange={(e) => handleStockChange(i, 'deposito', e.target.value)}
-                    className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Cantidad"
-                    value={s.cantidad || ''}
-                    onChange={(e) => handleStockChange(i, 'cantidad', Number(e.target.value))}
-                    min="1"
-                    className="w-24 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
-                  />
+                <div key={i} className="flex gap-2 items-start">
+                  {/* Depósito */}
+                  {stockDepositMode[i] !== null ? (
+                    <div className="flex-1 flex gap-1">
+                      <input
+                        type="text"
+                        placeholder="Nuevo depósito"
+                        value={stockDepositMode[i]}
+                        onChange={(e) => handleStockDepositoCustomChange(i, e.target.value)}
+                        className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setStockDepositMode(prev => {
+                          const newArr = [...prev];
+                          newArr[i] = null;
+                          return newArr;
+                        })}
+                        className="px-2 bg-gray-600 text-white rounded self-end"
+                      >
+                        X
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={s.deposito}
+                      onChange={(e) => handleStockDepositoSelect(i, e.target.value)}
+                      className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
+                      disabled={loadingDepositos}
+                    >
+                      <option value="">Seleccionar depósito</option>
+                      {depositos.map(dep => (
+                        <option key={dep} value={dep}>{dep}</option>
+                      ))}
+                      <option value="__OTRO__">➕ Agregar nuevo depósito</option>
+                    </select>
+                  )}
+
+                  {/* Cantidad actual (solo lectura) */}
+                  <div className="w-24">
+                    <label className="block text-xs text-gray-400">Actual</label>
+                    <input
+                      type="text"
+                      value={s.cantidad}
+                      readOnly
+                      className="w-full px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-gray-300 text-center"
+                    />
+                  </div>
+
+                  {/* Agregar cantidad */}
+                  <div className="w-24">
+                    <label className="block text-xs text-gray-400">+ Agregar</label>
+                    <input
+                      type="number"
+                      value={stockToAdd[i] || ''}
+                      onChange={(e) => handleStockToAddChange(i, e.target.value)}
+                      min="0"
+                      className="w-full px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-center"
+                      placeholder="0"
+                    />
+                  </div>
+
                   {stock.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeStockField(i)}
-                      className="px-3 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg"
+                      className="mt-6 px-3 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg"
                     >
                       Eliminar
                     </button>
@@ -512,13 +709,42 @@ export default function EditProductPage() {
                     onChange={(e) => handleLoteChange(i, 'vencimiento', e.target.value)}
                     className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
                   />
-                  <input
-                    type="text"
-                    placeholder="Depósito"
-                    value={l.deposito}
-                    onChange={(e) => handleLoteChange(i, 'deposito', e.target.value)}
-                    className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
-                  />
+                  {/* Depósito del lote */}
+                  {loteDepositMode[i] !== null ? (
+                    <div className="flex gap-1">
+                      <input
+                        type="text"
+                        placeholder="Nuevo depósito"
+                        value={loteDepositMode[i]}
+                        onChange={(e) => handleLoteDepositoCustomChange(i, e.target.value)}
+                        className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setLoteDepositMode(prev => {
+                          const newArr = [...prev];
+                          newArr[i] = null;
+                          return newArr;
+                        })}
+                        className="px-2 bg-gray-600 text-white rounded"
+                      >
+                        X
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={l.deposito}
+                      onChange={(e) => handleLoteDepositoSelect(i, e.target.value)}
+                      className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
+                      disabled={loadingDepositos}
+                    >
+                      <option value="">Seleccionar depósito</option>
+                      {depositos.map(dep => (
+                        <option key={dep} value={dep}>{dep}</option>
+                      ))}
+                      <option value="__OTRO__">➕ Agregar nuevo</option>
+                    </select>
+                  )}
                   <div className="flex gap-2">
                     <input
                       type="number"

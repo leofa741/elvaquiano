@@ -1,4 +1,3 @@
-// app/gestion/productos/nuevo/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -28,18 +27,33 @@ export default function NuevoProductoPage() {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [imageFile, setImageFile] = useState<File | null>(null);
 
-    // Estado del formulario – ✅ incluye cantidadUnidad
+    // Estado del formulario
     const [form, setForm] = useState({
         nombre: '',
         categoria: '',
         unidad: 'kg',
         cantidadUnidad: 1,
+        precioLista: '',
         precioMayorista: '',
         precioMinorista: '',
     });
 
     const [stock, setStock] = useState<StockEntry[]>([{ deposito: '', cantidad: 0 }]);
     const [lotes, setLotes] = useState<LoteEntry[]>([{ lote: '', vencimiento: '', cantidad: 0, deposito: '' }]);
+
+    const [displayPrecios, setDisplayPrecios] = useState({
+        precioLista: '',
+        precioMayorista: '',
+        precioMinorista: '',
+    });
+
+    // Depósitos desde la API
+    const [depositos, setDepositos] = useState<string[]>([]);
+    const [loadingDepositos, setLoadingDepositos] = useState(true);
+
+    // Modo para depósitos: null = select, string = valor personalizado
+    const [stockDepositMode, setStockDepositMode] = useState<(string | null)[]>([null]);
+    const [loteDepositMode, setLoteDepositMode] = useState<(string | null)[]>([null]);
 
     // 🔒 Validación de acceso
     useEffect(() => {
@@ -74,22 +88,60 @@ export default function NuevoProductoPage() {
         validateAccess();
     }, [status, session, router]);
 
+    // 📥 Cargar depósitos
+    useEffect(() => {
+        const fetchDepositos = async () => {
+            if (!isAuthorized) return;
+            try {
+                const res = await fetch('/api/gestion/depositos');
+                if (res.ok) {
+                    const data = await res.json();
+                    setDepositos(Array.isArray(data) ? data : []);
+                } else {
+                    toast.error('Error al cargar depósitos');
+                    setDepositos([]);
+                }
+            } catch (err) {
+                console.error(err);
+                toast.error('Error de red al cargar depósitos');
+                setDepositos([]);
+            } finally {
+                setLoadingDepositos(false);
+            }
+        };
+
+        fetchDepositos();
+    }, [isAuthorized]);
+
     if (!isAuthorized) return null;
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        if (name === 'cantidadUnidad' || name === 'precioMayorista' || name === 'precioMinorista') {
+        if (['cantidadUnidad', 'precioLista', 'precioMayorista', 'precioMinorista'].includes(name)) {
             setForm(prev => ({
                 ...prev,
                 [name]: value === '' ? '' : parseFloat(value)
             }));
-        }
-        else {
+        } else {
             setForm(prev => ({ ...prev, [name]: value }));
         }
     };
 
-    // Gestión de stock
+    const handlePriceChange = (name: string, rawValue: string) => {
+        const digitsOnly = rawValue.replace(/\D/g, '');
+        const numericValue = digitsOnly === '' ? 0 : parseInt(digitsOnly, 10);
+        setForm(prev => ({
+            ...prev,
+            [name]: numericValue === 0 && rawValue === '' ? '' : numericValue,
+        }));
+        const formatted = digitsOnly === '' ? '' : numericValue.toLocaleString('es-AR');
+        setDisplayPrecios(prev => ({
+            ...prev,
+            [name]: formatted,
+        }));
+    };
+
+    // === Gestión de stock ===
     const handleStockChange = (index: number, field: keyof StockEntry, value: string | number) => {
         const newStock = [...stock];
         newStock[index] = { ...newStock[index], [field]: value };
@@ -98,15 +150,43 @@ export default function NuevoProductoPage() {
 
     const addStockField = () => {
         setStock([...stock, { deposito: '', cantidad: 0 }]);
+        setStockDepositMode(prev => [...prev, null]);
     };
 
     const removeStockField = (index: number) => {
         if (stock.length > 1) {
             setStock(stock.filter((_, i) => i !== index));
+            setStockDepositMode(prev => prev.filter((_, i) => i !== index));
         }
     };
 
-    // Gestión de lotes
+    const handleStockDepositoSelect = (index: number, value: string) => {
+        if (value === '__OTRO__') {
+            setStockDepositMode(prev => {
+                const newArr = [...prev];
+                newArr[index] = '';
+                return newArr;
+            });
+        } else {
+            handleStockChange(index, 'deposito', value);
+            setStockDepositMode(prev => {
+                const newArr = [...prev];
+                newArr[index] = null;
+                return newArr;
+            });
+        }
+    };
+
+    const handleStockDepositoCustomChange = (index: number, value: string) => {
+        setStockDepositMode(prev => {
+            const newArr = [...prev];
+            newArr[index] = value;
+            return newArr;
+        });
+        handleStockChange(index, 'deposito', value);
+    };
+
+    // === Gestión de lotes ===
     const handleLoteChange = (index: number, field: keyof LoteEntry, value: string | number) => {
         const newLotes = [...lotes];
         newLotes[index] = { ...newLotes[index], [field]: value };
@@ -115,15 +195,43 @@ export default function NuevoProductoPage() {
 
     const addLoteField = () => {
         setLotes([...lotes, { lote: '', vencimiento: '', cantidad: 0, deposito: '' }]);
+        setLoteDepositMode(prev => [...prev, null]);
     };
 
     const removeLoteField = (index: number) => {
         if (lotes.length > 1) {
             setLotes(lotes.filter((_, i) => i !== index));
+            setLoteDepositMode(prev => prev.filter((_, i) => i !== index));
         }
     };
 
-    // Subida de imagen
+    const handleLoteDepositoSelect = (index: number, value: string) => {
+        if (value === '__OTRO__') {
+            setLoteDepositMode(prev => {
+                const newArr = [...prev];
+                newArr[index] = '';
+                return newArr;
+            });
+        } else {
+            handleLoteChange(index, 'deposito', value);
+            setLoteDepositMode(prev => {
+                const newArr = [...prev];
+                newArr[index] = null;
+                return newArr;
+            });
+        }
+    };
+
+    const handleLoteDepositoCustomChange = (index: number, value: string) => {
+        setLoteDepositMode(prev => {
+            const newArr = [...prev];
+            newArr[index] = value;
+            return newArr;
+        });
+        handleLoteChange(index, 'deposito', value);
+    };
+
+    // === Imagen ===
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -132,7 +240,7 @@ export default function NuevoProductoPage() {
         }
     };
 
-    // Validación completa
+    // === Validación ===
     const validateForm = (): boolean => {
         if (!form.nombre.trim() || !form.categoria.trim()) {
             toast.error('Nombre y categoría son obligatorios.');
@@ -144,10 +252,17 @@ export default function NuevoProductoPage() {
             return false;
         }
 
+        const pl = form.precioLista as unknown as number;
         const pm = form.precioMayorista as unknown as number;
         const pn = form.precioMinorista as unknown as number;
-        if (pm <= 0 || pn <= 0) {
-            toast.error('Precios deben ser mayores a 0.');
+
+        if (pl <= 0 || pm <= 0 || pn <= 0) {
+            toast.error('Todos los precios deben ser mayores a 0.');
+            return false;
+        }
+
+        if (pl > pm) {
+            toast.error('El precio mayorista no puede ser menor que el precio de lista (costo).');
             return false;
         }
 
@@ -164,18 +279,14 @@ export default function NuevoProductoPage() {
         }
 
         for (const l of lotes) {
-            // Si el lote está completamente vacío → ignorarlo
             const isEmpty =
                 !l.lote.trim() &&
                 !l.vencimiento &&
                 !l.deposito.trim() &&
                 (!l.cantidad || l.cantidad === 0);
 
-            if (isEmpty) {
-                continue; // no validar
-            }
+            if (isEmpty) continue;
 
-            // Si hay datos cargados → validar que estén completos
             const hasSomeData =
                 l.lote.trim() ||
                 l.vencimiento ||
@@ -206,10 +317,10 @@ export default function NuevoProductoPage() {
             }
         }
 
-
         return true;
     };
 
+    // === Envío ===
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!validateForm()) return;
@@ -236,7 +347,6 @@ export default function NuevoProductoPage() {
         }
 
         try {
-            // 🔥 Filtramos lotes vacíos antes de enviarlos al servidor
             const lotesFiltrados = lotes.filter(l =>
                 l.lote.trim() ||
                 l.vencimiento ||
@@ -248,6 +358,7 @@ export default function NuevoProductoPage() {
                 nombre: form.nombre.trim(),
                 categoria: form.categoria.trim(),
                 unidad: form.unidad,
+                precioLista: form.precioLista,
                 cantidadUnidad: form.cantidadUnidad,
                 precioMayorista: form.precioMayorista,
                 precioMinorista: form.precioMinorista,
@@ -255,7 +366,6 @@ export default function NuevoProductoPage() {
                 lotes: lotesFiltrados,
                 imagen: imageUrl || null,
             };
-
 
             const res = await fetch('/api/gestion/productos', {
                 method: 'POST',
@@ -364,15 +474,26 @@ export default function NuevoProductoPage() {
                                 Ej: 1 → 1 kg, 0.5 → medio kg, 0.25 → 250 g
                             </p>
                         </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">Precio de Lista *</label>
+                            <input
+                                type="text"
+                                name="precioLista"
+                                value={displayPrecios.precioLista}
+                                onChange={(e) => handlePriceChange('precioLista', e.target.value)}
+                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                required
+                            />
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-1">Precio Mayorista *</label>
                             <input
-                                type="number"
+                                type="text"
                                 name="precioMayorista"
-                                value={form.precioMayorista}
-                                onChange={handleChange}
-                                min="0"
-                                step="0.01"
+                                value={displayPrecios.precioMayorista}
+                                onChange={(e) => handlePriceChange('precioMayorista', e.target.value)}
                                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                                 required
                             />
@@ -380,12 +501,10 @@ export default function NuevoProductoPage() {
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-1">Precio Minorista *</label>
                             <input
-                                type="number"
+                                type="text"
                                 name="precioMinorista"
-                                value={form.precioMinorista}
-                                onChange={handleChange}
-                                min="0"
-                                step="0.01"
+                                value={displayPrecios.precioMinorista}
+                                onChange={(e) => handlePriceChange('precioMinorista', e.target.value)}
                                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                                 required
                             />
@@ -407,13 +526,41 @@ export default function NuevoProductoPage() {
                         <div className="space-y-3">
                             {stock.map((s, i) => (
                                 <div key={i} className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        placeholder="Nombre del depósito"
-                                        value={s.deposito}
-                                        onChange={(e) => handleStockChange(i, 'deposito', e.target.value)}
-                                        className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
-                                    />
+                                    {stockDepositMode[i] !== null ? (
+                                        <div className="flex-1 flex gap-1">
+                                            <input
+                                                type="text"
+                                                placeholder="Nuevo depósito"
+                                                value={stockDepositMode[i]}
+                                                onChange={(e) => handleStockDepositoCustomChange(i, e.target.value)}
+                                                className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setStockDepositMode(prev => {
+                                                    const newArr = [...prev];
+                                                    newArr[i] = null;
+                                                    return newArr;
+                                                })}
+                                                className="px-2 bg-gray-600 text-white rounded"
+                                            >
+                                                X
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <select
+                                            value={s.deposito}
+                                            onChange={(e) => handleStockDepositoSelect(i, e.target.value)}
+                                            className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
+                                            disabled={loadingDepositos}
+                                        >
+                                            <option value="">Seleccionar depósito</option>
+                                            {depositos.map(dep => (
+                                                <option key={dep} value={dep}>{dep}</option>
+                                            ))}
+                                            <option value="__OTRO__">➕ Agregar nuevo depósito</option>
+                                        </select>
+                                    )}
                                     <input
                                         type="number"
                                         placeholder="Cantidad"
@@ -464,13 +611,42 @@ export default function NuevoProductoPage() {
                                         onChange={(e) => handleLoteChange(i, 'vencimiento', e.target.value)}
                                         className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
                                     />
-                                    <input
-                                        type="text"
-                                        placeholder="Depósito"
-                                        value={l.deposito}
-                                        onChange={(e) => handleLoteChange(i, 'deposito', e.target.value)}
-                                        className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
-                                    />
+                                    {/* Depósito del lote */}
+                                    {loteDepositMode[i] !== null ? (
+                                        <div className="flex gap-1">
+                                            <input
+                                                type="text"
+                                                placeholder="Nuevo depósito"
+                                                value={loteDepositMode[i]}
+                                                onChange={(e) => handleLoteDepositoCustomChange(i, e.target.value)}
+                                                className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setLoteDepositMode(prev => {
+                                                    const newArr = [...prev];
+                                                    newArr[i] = null;
+                                                    return newArr;
+                                                })}
+                                                className="px-2 bg-gray-600 text-white rounded"
+                                            >
+                                                X
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <select
+                                            value={l.deposito}
+                                            onChange={(e) => handleLoteDepositoSelect(i, e.target.value)}
+                                            className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none"
+                                            disabled={loadingDepositos}
+                                        >
+                                            <option value="">Seleccionar depósito</option>
+                                            {depositos.map(dep => (
+                                                <option key={dep} value={dep}>{dep}</option>
+                                            ))}
+                                            <option value="__OTRO__">➕ Agregar nuevo</option>
+                                        </select>
+                                    )}
                                     <div className="flex gap-2">
                                         <input
                                             type="number"

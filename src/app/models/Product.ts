@@ -8,7 +8,7 @@ const stockSchema = new Schema({
 
 const loteSchema = new Schema({
   lote: { type: String, required: false },
-  vencimiento: { type: Date, required:false },
+  vencimiento: { type: Date, required: false },
   cantidad: { type: Number, required: false, min: 0 },
   deposito: { type: String, required: false },
 });
@@ -22,12 +22,13 @@ const productSchema = new Schema({
     required: true,
   },
   cantidadUnidad: { type: Number, required: true, min: 0.001 }, // Ej: 0.5 kg en un pack de 500g
+  precioLista: { type: Number, required: true, min: 0 },
   precioMayorista: { type: Number, required: true, min: 0 },
   precioMinorista: { type: Number, required: true, min: 0 },
   stock: [stockSchema],
   lotes: [loteSchema],
   activo: { type: Boolean, default: true },
-  imagen: { type: String }, 
+  imagen: { type: String },
 }, {
   timestamps: true,
 });

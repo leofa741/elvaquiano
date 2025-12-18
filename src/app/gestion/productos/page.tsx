@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { FaBox, FaPlus } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import { Suspense } from 'react';
+import StockValueSummary from './StockValueSummary';
 
 interface Product {
   _id: string;
@@ -15,6 +16,7 @@ interface Product {
   categoria: string;
   unidad: string;
   cantidadUnidad: number;
+  precioLista: number;
   precioMayorista: number;
   precioMinorista: number;
   stock: Array<{ deposito: string; cantidad: number }>;
@@ -213,6 +215,8 @@ useEffect(() => {
       ' ' +
       p.cantidadUnidad +
       ' ' +
+      p.precioLista +
+      ' ' +
       p.precioMayorista +
       ' ' +
       p.precioMinorista +
@@ -336,6 +340,7 @@ const getStockTotal = (product: any) => {
                     <th className="text-left py-3 px-4">Producto</th>
                     <th className="text-left py-3 px-4">Categoría</th>
                     <th className="text-left py-3 px-4">Unidad</th>
+                    <th className="text-left py-3 px-4">Precio de Lista</th>
                     <th className="text-left py-3 px-4">Precio Mayorista</th>
                     <th className="text-left py-3 px-4">Precio Minorista</th>
                     <th className="text-left py-3 px-4">Stock Total</th>
@@ -367,6 +372,11 @@ const getStockTotal = (product: any) => {
                         </td>
                         <td className="py-3 px-4 text-gray-300">{product.categoria}</td>
                         <td className="py-3 px-4 text-gray-300">{product.unidad}</td>
+
+                        <td className="py-3 px-4 text-amber-400">
+                          ${product.precioLista.toLocaleString('es-AR')}
+                        </td>
+
                         <td className="py-3 px-4 text-amber-400">
                           ${product.precioMayorista.toLocaleString('es-AR')}
                         </td>
@@ -455,6 +465,9 @@ const getStockTotal = (product: any) => {
               </table>
             </div>
           </div>
+
+          <br />
+          <StockValueSummary />
 
           {pagination.totalPages > 1 && (
             <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
