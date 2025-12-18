@@ -33,8 +33,8 @@ export async function GET(
 // PUT: actualizar producto (incluye detección de cambios en stock)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params }: { params: any }
+){
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !isAdmin(session.user.role)) {
