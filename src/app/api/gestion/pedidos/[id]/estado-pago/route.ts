@@ -5,7 +5,7 @@ import Pedido from '@/app/models/Pedido';
 
 connectDB();
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: any) {
   try {
     const { id } = params;
     const { estadoPago } = await request.json();
