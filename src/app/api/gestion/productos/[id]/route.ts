@@ -30,7 +30,7 @@ export async function GET(
   }
 }
 
-// PUT: actualizar producto 
+
 // PUT: actualizar producto (acepta actualizaciones parciales)
 export async function PUT(
   request: NextRequest,
@@ -79,14 +79,17 @@ export async function PUT(
     const precioLista = Number(body.precioLista);
     const precioMayorista = Number(body.precioMayorista);
     const precioMinorista = Number(body.precioMinorista);
+    const precioOferta = Number(body.precioOferta);
 
     if (
       Number.isNaN(precioLista) ||
       Number.isNaN(precioMayorista) ||
       Number.isNaN(precioMinorista) ||
+      Number.isNaN(precioOferta) ||
       precioLista < 0 ||
       precioMayorista < 0 ||
-      precioMinorista < 0
+      precioMinorista < 0 ||
+      precioOferta < 0
     ) {
       return NextResponse.json({ error: 'Precios inválidos' }, { status: 400 });
     }
@@ -110,6 +113,7 @@ export async function PUT(
       precioLista,
       precioMayorista,
       precioMinorista,
+      precioOferta,
     };
   }
 

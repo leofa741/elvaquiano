@@ -36,6 +36,7 @@ export default function NuevoProductoPage() {
         precioLista: '',
         precioMayorista: '',
         precioMinorista: '',
+        precioOferta: '',
     });
 
     // ✅ Nuevo estado: modo para categoría
@@ -48,6 +49,7 @@ export default function NuevoProductoPage() {
         precioLista: '',
         precioMayorista: '',
         precioMinorista: '',
+        precioOferta: '',
     });
 
     // Depósitos y categorías desde la API
@@ -125,7 +127,7 @@ export default function NuevoProductoPage() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        if (['cantidadUnidad', 'precioLista', 'precioMayorista', 'precioMinorista'].includes(name)) {
+        if (['cantidadUnidad', 'precioLista', 'precioMayorista', 'precioMinorista', 'precioOferta'].includes(name)) {
             setForm(prev => ({
                 ...prev,
                 [name]: value === '' ? '' : parseFloat(value)
@@ -263,6 +265,7 @@ export default function NuevoProductoPage() {
         const pl = form.precioLista as unknown as number;
         const pm = form.precioMayorista as unknown as number;
         const pn = form.precioMinorista as unknown as number;
+        const po = form.precioOferta as unknown as number;
 
         if (pl <= 0 || pm <= 0 || pn <= 0) {
             toast.error('Todos los precios deben ser mayores a 0.');
@@ -278,6 +281,8 @@ export default function NuevoProductoPage() {
             toast.error('El precio minorista no puede ser menor que el mayorista.');
             return false;
         }
+
+       
 
         for (const s of stock) {
             if (!s.deposito.trim() || s.cantidad <= 0) {
@@ -370,6 +375,7 @@ export default function NuevoProductoPage() {
                 cantidadUnidad: form.cantidadUnidad,
                 precioMayorista: form.precioMayorista,
                 precioMinorista: form.precioMinorista,
+                precioOferta: form.precioOferta,
                 stock,
                 lotes: lotesFiltrados,
                 imagen: imageUrl || null,
@@ -461,7 +467,7 @@ export default function NuevoProductoPage() {
                                         {categorias.map(cat => (
                                             <option key={cat} value={cat}>{cat}</option>
                                         ))}
-                                        <option value="__OTRO__">➕ Agregar nueva categoría</option>
+                                        <option value="__OTRO__">➕ Agregar una nueva categoría</option>
                                     </select>
                                     <button
                                         type="button"
@@ -546,6 +552,18 @@ export default function NuevoProductoPage() {
                                 required
                             />
                         </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">Precio Oferta</label>
+                            <input
+                                type="text"
+                                name="precioOferta"
+                                value={displayPrecios.precioOferta}
+                                onChange={(e) => handlePriceChange('precioOferta', e.target.value)}
+                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            />
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-1">Precio Minorista *</label>
                             <input

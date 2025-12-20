@@ -25,6 +25,7 @@ const productSchema = new Schema({
   precioLista: { type: Number, required: true, min: 0 },
   precioMayorista: { type: Number, required: true, min: 0 },
   precioMinorista: { type: Number, required: true, min: 0 },
+  precioOferta: { type: Number, required: false, min: 0 },
   stock: [stockSchema],
   lotes: [loteSchema],
   activo: { type: Boolean, default: true },

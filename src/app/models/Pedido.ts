@@ -30,6 +30,12 @@ const PedidoSchema = new Schema({
     enum: ['pendiente', 'preparacion', 'enviado', 'entregado', 'cancelado'],
     default: 'pendiente'
   },
+    // 🔹 NUEVO CAMPO: solo para finanzas
+  estadoPago: {
+    type: String,
+    enum: ['pendiente', 'parcial', 'pagado'],
+    default: 'pendiente'
+  },
   deposito: { type: String, required: true },
   fechaEstimadaEntrega: Date,
   notas: String,

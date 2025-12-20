@@ -70,6 +70,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Precio minorista inválido' }, { status: 400 });
     }
 
+    if (typeof data.precioOferta !== 'number' || data.precioOferta < 0) {
+      return NextResponse.json({ error: 'Precio de oferta inválido' }, { status: 400 });
+    }
+
     const productData = {
       nombre: data.nombre,
       categoria: data.categoria,
@@ -78,6 +82,7 @@ export async function POST(req: NextRequest) {
       precioLista: data.precioLista,
       precioMayorista: data.precioMayorista,
       precioMinorista: data.precioMinorista,
+      precioOferta: data.precioOferta,
       stock: data.stock || [],
       lotes: data.lotes || [],
       imagen: data.imagen || null,

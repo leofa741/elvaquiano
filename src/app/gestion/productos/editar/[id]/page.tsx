@@ -27,6 +27,7 @@ interface Product {
   precioLista: number;
   precioMayorista: number;
   precioMinorista: number;
+  precioOferta: number;
   stock: StockEntry[];
   lotes: LoteEntry[];
   activo: boolean;
@@ -49,6 +50,7 @@ export default function EditProductPage() {
     precioLista: 0,
     precioMayorista: 0,
     precioMinorista: 0,
+    precioOferta: 0,
     imagen: '' as string | null,
   });
 
@@ -59,6 +61,7 @@ export default function EditProductPage() {
     precioLista: '',
     precioMayorista: '',
     precioMinorista: '',
+    precioOferta: '',
   });
 
   const [preview, setPreview] = useState<string | null>(null);
@@ -135,6 +138,7 @@ export default function EditProductPage() {
           precioLista: data.precioLista ?? 0,
           precioMayorista: data.precioMayorista ?? 0,
           precioMinorista: data.precioMinorista ?? 0,
+          precioOferta: data.precioOferta ?? 0,
           imagen: data.imagen || null,
         });
 
@@ -150,6 +154,7 @@ export default function EditProductPage() {
           precioLista: data.precioLista ? data.precioLista.toLocaleString('es-AR') : '',
           precioMayorista: data.precioMayorista ? data.precioMayorista.toLocaleString('es-AR') : '',
           precioMinorista: data.precioMinorista ? data.precioMinorista.toLocaleString('es-AR') : '',
+          precioOferta: data.precioOferta ? data.precioOferta.toLocaleString('es-AR') : '',
         });
 
         setPreview(data.imagen || null);
@@ -436,6 +441,7 @@ export default function EditProductPage() {
         precioLista: form.precioLista,
         precioMayorista: form.precioMayorista,
         precioMinorista: form.precioMinorista,
+        precioOferta: form.precioOferta,
         stock: updatedStock,
         lotes: lotesFiltrados,
         imagen: imageUrl,
@@ -624,6 +630,21 @@ export default function EditProductPage() {
                 required
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Precio Oferta *
+              </label>
+              <input
+                type="text"
+                name="precioOferta"
+                value={displayPrecios.precioOferta}
+                onChange={(e) => handlePriceChange('precioOferta', e.target.value)}   
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                required
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
                 Precio Minorista *

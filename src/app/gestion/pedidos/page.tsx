@@ -33,6 +33,7 @@ interface Pedido {
   cliente: ClientePedido;
   productos: ProductoPedido[];
   estado: 'pendiente' | 'preparacion' | 'enviado' | 'entregado' | 'cancelado';
+  estadoPago: 'pendiente' | 'parcial' | 'pagado';
   deposito: string;
   fechaEstimadaEntrega?: string;
   total: number;
@@ -54,6 +55,20 @@ const ESTADO_CONFIG: Record<
 };
 
 /* =======================
+   CONFIG ESTADOS PAGO
+======================= */
+
+
+const ESTADO_PAGO_CONFIG: Record<
+  'pendiente' | 'parcial' | 'pagado',
+  { label: string; color: string }
+> = {
+  pendiente: { label: 'Pago pendiente', color: 'bg-red-600' },
+  parcial: { label: 'Pago parcial', color: 'bg-yellow-600' },
+  pagado: { label: 'Pagado', color: 'bg-green-600' },
+};
+
+/* =======================
    SANITIZADOR (CLAVE)
 ======================= */
 const sanitizePedido = (p: any): Pedido => ({
@@ -61,6 +76,7 @@ const sanitizePedido = (p: any): Pedido => ({
   cliente: p?.cliente ?? { razonSocial: 'Cliente desconocido' },
   productos: Array.isArray(p?.productos) ? p.productos : [],
   estado: p?.estado ?? 'pendiente',
+  estadoPago: p?.estadoPago ?? 'pendiente',
   deposito: p?.deposito ?? '-',
   fechaEstimadaEntrega: p?.fechaEstimadaEntrega,
   total: Number(p?.total) || 0,
@@ -186,15 +202,15 @@ export default function PedidosPage() {
           <p className="text-gray-400 mt-1">
             Seguimiento completo de pedidos.
           </p>
-          <p className="text-gray-400 text-sm">volver a gestion 
+          <p className="text-gray-400 text-sm">volver a gestion
             <Link href="/gestion" className="underline hover:text-amber-400"> Gestión </Link>
           </p>
         </div>
 
         <Link
           href="/gestion/pedidos/nuevo"
-          className="bg-amber-600 hover:bg-amber-700 text-white py-2 px-4 rounded-lg flex items-center gap-2"
-        >
+          className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition" >
+        
           <FaPlus /> Nuevo Pedido
         </Link>
       </div>
@@ -211,52 +227,69 @@ export default function PedidosPage() {
           </div>
         ) : (
           <div className="divide-y divide-gray-700">
+
             {pedidos.map((pedido) => {
-              const estado = ESTADO_CONFIG[pedido.estado];
+              const estadoLog = ESTADO_CONFIG[pedido.estado];
+              const estadoPago = ESTADO_PAGO_CONFIG[pedido.estadoPago];
               const totalProductos = pedido.productos.reduce(
                 (sum, p) => sum + (p?.cantidad || 0),
                 0
               );
 
               return (
-                <div key={pedido._id} className="p-4 hover:bg-gray-750">
-                  <div className="flex flex-col md:flex-row md:justify-between gap-3">
-                    <div>
-                      <div className="font-medium text-white">
+                <div key={pedido._id} className="p-4 hover:bg-gray-750 transition-colors">
+                  <div className="flex flex-col md:flex-row md:justify-between gap-4">
+                    {/* Columna izquierda: info principal */}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-white truncate">
                         Pedido #{pedido._id.slice(-6).toUpperCase()}
                       </div>
-                      <div className="text-gray-300">
+                      <div className="text-gray-300 truncate">
                         {pedido.cliente?.razonSocial ?? 'Cliente desconocido'}
                       </div>
-                      <div className="text-sm text-gray-400">
+                      <div className="text-sm text-gray-400 mt-1">
                         {totalProductos} producto(s) • {pedido.deposito}
                       </div>
-                      <div className="text-sm text-gray-400 flex gap-3 mt-1">
+                      <div className="text-sm text-gray-400 flex flex-wrap gap-3 mt-2">
                         <span className="flex items-center gap-1">
-                          <FaDollarSign />
-                          ${pedido.total.toFixed(2)}
+                          <FaDollarSign className="text-amber-400" />
+                          <span className="font-medium">${pedido.total.toFixed(2)}</span>
                         </span>
                         {pedido.fechaEstimadaEntrega && (
                           <span className="flex items-center gap-1">
-                            <FaClock />
-                            {new Date(
-                              pedido.fechaEstimadaEntrega
-                            ).toLocaleDateString()}
+                            <FaClock className="text-blue-400" />
+                            {new Date(pedido.fechaEstimadaEntrega).toLocaleDateString()}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`px-2 py-1 text-xs rounded-full ${estado.color} ${estado.text}`}
-                      >
-                        {estado.label}
-                      </span>
+                    {/* Columna derecha: estados + acción */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                      {/* Estado logístico */}
+                      <div className="flex flex-col items-end sm:items-start">
+                        <span className="text-xs text-gray-400">Logística</span>
+                        <span
+                          className={`px-2 py-1 text-xs rounded-full ${estadoLog.color} ${estadoLog.text} whitespace-nowrap mt-1`}
+                        >
+                          {estadoLog.label}
+                        </span>
+                      </div>
 
+                      {/* Estado de pago */}
+                      <div className="flex flex-col items-end sm:items-start">
+                        <span className="text-xs text-gray-400">Pago</span>
+                        <span
+                          className={`px-2 py-1 text-xs rounded-full ${estadoPago.color} text-white whitespace-nowrap mt-1`}
+                        >
+                          {estadoPago.label}
+                        </span>
+                      </div>
+
+                      {/* Botón Ver */}
                       <Link
                         href={`/gestion/pedidos/${pedido._id}`}
-                        className="text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                        className="text-amber-400 hover:text-amber-300 flex items-center gap-1 mt-2 sm:mt-0"
                       >
                         <FaEye /> Ver
                       </Link>
@@ -265,6 +298,7 @@ export default function PedidosPage() {
                 </div>
               );
             })}
+
           </div>
         )}
       </div>

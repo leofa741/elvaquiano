@@ -18,6 +18,7 @@ interface Cliente {
   direccion?: string;
   ciudad?: string;
   provincia?: string;
+  formaPago: 'efectivo' | 'transferencia' | 'qr' | 'tarjeta' | 'cuenta_corriente' | 'otro';
   email?: string;
   dni?: string;
   activo: boolean;
@@ -310,6 +311,9 @@ useEffect(() => {
                             {cliente.direccion && `${cliente.direccion}, `}
                             {cliente.ciudad && `${cliente.ciudad}, `}
                             {cliente.provincia && cliente.provincia}
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            Forma de pago: {cliente.formaPago}
                           </div>
                         </div>
                       </div>
