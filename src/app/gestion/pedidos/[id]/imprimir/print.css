@@ -1,0 +1,38 @@
+@media print {
+  @page {
+    size: 80mm auto; /* Ancho estándar de ticket térmico */
+    margin: 0;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: white !important;
+    color: black !important;
+  }
+
+  .ticket {
+    width: 80mm;
+    padding: 6mm;
+    font-family: "Courier New", monospace !important;
+    font-size: 11px !important;
+    line-height: 1.4;
+    margin: 0 auto !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px dashed #000;
+    margin: 4px 0;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    background: transparent !important;
+  }
+}

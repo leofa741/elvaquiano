@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import Link from 'next/link';
-import { FaShoppingCart, FaUser, FaWarehouse, FaClock, FaDollarSign, FaArrowLeft } from 'react-icons/fa';
+import { FaShoppingCart, FaUser, FaWarehouse, FaClock, FaDollarSign, FaArrowLeft, FaPrint } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 
 // Tipos
@@ -171,11 +171,10 @@ export default function DetallePedidoPage() {
               <button
                 key={estado}
                 onClick={() => handleCambiarEstado(estado)}
-                className={`px-3 py-1 text-xs rounded-full ${
-                  pedido.estado === estado
+                className={`px-3 py-1 text-xs rounded-full ${pedido.estado === estado
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
+                  }`}
               >
                 {ESTADO_LABEL[estado]}
               </button>
@@ -192,7 +191,7 @@ export default function DetallePedidoPage() {
                 <div>
                   <div className="text-white">{p.nombre}</div>
                   <div className="text-sm text-gray-400">
-                    {p.cantidad} {p.unidad} • 
+                    {p.cantidad} {p.unidad} •
                     <span className="ml-2 capitalize">{p.tipoPrecio}</span> (${p.precioAplicado.toFixed(2)})
                   </div>
                 </div>
@@ -221,6 +220,12 @@ export default function DetallePedidoPage() {
             <div className="text-2xl font-bold text-white">${pedido.total.toFixed(2)}</div>
           </div>
         </div>
+        <Link
+          href={`/gestion/pedidos/${pedido._id}/imprimir`}
+          className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 mt-2"
+        >
+          <FaPrint /> Imprimir ticket
+        </Link>
       </div>
     </div>
   );
