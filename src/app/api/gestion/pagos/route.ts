@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const pagoGuardado = await pago.save();
 
     // Opcional: actualizar estado del pedido (abajo te explico cómo)
-    await actualizarEstadoPedidoPorPago(pedidoId);
+    await actualizarEstadoPagoPorPedido(pedidoId); // ✅ Correcto
 
     return NextResponse.json(pagoGuardado, { status: 201 });
 
@@ -88,18 +88,22 @@ export async function GET(request: NextRequest) {
 }
 
 // Función auxiliar: recalcula el estado del pedido según los pagos
-async function actualizarEstadoPedidoPorPago(pedidoId: string) {
-  const pagos = await Pago.find({ pedido: pedidoId });
-  const totalPagado = pagos.reduce((sum, p) => sum + p.monto, 0);
+// 👇 NUEVA FUNCIÓN: solo toca estadoPago
+async function actualizarEstadoPagoPorPedido(pedidoId: string) {
   const pedido = await Pedido.findById(pedidoId);
   if (!pedido) return;
 
+  const pagos = await Pago.find({ pedido: pedidoId });
+  const totalPagado = pagos.reduce((sum, p) => sum + p.monto, 0);
+
+  // ✅ Solo actualizamos estadoPago (financiero)
   if (totalPagado >= pedido.total) {
-    pedido.estado = 'entregado'; // o 'pagado', según tu lógica
+    pedido.estadoPago = 'pagado';
   } else if (totalPagado > 0) {
-    pedido.estado = 'preparacion'; // o un nuevo estado como 'parcial'
+    pedido.estadoPago = 'parcial';
+  } else {
+    pedido.estadoPago = 'pendiente';
   }
-  // Si totalPagado === 0, queda 'pendiente'
 
   await pedido.save();
 }

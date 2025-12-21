@@ -61,6 +61,19 @@ export default function DetallePedidoPage() {
   const [loading, setLoading] = useState(true);
   const [pedido, setPedido] = useState<Pedido | null>(null);
 
+  // En DetallePedidoPage.tsx
+  const [saldo, setSaldo] = useState<{ saldoPendiente: number; pagos: any[] } | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    const fetchSaldo = async () => {
+      const res = await fetch(`/api/gestion/pedidos/${id}/saldo`);
+      const data = await res.json();
+      setSaldo(data);
+    };
+    fetchSaldo();
+  }, [id]);
+
   // Cargar pedido
   useEffect(() => {
     if (!isAuthorized || !id) return;
@@ -172,8 +185,8 @@ export default function DetallePedidoPage() {
                 key={estado}
                 onClick={() => handleCambiarEstado(estado)}
                 className={`px-3 py-1 text-xs rounded-full ${pedido.estado === estado
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                   }`}
               >
                 {ESTADO_LABEL[estado]}
@@ -220,6 +233,35 @@ export default function DetallePedidoPage() {
             <div className="text-2xl font-bold text-white">${pedido.total.toFixed(2)}</div>
           </div>
         </div>
+
+        {saldo && (
+          <div className="mt-4 p-3 bg-gray-750 rounded">
+            <div className="text-sm text-gray-300">Saldo pendiente:</div>
+            <div className="text-xl font-bold text-amber-400">
+              ${saldo.saldoPendiente.toFixed(2)}
+            </div>
+
+            {saldo.pagos.length > 0 && (
+              <div className="mt-3 text-sm">
+                <div className="font-medium text-gray-300">Pagos realizados:</div>
+                {saldo.pagos.map(p => (
+                  <div key={p._id} className="flex justify-between mt-1">
+                    <span>{new Date(p.fechaPago).toLocaleDateString()} • {p.formaPago}</span>
+                    <span>${p.monto.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Botón para registrar nuevo pago */}
+            <button
+              onClick={() => router.push(`/gestion/pedidos/${id}/pagos/nuevo`)}
+              className="mt-4 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+            >
+              Registrar pago
+            </button>
+          </div>
+        )}
         <Link
           href={`/gestion/pedidos/${pedido._id}/imprimir`}
           className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 mt-2"

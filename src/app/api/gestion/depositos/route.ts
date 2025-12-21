@@ -11,8 +11,6 @@ connectDB();
 export async function GET() {
   try {
 
-    
-  
  
 
     // Obtener todos los productos y sus stocks

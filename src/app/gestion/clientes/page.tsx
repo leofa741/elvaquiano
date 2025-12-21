@@ -133,39 +133,39 @@ export default function ClientesPage() {
   // -------------------------------
   // 🔄 Escuchar eventos SSE
   // -------------------------------
-useEffect(() => {
-  if (!isAuthorized) return;
+  useEffect(() => {
+    if (!isAuthorized) return;
 
-  const eventSource = new EventSource('/api/gestion/clientes/events');
+    const eventSource = new EventSource('/api/gestion/clientes/events');
 
-  eventSource.onmessage = (event) => {
-    if (event.data === 'ping') return;
-    
+    eventSource.onmessage = (event) => {
+      if (event.data === 'ping') return;
 
-    try {
-      const data = JSON.parse(event.data);
-      switch (data.type) {
-        case 'nuevo_cliente':
-          setClientes(prev => [data.data, ...prev]);
-          break;
-        case 'cliente_actualizado':
-        case 'cliente_reactivado':
-        case 'cliente_eliminado':
-          setClientes(prev => prev.map(c => (c._id === data.data._id ? data.data : c)));
-          break;
+
+      try {
+        const data = JSON.parse(event.data);
+        switch (data.type) {
+          case 'nuevo_cliente':
+            setClientes(prev => [data.data, ...prev]);
+            break;
+          case 'cliente_actualizado':
+          case 'cliente_reactivado':
+          case 'cliente_eliminado':
+            setClientes(prev => prev.map(c => (c._id === data.data._id ? data.data : c)));
+            break;
+        }
+      } catch (err) {
+        console.error('SSE error:', err);
       }
-    } catch (err) {
-      console.error('SSE error:', err);
-    }
-  };
+    };
 
-  eventSource.onerror = () => {
-    console.warn('SSE disconnected, closing');
-    eventSource.close();
-  };
+    eventSource.onerror = () => {
+      console.warn('SSE disconnected, closing');
+      eventSource.close();
+    };
 
-  return () => eventSource.close();
-}, [isAuthorized]);
+    return () => eventSource.close();
+  }, [isAuthorized]);
 
   // -------------------------------
   // ✅ Funciones para desactivar/reactivar clientes
@@ -319,6 +319,7 @@ useEffect(() => {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                     
                       <Link href={`/gestion/clientes/editar/${cliente._id}`} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center gap-1">
                         Editar
                       </Link>
