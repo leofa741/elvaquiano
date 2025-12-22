@@ -7,11 +7,12 @@ import { Types } from 'mongoose';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // 👈 CORREGIDO: Promise<{ id: string }>
 ) {
   try {
     await connectDB();
-    const { id } = params;
+    const { id } = await params; // 👈 CORREGIDO: await params
+
 
     // Validar ObjectId
     if (!Types.ObjectId.isValid(id)) {
