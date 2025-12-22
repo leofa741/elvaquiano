@@ -6,11 +6,12 @@ import Pago from '@/app/models/Pago';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // 👈 CORREGIDO: Promise<{ id: string }>
 ) {
   try {
     await connectDB();
-    const { id: pedidoId } = params;
+    const { id: pedidoId } = await params; // 👈 CORREGIDO: await params
+
 
     const pedido = await Pedido.findById(pedidoId);
     if (!pedido) {
@@ -26,7 +27,7 @@ export async function GET(
       totalPagado,
       saldoPendiente,
       estadoPago: saldoPendiente <= 0 ? 'pagado' :
-                   totalPagado > 0 ? 'parcial' : 'pendiente',
+        totalPagado > 0 ? 'parcial' : 'pendiente',
       pagos: pagos.map(p => ({
         _id: p._id,
         monto: p.monto,
