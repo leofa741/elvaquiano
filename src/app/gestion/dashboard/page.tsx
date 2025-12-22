@@ -204,7 +204,7 @@ export default function CuentasCorrientesPage() {
                           className="text-blue-400 hover:text-blue-300 text-sm"
                           title="Ver perfil"
                         >
-                          Perfil
+                          Perfil para registrar pagos
                         </Link>
                         {cuenta.telefono && (
                           <a
