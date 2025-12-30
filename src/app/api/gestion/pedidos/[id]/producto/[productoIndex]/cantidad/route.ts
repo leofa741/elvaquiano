@@ -1,4 +1,4 @@
-// app/api/gestion/pedidos/[id]/producto/[productoIndex]/cantidad/route.ts
+// src/app/api/gestion/pedidos/[id]/producto/[productoIndex]/cantidad/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import Pedido from '@/app/models/Pedido';
 import Producto from '@/app/models/Product';
@@ -8,15 +8,16 @@ import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClie
 
 connectDB();
 
-// Define the params type explicitly
-interface Params {
+// ✅ Define una interfaz que refleje EXACTAMENTE los parámetros de la ruta
+interface RouteParams {
   id: string;
   productoIndex: string;
 }
 
+// ✅ Usa `Record<string, string>` o tipa params como `RouteParams` con aserción implícita
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Params }
+  { params }: { params: RouteParams }
 ) {
   try {
     const { id, productoIndex } = params;
@@ -41,16 +42,13 @@ export async function PATCH(
     }
 
     const item = pedido.productos[index];
-    const diferencia = item.cantidad - nuevaCantidad; // positiva si se reduce
+    const diferencia = item.cantidad - nuevaCantidad;
 
-    // Manejo de stock solo si está en "preparacion"
     if (pedido.estado === 'preparacion') {
       const productoDB = await Producto.findById(item.producto);
       if (productoDB) {
         const stock = productoDB.stock.find((s: any) => s.deposito === pedido.deposito);
         if (stock) {
-          // Si se reduce: devolver stock
-          // Si se aumenta: verificar que haya stock suficiente
           if (diferencia > 0) {
             stock.cantidad += diferencia;
           } else if (diferencia < 0) {
@@ -77,12 +75,10 @@ export async function PATCH(
       }
     }
 
-    // Actualizar cantidad y subtotal
     item.cantidad = nuevaCantidad;
     item.subtotal = nuevaCantidad * item.precioAplicado;
 
-    // Recalcular total
-    pedido.total = pedido.productos.reduce((sum: any, p: { subtotal: any; }) => sum + p.subtotal, 0);
+    pedido.total = pedido.productos.reduce((sum, p: any) => sum + p.subtotal, 0);
 
     await pedido.save();
 
