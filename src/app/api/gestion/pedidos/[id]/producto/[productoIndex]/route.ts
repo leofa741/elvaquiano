@@ -66,6 +66,15 @@ export async function DELETE(request: NextRequest, { params }: any) {
 
     await pedido.save();
 
+    notifyProducts({
+      type: 'stock_modificado',
+      data: {
+        producto: item.producto,
+        motivo: 'producto_eliminado_de_pedido',
+        pedidoId: pedido._id,
+      },
+    });
+
     notifyPedidoClients({
       type: 'pedido_actualizado',
       data: pedido,

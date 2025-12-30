@@ -125,6 +125,9 @@ function PageContent() {
     loadProducts();
   }, [currentPage, isAuthorized]);
 
+
+  
+
   // ✨✨✨ SSE: Escuchar eventos de producto en tiempo real ✨✨✨
   useEffect(() => {
     if (!isAuthorized) return;
