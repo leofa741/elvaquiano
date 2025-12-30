@@ -86,6 +86,9 @@ export default function PresupuestosPage() {
           <p className="text-gray-400 mt-1">
             Crear, imprimir y convertir cotizaciones en pedidos.
           </p>
+             <p className="text-gray-400 mt-1">
+              volver a la sección de <a href="/gestion" className="text-amber-400 underline">Gestión</a>.
+            </p>
         </div>
 
         <Link

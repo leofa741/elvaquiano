@@ -4,7 +4,16 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import Link from 'next/link';
-import { FaShoppingCart, FaUser, FaWarehouse, FaClock, FaDollarSign, FaArrowLeft, FaPrint } from 'react-icons/fa';
+import {
+  FaUser,
+  FaWarehouse,
+  FaClock,
+  FaArrowLeft,
+  FaPrint,
+  FaEdit,
+  FaTrash,
+  FaPlus,
+} from 'react-icons/fa';
 import Swal from 'sweetalert2';
 
 // Tipos
@@ -15,15 +24,24 @@ interface Cliente {
   apellido: string;
   direccion?: string;
   telefono?: string;
+  tipoCliente?: 'minorista' | 'mayorista';
 }
 
 interface Producto {
+  _id: string;
   nombre: string;
   unidad: string;
   cantidad: number;
   tipoPrecio: 'minorista' | 'mayorista';
   precioAplicado: number;
   subtotal: number;
+}
+
+interface ProductoSimple {
+  _id: string;
+  nombre: string;
+  unidad: string;
+  precio: { minorista: number; mayorista: number };
 }
 
 interface Pedido {
@@ -46,13 +64,7 @@ const ESTADO_LABEL: Record<string, string> = {
   cancelado: 'Cancelado',
 };
 
-const ESTADO_OPCIONES = [
-  'pendiente',
-  'preparacion',
-  'enviado',
-  'entregado',
-  'cancelado'
-] as const;
+const ESTADO_OPCIONES = ['pendiente', 'preparacion', 'enviado', 'entregado', 'cancelado'] as const;
 
 export default function DetallePedidoPage() {
   const isAuthorized = useAdminAuthorization();
@@ -60,21 +72,40 @@ export default function DetallePedidoPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [pedido, setPedido] = useState<Pedido | null>(null);
-
-  // En DetallePedidoPage.tsx
   const [saldo, setSaldo] = useState<{ saldoPendiente: number; pagos: any[] } | null>(null);
+  const [editandoProducto, setEditandoProducto] = useState<number | null>(null);
+  const [cantidadTemporal, setCantidadTemporal] = useState<number>(1);
+  const [productosDisponibles, setProductosDisponibles] = useState<ProductoSimple[]>([]);
+  const [mostrarAgregar, setMostrarAgregar] = useState(false);
+  const [productoSeleccionado, setProductoSeleccionado] = useState<string>('');
+  const [cantidadNuevo, setCantidadNuevo] = useState<number>(1);
+
+  // Fetch saldo
+  const fetchSaldo = async () => {
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/gestion/pedidos/${id}/saldo`);
+      if (res.ok) {
+        const data = await res.json();
+        setSaldo(data);
+      }
+    } catch (err) {
+      console.error('Error al cargar saldo:', err);
+    }
+  };
+
+  // Fetch productos simples
+  const fetchProductos = async () => {
+    const res = await fetch('/api/gestion/productos/lista-simple');
+    const data = await res.json();
+    setProductosDisponibles(data);
+  };
 
   useEffect(() => {
-    if (!id) return;
-    const fetchSaldo = async () => {
-      const res = await fetch(`/api/gestion/pedidos/${id}/saldo`);
-      const data = await res.json();
-      setSaldo(data);
-    };
     fetchSaldo();
+    fetchProductos();
   }, [id]);
 
-  // Cargar pedido
   useEffect(() => {
     if (!isAuthorized || !id) return;
 
@@ -99,7 +130,6 @@ export default function DetallePedidoPage() {
   if (loading) return <div className="p-8 text-center text-gray-400">Cargando pedido...</div>;
   if (!pedido) return null;
 
-  // Cambiar estado
   const handleCambiarEstado = async (nuevoEstado: string) => {
     const result = await Swal.fire({
       title: '¿Cambiar estado?',
@@ -122,7 +152,7 @@ export default function DetallePedidoPage() {
 
         if (res.ok) {
           Swal.fire('¡Actualizado!', 'El estado del pedido ha sido actualizado.', 'success');
-          setPedido(prev => prev ? { ...prev, estado: nuevoEstado as any } : null);
+          setPedido((prev) => (prev ? { ...prev, estado: nuevoEstado as any } : null));
         } else {
           const error = await res.json();
           Swal.fire('Error', error.error || 'No se pudo actualizar el estado', 'error');
@@ -130,6 +160,103 @@ export default function DetallePedidoPage() {
       } catch (err) {
         Swal.fire('Error', 'Error de conexión con el servidor', 'error');
       }
+    }
+  };
+
+  const iniciarEdicion = (idx: number, cantidad: number) => {
+    setEditandoProducto(idx);
+    setCantidadTemporal(cantidad);
+  };
+
+  const guardarCantidad = async (idx: number) => {
+    if (cantidadTemporal <= 0) {
+      Swal.fire('Error', 'La cantidad debe ser mayor a 0', 'error');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/gestion/pedidos/${id}/producto/${idx}/cantidad`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nuevaCantidad: cantidadTemporal }),
+      });
+
+      if (res.ok) {
+        const updatedPedido = await res.json();
+        setPedido(updatedPedido);
+        await fetchSaldo();
+        setEditandoProducto(null);
+        Swal.fire('¡Actualizado!', 'La cantidad fue modificada.', 'success');
+      } else {
+        const error = await res.json();
+        Swal.fire('Error', error.error || 'No se pudo actualizar la cantidad', 'error');
+      }
+    } catch (err) {
+      Swal.fire('Error', 'Error de conexión', 'error');
+    }
+  };
+
+  const eliminarProducto = async (idx: number, nombre: string) => {
+    const result = await Swal.fire({
+      title: '¿Eliminar producto?',
+      text: `¿Seguro que deseas eliminar "${nombre}" del pedido?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d32f2f',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const res = await fetch(`/api/gestion/pedidos/${id}/producto/${idx}`, {
+          method: 'DELETE',
+        });
+
+        if (res.ok) {
+          const updatedPedido = await res.json();
+          setPedido(updatedPedido);
+          await fetchSaldo();
+          Swal.fire('¡Eliminado!', 'El producto fue removido del pedido.', 'success');
+        } else {
+          const error = await res.json();
+          Swal.fire('Error', error.error || 'No se pudo eliminar el producto', 'error');
+        }
+      } catch (err) {
+        Swal.fire('Error', 'Error de conexión', 'error');
+      }
+    }
+  };
+
+  // ✅ Agregar nuevo producto
+  const handleAgregarProducto = async () => {
+    if (!productoSeleccionado || cantidadNuevo <= 0) {
+      Swal.fire('Error', 'Selecciona un producto y una cantidad válida', 'error');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/gestion/pedidos/${id}/producto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productoId: productoSeleccionado, cantidad: cantidadNuevo }),
+      });
+
+      if (res.ok) {
+        const updatedPedido = await res.json();
+        setPedido(updatedPedido);
+        await fetchSaldo();
+        setMostrarAgregar(false);
+        setProductoSeleccionado('');
+        setCantidadNuevo(1);
+        Swal.fire('¡Agregado!', 'El producto fue añadido al pedido.', 'success');
+      } else {
+        const error = await res.json();
+        Swal.fire('Error', error.error || 'No se pudo agregar el producto', 'error');
+      }
+    } catch (err) {
+      Swal.fire('Error', 'Error de conexión', 'error');
     }
   };
 
@@ -144,7 +271,6 @@ export default function DetallePedidoPage() {
       </div>
 
       <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 max-w-4xl mx-auto">
-        {/* Información general */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="bg-gray-750 p-4 rounded-lg">
             <h3 className="font-medium text-amber-400 mb-2 flex items-center gap-2">
@@ -153,7 +279,7 @@ export default function DetallePedidoPage() {
             </h3>
             <p className="text-white">{pedido.cliente.razonSocial}</p>
             <p className="text-gray-300 text-sm">
-              {pedido.cliente.nombre} {pedido.cliente.apellido}  <br />
+              {pedido.cliente.nombre} {pedido.cliente.apellido} <br />
               {pedido.cliente.direccion} <br />
               {pedido.cliente.telefono}
             </p>
@@ -174,20 +300,18 @@ export default function DetallePedidoPage() {
           </div>
         </div>
 
-        {/* Estado */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Estado actual
-          </label>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Estado actual</label>
           <div className="flex flex-wrap gap-2">
-            {ESTADO_OPCIONES.map(estado => (
+            {ESTADO_OPCIONES.map((estado) => (
               <button
                 key={estado}
                 onClick={() => handleCambiarEstado(estado)}
-                className={`px-3 py-1 text-xs rounded-full ${pedido.estado === estado
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}
+                className={`px-3 py-1 text-xs rounded-full ${
+                  pedido.estado === estado
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
               >
                 {ESTADO_LABEL[estado]}
               </button>
@@ -195,28 +319,146 @@ export default function DetallePedidoPage() {
           </div>
         </div>
 
+        {/* Botón para agregar producto */}
+        {['pendiente', 'preparacion', 'enviado'].includes(pedido.estado) && (
+          <div className="mb-4">
+            <button
+              onClick={() => setMostrarAgregar(!mostrarAgregar)}
+              className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 text-sm"
+            >
+              <FaPlus size={12} />
+              Agregar producto al pedido
+            </button>
+
+            {mostrarAgregar && (
+              <div className="mt-3 p-3 bg-gray-750 rounded flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+                <select
+                  value={productoSeleccionado}
+                  onChange={(e) => setProductoSeleccionado(e.target.value)}
+                  className="bg-gray-700 text-white rounded px-2 py-1 border border-gray-600"
+                >
+                  <option value="">Seleccionar producto</option>
+                  {productosDisponibles.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.nombre} ({p.unidad})
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center gap-2">
+                  <label className="text-gray-300 text-sm">Cantidad:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={cantidadNuevo}
+                    onChange={(e) => setCantidadNuevo(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-16 text-center bg-gray-700 text-white rounded border border-gray-600"
+                  />
+                </div>
+                <button
+                  onClick={handleAgregarProducto}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm"
+                >
+                  Agregar
+                </button>
+                <button
+                  onClick={() => {
+                    setMostrarAgregar(false);
+                    setProductoSeleccionado('');
+                    setCantidadNuevo(1);
+                  }}
+                  className="text-gray-400 hover:text-gray-300 text-sm"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Productos */}
         <div className="mb-6">
           <h3 className="text-lg font-medium text-amber-400 mb-3">Productos</h3>
           <div className="space-y-3">
             {pedido.productos.map((p, idx) => (
-              <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-700 last:border-0">
+              <div
+                key={idx}
+                className="flex justify-between items-center py-2 border-b border-gray-700 last:border-0"
+              >
                 <div>
                   <div className="text-white">{p.nombre}</div>
                   <div className="text-sm text-gray-400">
-                    {p.cantidad} {p.unidad} •
                     <span className="ml-2 capitalize">{p.tipoPrecio}</span> (${p.precioAplicado.toFixed(2)})
                   </div>
                 </div>
-                <div className="text-white font-medium">
-                  ${p.subtotal.toFixed(2)}
+
+                <div className="flex items-center gap-3">
+                  {editandoProducto === idx ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCantidadTemporal(Math.max(1, cantidadTemporal - 1))}
+                        className="w-8 h-8 rounded-full bg-gray-700 text-white flex items-center justify-center"
+                      >
+                        –
+                      </button>
+                      <input
+                        type="number"
+                        min="1"
+                        value={cantidadTemporal}
+                        onChange={(e) => setCantidadTemporal(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-16 text-center bg-gray-700 text-white rounded border border-gray-600"
+                      />
+                      <button
+                        onClick={() => setCantidadTemporal(cantidadTemporal + 1)}
+                        className="w-8 h-8 rounded-full bg-gray-700 text-white flex items-center justify-center"
+                      >
+                        +
+                      </button>
+                      <button
+                        onClick={() => guardarCantidad(idx)}
+                        className="text-green-500 hover:text-green-400 text-sm"
+                      >
+                        Guardar
+                      </button>
+                      <button
+                        onClick={() => setEditandoProducto(null)}
+                        className="text-gray-500 hover:text-gray-400 text-sm"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <span className="text-white">
+                        {p.cantidad} {p.unidad}
+                      </span>
+                      <div className="text-white font-medium">${p.subtotal.toFixed(2)}</div>
+
+                      {['pendiente', 'preparacion', 'enviado'].includes(pedido.estado) && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => iniciarEdicion(idx, p.cantidad)}
+                            className="text-amber-500 hover:text-amber-400"
+                            title="Editar cantidad"
+                          >
+                            <FaEdit size={14} />
+                          </button>
+                          <button
+                            onClick={() => eliminarProducto(idx, p.nombre)}
+                            className="text-red-500 hover:text-red-400"
+                            title="Eliminar producto"
+                          >
+                            <FaTrash size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Total */}
         <div className="border-t border-gray-700 pt-4 flex justify-between items-center">
           <div>
             {pedido.notas && (
@@ -244,7 +486,7 @@ export default function DetallePedidoPage() {
             {saldo.pagos.length > 0 && (
               <div className="mt-3 text-sm">
                 <div className="font-medium text-gray-300">Pagos realizados:</div>
-                {saldo.pagos.map(p => (
+                {saldo.pagos.map((p) => (
                   <div key={p._id} className="flex justify-between mt-1">
                     <span>{new Date(p.fechaPago).toLocaleDateString()} • {p.formaPago}</span>
                     <span>${p.monto.toFixed(2)}</span>
@@ -253,7 +495,6 @@ export default function DetallePedidoPage() {
               </div>
             )}
 
-            {/* Botón para registrar nuevo pago */}
             <button
               onClick={() => router.push(`/gestion/pedidos/${id}/pagos/nuevo`)}
               className="mt-4 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
@@ -262,6 +503,7 @@ export default function DetallePedidoPage() {
             </button>
           </div>
         )}
+
         <Link
           href={`/gestion/pedidos/${pedido._id}/imprimir`}
           className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 mt-2"
