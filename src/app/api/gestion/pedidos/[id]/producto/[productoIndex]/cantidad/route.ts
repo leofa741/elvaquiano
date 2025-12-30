@@ -8,9 +8,15 @@ import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClie
 
 connectDB();
 
+// Define the params type explicitly
+interface Params {
+  id: string;
+  productoIndex: string;
+}
+
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string; productoIndex: string } }
+  { params }: { params: Params }
 ) {
   try {
     const { id, productoIndex } = params;
