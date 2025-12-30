@@ -8,17 +8,10 @@ import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClie
 
 connectDB();
 
-// ✅ Define una interfaz que refleje EXACTAMENTE los parámetros de la ruta
-interface RouteParams {
-  id: string;
-  productoIndex: string;
-}
+
 
 // ✅ Usa `Record<string, string>` o tipa params como `RouteParams` con aserción implícita
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: RouteParams }
-) {
+export async function PATCH(request: NextRequest, { params }: any)  {
   try {
     const { id, productoIndex } = params;
     const { nuevaCantidad } = await request.json();
@@ -78,7 +71,7 @@ export async function PATCH(
     item.cantidad = nuevaCantidad;
     item.subtotal = nuevaCantidad * item.precioAplicado;
 
-    pedido.total = pedido.productos.reduce((sum, p: any) => sum + p.subtotal, 0);
+    pedido.total = pedido.productos.reduce((sum: any, p: any) => sum + p.subtotal, 0);
 
     await pedido.save();
 
