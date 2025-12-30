@@ -90,7 +90,7 @@ export async function DELETE(
 
 
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: any) {
     try {
         const { id } = params;
         const { productoId, cantidad } = await request.json();
