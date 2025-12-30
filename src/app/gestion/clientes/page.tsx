@@ -283,7 +283,7 @@ export default function ClientesPage() {
     }
   };
   // -------------------------------
-  // 🚨 Render condicional de autorización
+  // 🚨 Render condicional de autorización nnn
   // -------------------------------
   if (!isAuthorized) return <div className="p-6 text-center text-gray-400">Validando acceso...</div>;
 
