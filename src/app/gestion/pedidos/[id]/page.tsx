@@ -320,7 +320,7 @@ export default function DetallePedidoPage() {
         </div>
 
         {/* Botón para agregar producto */}
-        {['pendiente', 'preparacion'].includes(pedido.estado) && (
+        {[ 'preparacion'].includes(pedido.estado) && (
           <div className="mb-4">
             <button
               onClick={() => setMostrarAgregar(!mostrarAgregar)}
@@ -433,7 +433,7 @@ export default function DetallePedidoPage() {
                       </span>
                       <div className="text-white font-medium">${p.subtotal.toFixed(2)}</div>
 
-                      {['pendiente', 'preparacion'].includes(pedido.estado) && (
+                      {['preparacion'].includes(pedido.estado) && (
                         <div className="flex gap-1">
                           <button
                             onClick={() => iniciarEdicion(idx, p.cantidad)}
