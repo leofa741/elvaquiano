@@ -22,6 +22,12 @@ interface Cliente {
   email?: string;
   dni?: string;
   activo: boolean;
+  alerta?: {
+    umbralDeuda?: number;
+    revisado?: boolean;
+    ultimaRevision?: string;
+    notaAlerta?: string;
+  };
 }
 
 export default function ClientesPage() {
@@ -114,7 +120,9 @@ export default function ClientesPage() {
       cliente.apellido.toLowerCase().includes(termino) ||
       (cliente.dni && cliente.dni.includes(termino)) ||
       cliente.telefono.includes(termino) ||
-      (cliente.email && cliente.email.toLowerCase().includes(termino))
+      (cliente.email && cliente.email.toLowerCase().includes(termino))||
+      (cliente.formaPago && cliente.formaPago.toLowerCase().includes(termino))
+
     );
   }, [clientes, busqueda]);
 
@@ -222,6 +230,54 @@ export default function ClientesPage() {
     }
   };
 
+  const actualizarUmbral = async (clienteId: string, umbral: number) => {
+    try {
+      const res = await fetch(`/api/gestion/cuentas-corrientes/alertas/${clienteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ umbralDeuda: umbral })
+      });
+
+      if (!res.ok) throw new Error('Error al actualizar el umbral');
+
+      // ✅ Actualizar localmente sin recargar
+      setClientes(prev =>
+        prev.map(c =>
+          c._id === clienteId
+            ? { ...c, alerta: { ...(c as any).alerta, umbralDeuda: umbral } }
+            : c
+        )
+      );
+
+      toast.success('Umbral de alerta actualizado');
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo actualizar el umbral.',
+        confirmButtonColor: '#d33'
+      });
+    }
+  };
+
+  const editarUmbralConModal = async (cliente: Cliente) => {
+    const { value: nuevoUmbral } = await Swal.fire({
+      title: `Umbral para ${cliente.razonSocial}`,
+      input: 'number',
+      inputLabel: 'Monto mínimo para alerta (ARS)',
+      inputValue: cliente.alerta?.umbralDeuda || 50000,
+      inputAttributes: { min: '0' },
+      confirmButtonText: 'Guardar',
+      showCancelButton: true,
+      confirmButtonColor: '#8b5cf6', // purple-500
+      cancelButtonColor: '#6b7280'
+    });
+
+    if (nuevoUmbral !== null && !isNaN(Number(nuevoUmbral)) && Number(nuevoUmbral) >= 0) {
+      actualizarUmbral(cliente._id, Number(nuevoUmbral));
+    }
+  };
   // -------------------------------
   // 🚨 Render condicional de autorización
   // -------------------------------
@@ -319,7 +375,7 @@ export default function ClientesPage() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                     
+
                       <Link href={`/gestion/clientes/editar/${cliente._id}`} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center gap-1">
                         Editar
                       </Link>
@@ -333,6 +389,14 @@ export default function ClientesPage() {
                       ) : (
                         <button onClick={() => handleReactivar(cliente)} className="text-green-400 hover:text-green-300 text-sm font-medium flex items-center gap-1">
                           Reactivar
+                        </button>
+                      )}
+                      {cliente.formaPago === 'cuenta_corriente' && (
+                        <button
+                          onClick={() => editarUmbralConModal(cliente)}
+                          className="text-purple-400 hover:text-purple-300 text-sm font-medium flex items-center gap-1"
+                        >
+                          Editar umbral de alerta
                         </button>
                       )}
                     </div>

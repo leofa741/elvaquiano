@@ -1,8 +1,18 @@
+// app/app/gestion/cuentas-corrientes/page.tsx
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
-import { FaUserFriends, FaMoneyBillWave, FaExclamationTriangle, FaWhatsapp, FaEnvelope, FaSearch, FaArrowLeft } from 'react-icons/fa';
+import {
+  FaUserFriends,
+  FaMoneyBillWave,
+  FaExclamationTriangle,
+  FaWhatsapp,
+  FaEnvelope,
+  FaSearch,
+  FaArrowLeft,
+  FaCheckCircle
+} from 'react-icons/fa';
 import Link from 'next/link';
 
 interface CuentaCorriente {
@@ -15,7 +25,9 @@ interface CuentaCorriente {
   formaPago: string;
   deudaTotal: number;
   pedidosDeudores: number;
-  notas :string;
+  notas: string;
+  tieneAlerta: boolean;
+  alertaRevisada: boolean;
 }
 
 interface Resumen {
@@ -36,6 +48,7 @@ export default function CuentasCorrientesPage() {
   const isAuthorized = useAdminAuthorization();
   const [loading, setLoading] = useState(true);
   const [resumen, setResumen] = useState<Resumen>({ totalAdeudado: 0, cantidadClientes: 0 });
+  const [alertasActivas, setAlertasActivas] = useState(0);
   const [cuentas, setCuentas] = useState<CuentaCorriente[]>([]);
   const [filtro, setFiltro] = useState({ search: '', minDeuda: 0, maxDeuda: Infinity });
 
@@ -46,14 +59,14 @@ export default function CuentasCorrientesPage() {
       try {
         const res = await fetch('/api/gestion/cuentas-corrientes');
         const data = await res.json();
-        console.log("ladata",data)
         setResumen({
           totalAdeudado: data.totalAdeudado || 0,
           cantidadClientes: data.cantidadClientes || 0
         });
+        setAlertasActivas(data.alertasActivas || 0);
         setCuentas(data.cuentasCorrientes || []);
       } catch (err) {
-        console.error('Error:', err);
+        console.error('Error al cargar cuentas:', err);
       } finally {
         setLoading(false);
       }
@@ -62,7 +75,6 @@ export default function CuentasCorrientesPage() {
     fetchCuentas();
   }, [isAuthorized]);
 
-  // Filtro dinámico
   const cuentasFiltradas = useMemo(() => {
     return cuentas.filter(c => {
       const matchesSearch =
@@ -74,6 +86,26 @@ export default function CuentasCorrientesPage() {
       return matchesSearch && matchesDeuda;
     });
   }, [cuentas, filtro]);
+
+  const marcarAlertaComoRevisada = async (clienteId: string) => {
+    try {
+      await fetch(`/api/gestion/cuentas-corrientes/alertas/${clienteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ revisado: true })
+      });
+
+      // Actualizar localmente
+      setCuentas(prev =>
+        prev.map(c =>
+          c.clienteId === clienteId ? { ...c, alertaRevisada: true } : c
+        )
+      );
+      setAlertasActivas(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Error al marcar alerta como revisada:', err);
+    }
+  };
 
   if (!isAuthorized) return null;
 
@@ -118,9 +150,7 @@ export default function CuentasCorrientesPage() {
           <div className="text-red-400 flex items-center gap-2 mb-1">
             <FaExclamationTriangle /> Alertas activas
           </div>
-          <div className="text-2xl font-bold text-white">
-            {cuentas.filter(c => c.deudaTotal > 50000).length}
-          </div>
+          <div className="text-2xl font-bold text-white">{alertasActivas}</div>
         </div>
       </div>
 
@@ -175,7 +205,12 @@ export default function CuentasCorrientesPage() {
                 {cuentasFiltradas.map((cuenta) => (
                   <tr key={cuenta.clienteId} className="hover:bg-gray-750 transition-colors">
                     <td className="p-4">
-                      <div className="font-medium text-white">{cuenta.razonSocial}</div>
+                      <div className="font-medium text-white flex items-center gap-1">
+                        {cuenta.razonSocial}
+                        {cuenta.tieneAlerta && !cuenta.alertaRevisada && (
+                          <FaExclamationTriangle className="text-red-400" title="Alerta de deuda alta" />
+                        )}
+                      </div>
                       <div className="text-sm text-gray-400">{cuenta.nombre} {cuenta.apellido}</div>
                       <div className="text-xs text-gray-500 mt-1">{cuenta.telefono}</div>
                     </td>
@@ -195,16 +230,14 @@ export default function CuentasCorrientesPage() {
                     <td className="p-4 text-center">
                       <span className="text-gray-300">{cuenta.notas}</span>
                     </td>
-
-
                     <td className="p-4 text-center">
-                      <div className="flex justify-center gap-2">
+                      <div className="flex justify-center gap-2 flex-wrap">
                         <Link
                           href={`/gestion/clientes/${cuenta.clienteId}/finanzas`}
                           className="text-blue-400 hover:text-blue-300 text-sm"
                           title="Ver perfil"
                         >
-                          Perfil para registrar pagos
+                          Perfil
                         </Link>
                         {cuenta.telefono && (
                           <a
@@ -226,6 +259,15 @@ export default function CuentasCorrientesPage() {
                             <FaEnvelope />
                           </a>
                         )}
+                        {cuenta.tieneAlerta && !cuenta.alertaRevisada && (
+                          <button
+                            onClick={() => marcarAlertaComoRevisada(cuenta.clienteId)}
+                            className="text-yellow-400 hover:text-yellow-300 flex items-center gap-1 text-sm"
+                            title="Marcar alerta como revisada"
+                          >
+                            <FaCheckCircle />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -236,7 +278,6 @@ export default function CuentasCorrientesPage() {
         )}
       </div>
 
-      {/* Footer */}
       <div className="mt-6 text-center text-gray-500 text-sm">
         Datos actualizados en tiempo real • Última actualización: {new Date().toLocaleTimeString()}
       </div>

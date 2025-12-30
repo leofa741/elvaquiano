@@ -4,8 +4,8 @@ const ClienteSchema = new Schema({
   razonSocial: { type: String, required: true, trim: true },
   nombre: { type: String, required: true, trim: true },
   apellido: { type: String, required: true, trim: true },
-  dni: { 
-    type: String, 
+  dni: {
+    type: String,
     trim: true,
     sparse: true,
     unique: true,
@@ -15,9 +15,9 @@ const ClienteSchema = new Schema({
     }
   },
   telefono: { type: String, required: true, trim: true },
-  email: { 
-    type: String, 
-    trim: true, 
+  email: {
+    type: String,
+    trim: true,
     lowercase: true,
     sparse: true,
     unique: true,
@@ -31,7 +31,13 @@ const ClienteSchema = new Schema({
     enum: ['efectivo', 'transferencia', 'qr', 'tarjeta', 'cuenta_corriente', 'otro'],
     default: 'efectivo'
   },
-  activo: { type: Boolean, default: true }
+  activo: { type: Boolean, default: true },
+  alerta: {
+    umbralDeuda: { type: Number, default: 50000 },
+    revisado: { type: Boolean, default: false },
+    ultimaRevision: { type: Date },
+    notaAlerta: { type: String, default: '' }
+  }
 }, {
   timestamps: true
 });
