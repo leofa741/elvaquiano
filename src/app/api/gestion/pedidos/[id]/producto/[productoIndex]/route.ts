@@ -7,10 +7,9 @@ import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClie
 
 connectDB();
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string; productoIndex: string } }
-) {
+
+
+export async function DELETE(request: NextRequest, { params }: any) {
   try {
     const { id, productoIndex } = params;
     const index = parseInt(productoIndex, 10);
