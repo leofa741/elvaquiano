@@ -4,13 +4,10 @@ import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
 import { ObjectId } from 'mongodb';
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { clienteId: string } }
-) {
+export async function PATCH(request: NextRequest, { params }: any) {
   try {
     await connectDB();
-    const body = await req.json();
+    const body = await request.json();
     const { revisado, notaAlerta, umbralDeuda } = body;
     const { clienteId } = params;
 
