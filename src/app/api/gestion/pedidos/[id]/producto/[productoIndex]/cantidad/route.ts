@@ -9,12 +9,9 @@ import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClie
 connectDB();
 
 
-export async function PATCH(
-  request: NextRequest,
-  context: { params: { id: string; productoIndex: string } }
-) {
+export async function PATCH(request: NextRequest, { params }: any) {
   try {
-    const { id, productoIndex } = context.params;
+    const { id, productoIndex } = params;
     const { nuevaCantidad } = await request.json();
     const index = parseInt(productoIndex, 10);
 
