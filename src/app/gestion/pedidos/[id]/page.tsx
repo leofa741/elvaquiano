@@ -433,7 +433,7 @@ export default function DetallePedidoPage() {
                       </span>
                       <div className="text-white font-medium">${p.subtotal.toFixed(2)}</div>
 
-                      {['pendiente', 'preparacion', 'enviado'].includes(pedido.estado) && (
+                      {['pendiente', 'preparacion'].includes(pedido.estado) && (
                         <div className="flex gap-1">
                           <button
                             onClick={() => iniciarEdicion(idx, p.cantidad)}
