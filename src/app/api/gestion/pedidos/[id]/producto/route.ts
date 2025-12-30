@@ -1,4 +1,4 @@
-// app/api/gestion/pedidos/[id]/producto/[productoIndex]/route.ts
+// app/api/gestion/pedidos/[id]/producto/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import Pedido from '@/app/models/Pedido';
 import Producto from '@/app/models/Product';
@@ -8,7 +8,10 @@ import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClie
 
 connectDB();
 
-export async function DELETE(request: NextRequest, { params }: any) {
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: { id: string; productoIndex: string } }
+) {
     try {
         const { id, productoIndex } = params;
         const index = parseInt(productoIndex, 10);
@@ -85,7 +88,9 @@ export async function DELETE(request: NextRequest, { params }: any) {
 
 
 
-export async function POST(request: NextRequest, { params }: any) {
+
+
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
     try {
         const { id } = params;
         const { productoId, cantidad } = await request.json();
