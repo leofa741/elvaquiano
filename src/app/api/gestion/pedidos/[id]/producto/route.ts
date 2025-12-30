@@ -164,6 +164,15 @@ export async function POST(request: NextRequest, { params }: any) {
 
         await pedido.save();
 
+        notifyProducts({
+            type: 'stock_modificado',
+            data: {
+                producto: productoDB,
+                motivo: 'producto_agregado_a_pedido',
+                pedidoId: pedido._id,
+            },
+        }); 
+
         notifyPedidoClients({
             type: 'pedido_actualizado',
             data: pedido,
