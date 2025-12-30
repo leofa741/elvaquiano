@@ -320,7 +320,7 @@ export default function DetallePedidoPage() {
         </div>
 
         {/* Botón para agregar producto */}
-        {['pendiente', 'preparacion', 'enviado'].includes(pedido.estado) && (
+        {['pendiente', 'preparacion'].includes(pedido.estado) && (
           <div className="mb-4">
             <button
               onClick={() => setMostrarAgregar(!mostrarAgregar)}
