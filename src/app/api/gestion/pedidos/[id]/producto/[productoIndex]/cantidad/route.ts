@@ -9,8 +9,6 @@ import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClie
 connectDB();
 
 
-
-
 export async function PATCH(
   request: NextRequest,
   context: { params: { id: string; productoIndex: string } }
@@ -21,7 +19,7 @@ export async function PATCH(
     const index = parseInt(productoIndex, 10);
 
     if (isNaN(index) || nuevaCantidad <= 0 || !Number.isInteger(nuevaCantidad)) {
-      return NextResponse.json({ error: 'Cantidad inválida' }, { status: 400 });
+      return NextResponse.json({ error: 'Cantidadd inválida' }, { status: 400 });
     }
 
     const pedido = await Pedido.findById(id).populate('productos.producto');
