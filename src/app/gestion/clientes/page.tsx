@@ -261,6 +261,10 @@ export default function ClientesPage() {
     }
   };
 
+  // -------------------------------
+  // 🚨 Función para editar umbral con modal
+  // -------------------------------
+
   const editarUmbralConModal = async (cliente: Cliente) => {
     const { value: nuevoUmbral } = await Swal.fire({
       title: `Umbral para ${cliente.razonSocial}`,
