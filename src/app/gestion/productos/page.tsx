@@ -155,8 +155,7 @@ function PageContent() {
 
 
   // ✨✨✨ SSE: Escuchar eventos de producto en tiempo real ✨✨✨
-  useEffect(() => {
-    if (!isAuthorized) return;
+  useEffect(() => {   
 
     const eventSource = new EventSource('/api/gestion/productos/events');
 
@@ -204,7 +203,7 @@ function PageContent() {
     };
 
     return () => eventSource.close();
-  }, [isAuthorized]);
+  }, []);
 
   if (!isAuthorized) return null;
 
@@ -214,7 +213,7 @@ function PageContent() {
     return `${pathname}?${params.toString()}`;
   };
 
-  
+
 
   // ✅ Filtrar en TODOS los productos si hay búsqueda, sino usar los de la página
   const filteredProducts = internalSearch
