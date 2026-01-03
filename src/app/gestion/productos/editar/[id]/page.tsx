@@ -160,11 +160,13 @@ export default function EditProductPage() {
     validateAccess();
   }, [status, session, router]);  
 
-  
+
 
   // 📥 Cargar depósitos y categorías
   useEffect(() => {
     const fetchOptions = async () => {
+      if (!isAuthorized) return;
+      setLoadingOptions(true);
       try {
         const [resDepositos, resCategorias] = await Promise.all([
           fetch('/api/gestion/depositos'),
@@ -187,10 +189,12 @@ export default function EditProductPage() {
     };
 
     fetchOptions();
-  }, []);
+  }, [isAuthorized]);
 
   // 📥 Cargar producto
   useEffect(() => {
+    if (!isAuthorized) return;
+      setLoading(true);
     if (!id) {
       toast.error('ID de producto no válido');
       router.push('/gestion/productos');
@@ -198,6 +202,7 @@ export default function EditProductPage() {
     }
 
     const loadProduct = async () => {
+      
       try {
         const res = await fetch(`/api/gestion/productos/${id}`);
         if (!res.ok) {
