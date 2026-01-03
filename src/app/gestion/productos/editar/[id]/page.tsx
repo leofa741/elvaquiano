@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
+import { useSession } from 'next-auth/react';
 
 // Tipos
 interface StockEntry {
@@ -80,9 +81,10 @@ const formatArgentineFinal = (value: number | null): string => {
 
 export default function EditProductPage() {
   const { id } = useParams() as { id?: string };
+  const { data: session, status } = useSession();
   const router = useRouter();
-
-  const [loading, setLoading] = useState(true);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [product, setProduct] = useState<Product | null>(null);
 
@@ -124,6 +126,41 @@ export default function EditProductPage() {
   const [depositos, setDepositos] = useState<string[]>([]);
   const [categorias, setCategorias] = useState<string[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
+
+  // ✅ Verificar autorización
+  useEffect(() => {
+    const validateAccess = async () => {
+      if (status === 'loading') return;
+      if (status === 'unauthenticated') {
+        router.push('/');
+        return;
+      }
+
+      const token = session?.user?.token || localStorage.getItem('token');
+      if (!token) {
+        toast.error('Acceso denegado');
+        router.push('/');
+        return;
+      }
+
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (!['admin', 'superadmin'].includes(payload.role)) {
+          toast.error('Acceso restringido a administradores');
+          router.push('/');
+          return;
+        }
+        setIsAuthorized(true);
+      } catch (err) {
+        toast.error('Sesión inválida');
+        router.push('/');
+      }
+    };
+
+    validateAccess();
+  }, [status, session, router]);  
+
+  
 
   // 📥 Cargar depósitos y categorías
   useEffect(() => {
