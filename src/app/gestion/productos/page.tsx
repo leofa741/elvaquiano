@@ -10,7 +10,6 @@ import Swal from 'sweetalert2';
 import { Suspense } from 'react';
 import StockValueSummary from './StockValueSummary';
 
-
 interface Product {
   _id: string;
   nombre: string;
@@ -52,7 +51,9 @@ function PageContent() {
   const pathname = usePathname();
 
   const [isAuthorized, setIsAuthorized] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>([]); // productos de la página actual
+  const [allProducts, setAllProducts] = useState<Product[]>([]); // todos los productos
+  const [isAllProductsLoaded, setIsAllProductsLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [internalSearch, setInternalSearch] = useState('');
 
@@ -62,7 +63,9 @@ function PageContent() {
     totalPages: 1,
   });
 
-  const limit = 10;
+  const limit = 20;
+
+
 
   // 🔒 Validación de acceso
   useEffect(() => {
@@ -97,14 +100,16 @@ function PageContent() {
     validateAccess();
   }, [status, session, router]);
 
-  // 📥 Cargar productos con paginación
-  const loadProducts = async () => {
+
+
+  // 📥 Cargar productos PAGINADOS (para la tabla principal)
+  const loadPaginatedProducts = async () => {
     if (!isAuthorized) return;
     setLoading(true);
     try {
       const res = await fetch(`/api/gestion/productos?page=${currentPage}&limit=${limit}`);
       if (res.ok) {
-        const data: ProductResponse = await res.json();
+        const data = await res.json();
         setProducts(data.products);
         setPagination({
           total: data.total,
@@ -121,10 +126,31 @@ function PageContent() {
     }
   };
 
+
+
+  // 📥 Cargar TODOS los productos (para la búsqueda)
+  const loadAllProducts = async () => {
+    if (!isAuthorized || isAllProductsLoaded) return;
+    try {
+      // Ajustá el límite según tu volumen de productos (1000 suele ser suficiente)
+      const res = await fetch('/api/gestion/productos?limit=1000');
+      if (res.ok) {
+        const data = await res.json();
+        setAllProducts(data.products);
+        setIsAllProductsLoaded(true);
+      }
+    } catch (err) {
+      console.error('Error al cargar todos los productos:', err);
+    }
+  };
+
   useEffect(() => {
-    loadProducts();
+    loadPaginatedProducts();
   }, [currentPage, isAuthorized]);
 
+  useEffect(() => {
+    loadAllProducts();
+  }, [isAuthorized]);
 
 
 
@@ -143,54 +169,28 @@ function PageContent() {
         // ➤ Producto creado
         if (parsed.type === 'producto_creado') {
           setProducts(prev => [...prev, parsed.data]);
+          setAllProducts(prev => [...prev, parsed.data]);
           toast.success('Producto creado correctamente');
         }
 
-        // ➤ Producto actualizado (stock, precios o activo)
+        // ➤ Producto actualizado
         if (parsed.type === 'producto_actualizado' || parsed.type === 'stock_modificado') {
-
           const updatedProduct = parsed.data.producto || parsed.data;
-
-          // ---- NORMALIZAR STOCK ----
-          let stockTotal = 0;
-
-          // stock como array (lotes)
-          if (Array.isArray(updatedProduct.stock)) {
-            stockTotal = updatedProduct.stock.reduce(
-              (sum: number, s: any) => sum + (s.cantidad || 0),
-              0
-            );
-          }
-          // stock como número
-          else {
-            stockTotal = updatedProduct.stock || 0;
-          }
-
-          // ---- ACTUALIZAR LISTA ----
-          setProducts((prev) =>
-            prev.map((p) => (p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p))
+          setProducts(prev =>
+            prev.map(p => p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p)
           );
-
-          // ---- ALERTA STOCK BAJO ----
-          const umbral = updatedProduct.stockMinimoAlerta ?? 5; // usa 5 como fallback
-          if (stockTotal <= umbral && stockTotal > 0) {
-            toast.warn(
-              `¡Stock bajo en ${updatedProduct.nombre}! Quedan ${stockTotal} unidades (umbral: ${umbral}).`,
-              { autoClose: 6000 }
-            );
-          }
-
+          setAllProducts(prev =>
+            prev.map(p => p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p)
+          );
         }
 
         // ➤ Producto eliminado
         if (parsed.type === 'producto_eliminado') {
           const productId = parsed.data._id;
-          setProducts((prev) => prev.filter((p) => p._id !== productId));
+          setProducts(prev => prev.filter(p => p._id !== productId));
+          setAllProducts(prev => prev.filter(p => p._id !== productId));
           toast.info('Producto eliminado', { autoClose: 3000 });
-
-          // 🔁 Notificar a otros componentes (ej. resumen de stock)
           window.dispatchEvent(new CustomEvent('stockSummaryReload'));
-
         }
 
       } catch (err) {
@@ -214,28 +214,33 @@ function PageContent() {
     return `${pathname}?${params.toString()}`;
   };
 
-  const filteredProducts = products.filter((p) => {
-    const text =
-      p.nombre +
-      ' ' +
-      p.categoria +
-      ' ' +
-      p.unidad +
-      ' ' +
-      p.cantidadUnidad +
-      ' ' +
-      p.precioLista +
-      ' ' +
-      p.precioMayorista +
-      ' ' +
-      p.precioOferta +
-      ' ' +
-      p.precioMinorista +
-      ' ' +
-      JSON.stringify(p.stock) +
-      JSON.stringify(p.lotes);
-    return text.toLowerCase().includes(internalSearch.toLowerCase());
-  });
+  
+
+  // ✅ Filtrar en TODOS los productos si hay búsqueda, sino usar los de la página
+  const filteredProducts = internalSearch
+    ? allProducts.filter((p) => {
+      const text =
+        p.nombre +
+        ' ' +
+        p.categoria +
+        ' ' +
+        p.unidad +
+        ' ' +
+        p.cantidadUnidad +
+        ' ' +
+        p.precioLista +
+        ' ' +
+        p.precioMayorista +
+        ' ' +
+        p.precioOferta +
+        ' ' +
+        p.precioMinorista +
+        ' ' +
+        JSON.stringify(p.stock) +
+        JSON.stringify(p.lotes);
+      return text.toLowerCase().includes(internalSearch.toLowerCase());
+    })
+    : products;
 
   const deleteProduct = async (id: string) => {
     Swal.fire({
@@ -254,7 +259,8 @@ function PageContent() {
         });
         if (res.ok) {
           toast.success('Producto eliminado');
-          setProducts((prev) => prev.filter((p) => p._id !== id));
+          setProducts(prev => prev.filter(p => p._id !== id));
+          setAllProducts(prev => prev.filter(p => p._id !== id));
         } else {
           toast.error('Error al eliminar');
         }
@@ -287,10 +293,8 @@ function PageContent() {
     return product.stock || 0;
   };
 
-
   return (
     <>
-
       <div className="p-4 sm:p-6 md:p-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
@@ -310,15 +314,17 @@ function PageContent() {
           </Link>
         </div>
 
-        {loading ? (
+        {loading && !internalSearch ? (
           <div className="text-gray-400">Cargando productos...</div>
-        ) : products.length === 0 ? (
+        ) : filteredProducts.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <FaBox className="text-4xl mb-3 mx-auto text-amber-900/30" />
-            <p>No hay productos registrados.</p>
-            <Link href="/gestion/productos/nuevo" className="text-amber-500 hover:underline mt-2 inline-block">
-              Crear tu primer producto
-            </Link>
+            <p>{internalSearch ? 'No se encontraron productos.' : 'No hay productos registrados.'}</p>
+            {!internalSearch && (
+              <Link href="/gestion/productos/nuevo" className="text-amber-500 hover:underline mt-2 inline-block">
+                Crear tu primer producto
+              </Link>
+            )}
           </div>
         ) : (
           <>
@@ -327,15 +333,22 @@ function PageContent() {
                 type="text"
                 value={internalSearch}
                 onChange={(e) => setInternalSearch(e.target.value)}
-                placeholder="Buscar en la tabla (uso interno)..."
+                placeholder="Buscar en todos los productos (uso interno)..."
                 className="w-full p-3 rounded-lg bg-gray-900 border border-gray-700 text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-amber-500"
               />
             </div>
 
+            {/* ✅ Mensaje cuando hay búsqueda activa */}
+            {internalSearch && filteredProducts.length > 0 && (
+              <div className="mb-4 text-sm text-amber-400">
+                Mostrando {filteredProducts.length} resultado{filteredProducts.length !== 1 ? 's' : ''} para "{internalSearch}" en todos los productos.
+              </div>
+            )}
+
             <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-900 text-gray-300 ">
+                  <thead className="bg-gray-900 text-gray-300">
                     <tr>
                       <th className="text-left py-3 px-4">Imagen</th>
                       <th className="text-left py-3 px-4">Producto</th>
@@ -386,7 +399,6 @@ function PageContent() {
                                 : '0'}
                             </div>
                           </td>
-                          {/* ---- PRECIOS Y STOCK CON GANANCIAS ----*/}
                           <td className="py-3 px-4">
                             <div className="text-amber-400 font-medium">
                               ${product.precioMayorista.toLocaleString('es-AR')}
@@ -445,15 +457,12 @@ function PageContent() {
                           </td>
 
                           <td className="py-3 px-4">
-                            {/* Stock actual */}
                             <div className={`font-medium ${stockTotal <= (product.stockMinimoAlerta ?? 0) ? 'text-red-400' : 'text-white'}`}>
                               {stockTotal}
                               {stockTotal <= (product.stockMinimoAlerta ?? 0) && (
                                 <span className="ml-1 text-xs text-red-400">⚠️ Bajo stock</span>
                               )}
                             </div>
-
-                            {/* Umbral de alerta */}
                             <div className="mt-1 flex items-center gap-1">
                               <label htmlFor={`alerta-${product._id}`} className="text-[10px] text-gray-400 whitespace-nowrap">
                                 Alerta:
@@ -476,6 +485,9 @@ function PageContent() {
                                   if (res.ok) {
                                     const updatedProduct = await res.json();
                                     setProducts(prev =>
+                                      prev.map(p => p._id === product._id ? updatedProduct : p)
+                                    );
+                                    setAllProducts(prev =>
                                       prev.map(p => p._id === product._id ? updatedProduct : p)
                                     );
                                   } else {
@@ -506,6 +518,7 @@ function PageContent() {
                                   if (res.ok) {
                                     const updated = await res.json();
                                     setProducts(prev => prev.map(p => p._id === product._id ? updated : p));
+                                    setAllProducts(prev => prev.map(p => p._id === product._id ? updated : p));
                                   } else {
                                     toast.error('Error al actualizar');
                                   }
@@ -532,6 +545,7 @@ function PageContent() {
 
             <br />
 
+            {/* ✅ Tabla de lotes: siempre usa la lista PAGINADA (products) */}
             <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -545,7 +559,7 @@ function PageContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
-                    {products.map((product) =>
+                    {products.flatMap((product) =>
                       product.lotes.map((lote, index) => (
                         <tr key={`${product._id}-lote-${index}`} className="hover:bg-gray-750 transition">
                           <td className="py-3 px-4 text-white">{product.nombre}</td>
@@ -566,6 +580,7 @@ function PageContent() {
                                 if (res.ok) {
                                   const updated = await res.json();
                                   setProducts(prev => prev.map(p => p._id === product._id ? updated : p));
+                                  setAllProducts(prev => prev.map(p => p._id === product._id ? updated : p));
                                 } else {
                                   toast.error('Error al eliminar lote');
                                 }
@@ -583,11 +598,8 @@ function PageContent() {
               </div>
             </div>
 
-
-
-
-
-            {pagination.totalPages > 1 && (
+            {/* ✅ Paginación SOLO si no hay búsqueda activa */}
+            {!internalSearch && pagination.totalPages > 1 && (
               <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
                 <div className="text-sm text-gray-500">
                   Mostrando {(currentPage - 1) * limit + 1}–
@@ -610,13 +622,12 @@ function PageContent() {
                 </div>
               </div>
             )}
+
             <br />
             <StockValueSummary />
-
           </>
         )}
       </div>
-
     </>
   );
 }
