@@ -126,7 +126,7 @@ function PageContent() {
   }, [currentPage, isAuthorized]);
 
 
-  
+
 
   // ✨✨✨ SSE: Escuchar eventos de producto en tiempo real ✨✨✨
   useEffect(() => {
@@ -583,8 +583,9 @@ function PageContent() {
               </div>
             </div>
 
-            <br />
-            <StockValueSummary />
+
+
+
 
             {pagination.totalPages > 1 && (
               <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
@@ -609,6 +610,9 @@ function PageContent() {
                 </div>
               </div>
             )}
+            <br />
+            <StockValueSummary />
+
           </>
         )}
       </div>
