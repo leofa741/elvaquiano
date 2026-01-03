@@ -18,21 +18,65 @@ interface LoteEntry {
   deposito: string;
 }
 
+// ✅ Definir unidad como tipo union
+type Unidad = 'kg' | 'caja' | 'pack' | 'unidad' | 'litro';
+
 interface Product {
   _id: string;
   nombre: string;
   categoria: string;
-  unidad: string;
+  unidad: Unidad;
   cantidadUnidad: number;
   precioLista: number;
   precioMayorista: number;
   precioMinorista: number;
-  precioOferta: number;
+  precioOferta: number | null;
   stock: StockEntry[];
   lotes: LoteEntry[];
   activo: boolean;
   imagen?: string | null;
 }
+
+// ✅ Parsear número argentino a número real
+const parseArgentineNumber = (input: string): number | null => {
+  if (!input.trim()) return null;
+
+  let clean = input.replace(/[^\d.,]/g, '');
+  if (!clean) return null;
+
+  const commaCount = (clean.match(/,/g) || []).length;
+  if (commaCount > 1) return null;
+
+  if (commaCount === 1) {
+    clean = clean.replace(/\./g, '');
+    clean = clean.replace(',', '.');
+  } else {
+    clean = clean.replace(/\./g, '');
+  }
+
+  const num = parseFloat(clean);
+  return isNaN(num) ? null : num;
+};
+
+// ✅ Formateo visual mientras escribe (sin forzar decimales)
+const formatArgentineInput = (input: string): string => {
+  if (!input.trim()) return '';
+  let clean = input.replace(/[^\d.,]/g, '');
+  const parts = clean.split(',');
+  if (parts.length > 2) {
+    clean = parts[0] + ',' + parts.slice(1).join('');
+  }
+  return clean;
+};
+
+// ✅ Formateo final (al salir del campo)
+const formatArgentineFinal = (value: number | null): string => {
+  if (value === null || isNaN(value)) return '';
+  return value.toLocaleString('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
 
 export default function EditProductPage() {
   const { id } = useParams() as { id?: string };
@@ -42,19 +86,19 @@ export default function EditProductPage() {
   const [saving, setSaving] = useState(false);
   const [product, setProduct] = useState<Product | null>(null);
 
+  // ✅ Estado del formulario con tipado correcto
   const [form, setForm] = useState({
     nombre: '',
     categoria: '',
-    unidad: 'kg',
+    unidad: 'kg' as Unidad, // ✅ Ahora acepta todas las opciones válidas
     cantidadUnidad: 1,
-    precioLista: 0,
-    precioMayorista: 0,
-    precioMinorista: 0,
-    precioOferta: 0,
+    precioLista: '' as number | '',
+    precioMayorista: '' as number | '',
+    precioMinorista: '' as number | '',
+    precioOferta: '' as number | '',
     imagen: '' as string | null,
   });
 
-  // ✅ Nuevo estado para categoría
   const [categoriaMode, setCategoriaMode] = useState<'select' | 'custom'>('select');
 
   const [displayPrecios, setDisplayPrecios] = useState({
@@ -72,18 +116,16 @@ export default function EditProductPage() {
     { lote: '', vencimiento: '', cantidad: 0, deposito: '' },
   ]);
 
-  // ✅ Nuevo estado: cantidades a sumar
   const [stockToAdd, setStockToAdd] = useState<number[]>([]);
 
-  // Modo para depósitos
   const [stockDepositMode, setStockDepositMode] = useState<(string | null)[]>([null]);
   const [loteDepositMode, setLoteDepositMode] = useState<(string | null)[]>([null]);
 
-  // Cargar depósitos y categorías
   const [depositos, setDepositos] = useState<string[]>([]);
   const [categorias, setCategorias] = useState<string[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
 
+  // 📥 Cargar depósitos y categorías
   useEffect(() => {
     const fetchOptions = async () => {
       try {
@@ -110,7 +152,7 @@ export default function EditProductPage() {
     fetchOptions();
   }, []);
 
-  // Cargar producto
+  // 📥 Cargar producto
   useEffect(() => {
     if (!id) {
       toast.error('ID de producto no válido');
@@ -142,24 +184,21 @@ export default function EditProductPage() {
           imagen: data.imagen || null,
         });
 
-        // Inicializar modo de categoría
         if (categorias.includes(data.categoria)) {
           setCategoriaMode('select');
         } else {
           setCategoriaMode('custom');
         }
 
-        // Formatear precios
         setDisplayPrecios({
-          precioLista: data.precioLista ? data.precioLista.toLocaleString('es-AR') : '',
-          precioMayorista: data.precioMayorista ? data.precioMayorista.toLocaleString('es-AR') : '',
-          precioMinorista: data.precioMinorista ? data.precioMinorista.toLocaleString('es-AR') : '',
-          precioOferta: data.precioOferta ? data.precioOferta.toLocaleString('es-AR') : '',
+          precioLista: formatArgentineFinal(data.precioLista ?? null),
+          precioMayorista: formatArgentineFinal(data.precioMayorista ?? null),
+          precioMinorista: formatArgentineFinal(data.precioMinorista ?? null),
+          precioOferta: formatArgentineFinal(data.precioOferta ?? null),
         });
 
         setPreview(data.imagen || null);
 
-        // Inicializar stock
         const initialStock = data.stock?.length
           ? data.stock.map((s) => ({ ...s }))
           : [{ deposito: '', cantidad: 0 }];
@@ -178,28 +217,43 @@ export default function EditProductPage() {
     loadProduct();
   }, [id, router, categorias]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setForm((prev) => ({
+    if (name === 'cantidadUnidad') {
+      setForm(prev => ({
+        ...prev,
+        [name]: value === '' ? 0 : parseFloat(value),
+      }));
+    } else if (name === 'unidad') {
+      // ✅ Cast seguro porque el select solo permite valores válidos
+      setForm(prev => ({
+        ...prev,
+        unidad: value as Unidad,
+      }));
+    } else {
+      setForm(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
+  // ✅ Mientras escribe
+  const handlePriceChange = (name: keyof typeof form, rawValue: string) => {
+    const cleaned = formatArgentineInput(rawValue);
+    setDisplayPrecios(prev => ({ ...prev, [name]: cleaned }));
+    const numericValue = parseArgentineNumber(cleaned);
+    setForm(prev => ({
       ...prev,
-      [name]: value,
+      [name]: numericValue ?? '',
     }));
   };
 
-  const handlePriceChange = (name: string, rawValue: string) => {
-    const digitsOnly = rawValue.replace(/\D/g, '');
-    const numericValue = digitsOnly === '' ? 0 : parseInt(digitsOnly, 10);
-    setForm((prev) => ({
-      ...prev,
-      [name]: numericValue,
-    }));
-    const formatted = digitsOnly === '' ? '' : numericValue.toLocaleString('es-AR');
-    setDisplayPrecios((prev) => ({
-      ...prev,
-      [name]: formatted,
-    }));
+  // ✅ Al salir del campo
+  const handlePriceBlur = (name: keyof typeof form) => {
+    const numericValue = form[name];
+    if (typeof numericValue === 'number') {
+      setDisplayPrecios(prev => ({ ...prev, [name]: formatArgentineFinal(numericValue) }));
+    } else {
+      setDisplayPrecios(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   // === IMAGEN ===
@@ -322,17 +376,29 @@ export default function EditProductPage() {
       return false;
     }
 
-    if (form.precioLista <= 0) {
+    const pl = form.precioLista;
+    const pm = form.precioMayorista;
+    const pn = form.precioMinorista;
+
+    if (typeof pl !== 'number' || pl <= 0) {
       toast.error('El precio de lista debe ser mayor a 0.');
       return false;
     }
+    if (typeof pm !== 'number' || pm <= 0) {
+      toast.error('El precio mayorista debe ser mayor a 0.');
+      return false;
+    }
+    if (typeof pn !== 'number' || pn <= 0) {
+      toast.error('El precio minorista debe ser mayor a 0.');
+      return false;
+    }
 
-    if (form.precioLista > form.precioMayorista) {
+    if (pl > pm) {
       toast.error('El precio mayorista no puede ser menor que el precio de lista.');
       return false;
     }
 
-    if (form.precioMayorista > form.precioMinorista) {
+    if (pm > pn) {
       toast.error('El precio minorista no puede ser menor que el mayorista.');
       return false;
     }
@@ -438,10 +504,10 @@ export default function EditProductPage() {
         categoria: form.categoria.trim(),
         unidad: form.unidad,
         cantidadUnidad: form.cantidadUnidad,
-        precioLista: form.precioLista,
-        precioMayorista: form.precioMayorista,
-        precioMinorista: form.precioMinorista,
-        precioOferta: form.precioOferta,
+        precioLista: form.precioLista as number,
+        precioMayorista: form.precioMayorista as number,
+        precioMinorista: form.precioMinorista as number,
+        precioOferta: typeof form.precioOferta === 'number' ? form.precioOferta : null,
         stock: updatedStock,
         lotes: lotesFiltrados,
         imagen: imageUrl,
@@ -609,6 +675,7 @@ export default function EditProductPage() {
                 name="precioLista"
                 value={displayPrecios.precioLista}
                 onChange={(e) => handlePriceChange('precioLista', e.target.value)}
+                onBlur={() => handlePriceBlur('precioLista')}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
@@ -626,6 +693,7 @@ export default function EditProductPage() {
                 name="precioMayorista"
                 value={displayPrecios.precioMayorista}
                 onChange={(e) => handlePriceChange('precioMayorista', e.target.value)}
+                onBlur={() => handlePriceBlur('precioMayorista')}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
@@ -633,15 +701,15 @@ export default function EditProductPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Precio Oferta *
+                Precio Oferta
               </label>
               <input
                 type="text"
                 name="precioOferta"
                 value={displayPrecios.precioOferta}
-                onChange={(e) => handlePriceChange('precioOferta', e.target.value)}   
+                onChange={(e) => handlePriceChange('precioOferta', e.target.value)}
+                onBlur={() => handlePriceBlur('precioOferta')}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                required
               />
             </div>
 
@@ -654,6 +722,7 @@ export default function EditProductPage() {
                 name="precioMinorista"
                 value={displayPrecios.precioMinorista}
                 onChange={(e) => handlePriceChange('precioMinorista', e.target.value)}
+                onBlur={() => handlePriceBlur('precioMinorista')}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
