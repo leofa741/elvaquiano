@@ -7,8 +7,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { notifyProducts } from '../events/productsNotifier';
 import { normalizeProduct } from '../events/productsNotifier';
 
-
-
 connectDB();
 
 const isAdmin = (role: string) => ['admin', 'superadmin'].includes(role);
@@ -19,19 +17,19 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const producto = await Product.findById((await params).id);
+    const { id } = await params;
+    const producto = await Product.findById(id);
     if (!producto) {
       return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
     }
     return NextResponse.json(producto);
   } catch (error) {
     console.error('Error al obtener producto:', error);
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
 
-
-// PUT: actualizar producto (acepta actualizaciones parciales)
+// PUT: actualizar producto
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -43,107 +41,153 @@ export async function PUT(
     return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
   }
 
-  const body = await request.json();
-  const productId = id;
+  // ✅ 1. Manejo seguro del cuerpo de la solicitud
+  let body;
+  try {
+    body = await request.json();
+  } catch (parseError) {
+    console.error('Error al parsear JSON en PUT producto:', parseError);
+    return NextResponse.json({ error: 'Formato JSON inválido en la solicitud' }, { status: 400 });
+  }
 
-  // 🔍 Verificar que el producto existe
-  const productoExistente = await Product.findById(productId);
+  // ✅ 2. Verificar existencia
+  const productoExistente = await Product.findById(id);
   if (!productoExistente) {
     return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
   }
 
-  // 🧠 Determinar si es una actualización PARCIAL o COMPLETA
-  const esParcial = !('nombre' in body); // Si no se envía 'nombre', asumimos parcial
+  // ✅ 3. Determinar si es actualización parcial
+  // 👉 Más robusto: si NO se envían campos clave del formulario completo, es parcial
+  const camposFormularioCompleto = ['nombre', 'categoria', 'precioLista', 'precioMayorista', 'precioMinorista'];
+  const esParcial = !camposFormularioCompleto.every(campo => campo in body);
 
-  let updateData: any = {};
+  let updateData: Record<string, any> = {};
 
   if (esParcial) {
-    // ✅ Actualización parcial: solo campos específicos
-    if (body.activo !== undefined) updateData.activo = body.activo;
-    if (body.lotes !== undefined) updateData.lotes = body.lotes;
-
-    // ✅ Manejo seguro de stockMinimoAlerta
-    if (body.stockMinimoAlerta !== undefined) {
-      if (body.stockMinimoAlerta === null || body.stockMinimoAlerta === '') {
-        updateData.stockMinimoAlerta = undefined; // elimina el campo
+    // ✅ Actualización parcial: solo permitir campos específicos
+    if ('activo' in body) updateData.activo = Boolean(body.activo);
+    if ('lotes' in body) {
+      if (!Array.isArray(body.lotes)) {
+        return NextResponse.json({ error: 'Lotes debe ser un arreglo' }, { status: 400 });
+      }
+      // Validación básica de lotes (puedes profundizar si necesitas)
+      updateData.lotes = body.lotes;
+    }
+    if ('stockMinimoAlerta' in body) {
+      const valor = body.stockMinimoAlerta;
+      if (valor === null || valor === '' || valor === undefined) {
+        updateData.$unset = { stockMinimoAlerta: '' };
       } else {
-        const valor = Number(body.stockMinimoAlerta);
-        if (!isNaN(valor) && valor >= 0) {
-          updateData.stockMinimoAlerta = valor;
+        const num = Number(valor);
+        if (isNaN(num) || num < 0) {
+          return NextResponse.json({ error: 'stockMinimoAlerta debe ser un número ≥ 0 o null' }, { status: 400 });
         }
-        // Si es NaN o negativo, simplemente no lo incluimos
+        updateData.stockMinimoAlerta = num;
       }
     }
   } else {
-    // 🔒 Actualización completa: validar TODO
-    const precioLista = Number(body.precioLista);
-    const precioMayorista = Number(body.precioMayorista);
-    const precioMinorista = Number(body.precioMinorista);
-    const precioOferta = Number(body.precioOferta);
+    // ✅ Actualización completa: validar todo
+    const { nombre, categoria, unidad, cantidadUnidad, stock, lotes } = body;
 
-    if (
-      Number.isNaN(precioLista) ||
-      Number.isNaN(precioMayorista) ||
-      Number.isNaN(precioMinorista) ||
-      Number.isNaN(precioOferta) ||
-      precioLista < 0 ||
-      precioMayorista < 0 ||
-      precioMinorista < 0 ||
-      precioOferta < 0
-    ) {
-      return NextResponse.json({ error: 'Precios inválidos' }, { status: 400 });
+    if (!nombre || !categoria) {
+      return NextResponse.json({ error: 'Nombre y categoría son obligatorios' }, { status: 400 });
+    }
+
+    // ✅ Validar precios (permitir null en oferta)
+    const precioLista = body.precioLista;
+    const precioMayorista = body.precioMayorista;
+    const precioMinorista = body.precioMinorista;
+    const precioOferta = body.precioOferta;
+
+    if (typeof precioLista !== 'number' || precioLista <= 0) {
+      return NextResponse.json({ error: 'Precio de lista inválido (debe ser número > 0)' }, { status: 400 });
+    }
+    if (typeof precioMayorista !== 'number' || precioMayorista <= 0) {
+      return NextResponse.json({ error: 'Precio mayorista inválido (debe ser número > 0)' }, { status: 400 });
+    }
+    if (typeof precioMinorista !== 'number' || precioMinorista <= 0) {
+      return NextResponse.json({ error: 'Precio minorista inválido (debe ser número > 0)' }, { status: 400 });
+    }
+    if (precioOferta != null && (typeof precioOferta !== 'number' || precioOferta < 0)) {
+      return NextResponse.json({ error: 'Precio de oferta inválido (debe ser número ≥ 0 o null)' }, { status: 400 });
     }
 
     if (precioLista > precioMayorista) {
-      return NextResponse.json(
-        { error: 'El precio mayorista no puede ser menor que el precio de lista.' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'El precio mayorista no puede ser menor que el precio de lista.' }, { status: 400 });
+    }
+    if (precioMayorista > precioMinorista) {
+      return NextResponse.json({ error: 'El precio minorista no puede ser menor que el mayorista.' }, { status: 400 });
     }
 
-    if (precioMayorista > precioMinorista) {
-      return NextResponse.json(
-        { error: 'El precio minorista no puede ser menor que el mayorista.' },
-        { status: 400 }
-      );
+    // ✅ Validar stock
+    if (!Array.isArray(stock) || stock.length === 0) {
+      return NextResponse.json({ error: 'Se requiere al menos un depósito con stock' }, { status: 400 });
+    }
+    for (const s of stock) {
+      if (!s.deposito || typeof s.cantidad !== 'number' || s.cantidad <= 0) {
+        return NextResponse.json({ error: 'Cada depósito debe tener nombre y cantidad > 0' }, { status: 400 });
+      }
+    }
+
+    // ✅ Validar lotes (si existen)
+    if (lotes) {
+      if (!Array.isArray(lotes)) {
+        return NextResponse.json({ error: 'Lotes debe ser un arreglo' }, { status: 400 });
+      }
+      for (const l of lotes) {
+        if (l.lote || l.vencimiento || l.deposito || (l.cantidad && l.cantidad > 0)) {
+          if (!l.lote || !l.vencimiento || !l.deposito || !l.cantidad || l.cantidad <= 0) {
+            return NextResponse.json({ error: 'Lote incompleto: se requieren lote, vencimiento, depósito y cantidad > 0' }, { status: 400 });
+          }
+          if (new Date(l.vencimiento) <= new Date()) {
+            return NextResponse.json({ error: 'La fecha de vencimiento debe ser futura' }, { status: 400 });
+          }
+        }
+      }
     }
 
     updateData = {
-      ...body,
+      nombre: String(nombre).trim(),
+      categoria: String(categoria).trim(),
+      unidad: unidad || 'kg',
+      cantidadUnidad: Number(cantidadUnidad) || 1,
       precioLista,
       precioMayorista,
       precioMinorista,
-      precioOferta,
+      precioOferta: precioOferta ?? null,
+      stock,
+      lotes: lotes || [],
+      imagen: body.imagen || productoExistente.imagen, // mantener si no se envía
     };
   }
 
-  const productoActualizado = await Product.findByIdAndUpdate(
-    productId,
-    updateData,
-    { new: true }
-  );
+  try {
+    const productoActualizado = await Product.findByIdAndUpdate(id, updateData, { new: true });
+    if (!productoActualizado) {
+      return NextResponse.json({ error: 'No se pudo actualizar el producto' }, { status: 500 });
+    }
 
-  if (!productoActualizado) {
-    return NextResponse.json(
-      { error: 'Error al actualizar producto' },
-      { status: 500 }
-    );
+    notifyProducts({
+      type: 'producto_actualizado',
+      data: normalizeProduct(productoActualizado),
+    });
+
+    return NextResponse.json(productoActualizado);
+  } catch (error: any) {
+    console.error('Error al actualizar producto:', error);
+    if (error.code === 11000) {
+      return NextResponse.json({ error: 'Ya existe un producto con ese nombre y categoría.' }, { status: 409 });
+    }
+    return NextResponse.json({ error: 'Error al guardar los cambios' }, { status: 500 });
   }
-
-  notifyProducts({
-    type: 'producto_actualizado',
-    data: normalizeProduct(productoActualizado),
-  });
-
-  return NextResponse.json(productoActualizado, { status: 200 });
 }
 
-// 🔹 ELIMINAR PRODUCTO
+// DELETE: eliminar producto
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params; // ✅
+  const { id } = await params;
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !isAdmin(session.user.role)) {
@@ -151,8 +195,7 @@ export async function DELETE(
   }
 
   try {
-    const deleted = await Product.findByIdAndDelete(id); // ✅ usa id
-
+    const deleted = await Product.findByIdAndDelete(id);
     if (!deleted) {
       return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
     }
@@ -164,6 +207,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Producto eliminado" });
   } catch (error) {
+    console.error('Error al eliminar producto:', error);
     return NextResponse.json({ error: "Error al eliminar producto" }, { status: 500 });
   }
 }
