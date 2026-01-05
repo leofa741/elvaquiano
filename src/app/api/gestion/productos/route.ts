@@ -2,26 +2,24 @@ import { authOptions } from "@/app/lib/auth";
 import connectDB from "@/app/lib/mongoose";
 import Product from "@/app/models/Product";
 import { getServerSession } from "next-auth/next";
-import { NextRequest, NextResponse, NextResponse as Response } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { notifyProducts } from './events/productsNotifier';
-
 
 connectDB();
 
 // 🔒 Helper: verificar rol admin/superadmin
 const isAdmin = (role: string) => ['admin', 'superadmin'].includes(role);
 
-
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !isAdmin(session.user.role)) {
-    return Response.json({ error: 'Acceso denegado' }, { status: 403 });
+    return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
   }
 
   try {
     const { searchParams } = new URL(req.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
     const skip = (page - 1) * limit;
 
     const total = await Product.countDocuments();
@@ -30,7 +28,7 @@ export async function GET(req: NextRequest) {
       .skip(skip)
       .limit(limit);
 
-    return Response.json(
+    return NextResponse.json(
       { products, total, page, totalPages: Math.ceil(total / limit) },
       {
         headers: {
@@ -40,50 +38,80 @@ export async function GET(req: NextRequest) {
     );
   } catch (error) {
     console.error('Error al obtener productos:', error);
-    return Response.json({ error: 'Error interno' }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
-
-
-
 
 // 👇 POST: crear nuevo producto 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !['admin', 'superadmin'].includes(session.user.role)) {
+  if (!session?.user || !isAdmin(session.user.role)) {
     return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
   }
 
   try {
     const data = await req.json();
 
-  
-
-    if (typeof data.precioLista !== 'number' || data.precioLista < 0) {
-      return NextResponse.json({ error: 'Precio de lista inválido' }, { status: 400 });
+    // ✅ Validaciones de precios
+    if (typeof data.precioLista !== 'number' || data.precioLista <= 0) {
+      return NextResponse.json({ error: 'Precio de lista inválido (debe ser número > 0)' }, { status: 400 });
+    }
+    if (typeof data.precioMayorista !== 'number' || data.precioMayorista <= 0) {
+      return NextResponse.json({ error: 'Precio mayorista inválido (debe ser número > 0)' }, { status: 400 });
+    }
+    if (typeof data.precioMinorista !== 'number' || data.precioMinorista <= 0) {
+      return NextResponse.json({ error: 'Precio minorista inválido (debe ser número > 0)' }, { status: 400 });
     }
 
-    if (typeof data.precioMayorista !== 'number' || data.precioMayorista < 0) {
-      return NextResponse.json({ error: 'Precio mayorista inválido' }, { status: 400 });
-    }
-    if (typeof data.precioMinorista !== 'number' || data.precioMinorista < 0) {
-      return NextResponse.json({ error: 'Precio minorista inválido' }, { status: 400 });
+    // ✅ Precio de oferta es opcional
+    if (data.precioOferta != null) {
+      if (typeof data.precioOferta !== 'number' || data.precioOferta < 0) {
+        return NextResponse.json({ error: 'Precio de oferta inválido (debe ser número ≥ 0 o null)' }, { status: 400 });
+      }
     }
 
-    if (typeof data.precioOferta !== 'number' || data.precioOferta < 0) {
-      return NextResponse.json({ error: 'Precio de oferta inválido' }, { status: 400 });
+    // ✅ Validar campos obligatorios básicos
+    if (!data.nombre || !data.categoria) {
+      return NextResponse.json({ error: 'Nombre y categoría son obligatorios' }, { status: 400 });
+    }
+
+    // ✅ Validar stock
+    if (!Array.isArray(data.stock) || data.stock.length === 0) {
+      return NextResponse.json({ error: 'Se requiere al menos un depósito con stock' }, { status: 400 });
+    }
+    for (const s of data.stock) {
+      if (!s.deposito || typeof s.cantidad !== 'number' || s.cantidad <= 0) {
+        return NextResponse.json({ error: 'Cada depósito debe tener nombre y cantidad > 0' }, { status: 400 });
+      }
+    }
+
+    // ✅ Validar lotes (si se envían)
+    if (data.lotes) {
+      if (!Array.isArray(data.lotes)) {
+        return NextResponse.json({ error: 'Lotes debe ser un arreglo' }, { status: 400 });
+      }
+      for (const l of data.lotes) {
+        if (l.lote || l.vencimiento || l.deposito || (l.cantidad && l.cantidad > 0)) {
+          if (!l.lote || !l.vencimiento || !l.deposito || !l.cantidad || l.cantidad <= 0) {
+            return NextResponse.json({ error: 'Lote incompleto: se requieren lote, vencimiento, depósito y cantidad > 0' }, { status: 400 });
+          }
+          if (new Date(l.vencimiento) <= new Date()) {
+            return NextResponse.json({ error: 'La fecha de vencimiento debe ser futura' }, { status: 400 });
+          }
+        }
+      }
     }
 
     const productData = {
-      nombre: data.nombre,
-      categoria: data.categoria,
-      unidad: data.unidad,
-      cantidadUnidad: Number(data.cantidadUnidad),
+      nombre: data.nombre.trim(),
+      categoria: data.categoria.trim(),
+      unidad: data.unidad || 'kg',
+      cantidadUnidad: Number(data.cantidadUnidad) || 1,
       precioLista: data.precioLista,
       precioMayorista: data.precioMayorista,
       precioMinorista: data.precioMinorista,
-      precioOferta: data.precioOferta,
-      stock: data.stock || [],
+      precioOferta: data.precioOferta ?? null,
+      stock: data.stock,
       lotes: data.lotes || [],
       imagen: data.imagen || null,
     };
@@ -91,10 +119,10 @@ export async function POST(req: NextRequest) {
     const product = new Product(productData);
     await product.save();
 
-    // ⬅️ **ENVIAR EVENTO SSE A TODOS LOS CLIENTES**
+    // ⬅️ **ENVIAR EVENTO SSE**
     notifyProducts({
       type: 'producto_creado',
-      data: product
+      data: product,
     });
 
     return NextResponse.json(product, { status: 201 });
@@ -109,9 +137,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ✅ Asegurar que siempre devuelva un mensaje legible
     return NextResponse.json(
-      { error: error.message || 'Error al crear producto' },
-      { status: 400 }
+      { error: error.message || 'Error inesperado al crear el producto' },
+      { status: 500 }
     );
   }
 }

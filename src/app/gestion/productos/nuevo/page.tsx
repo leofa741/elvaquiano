@@ -60,6 +60,23 @@ const formatArgentineFinal = (value: number | null): string => {
     });
 };
 
+// ✅ Utilidad segura para decodificar JWT (Base64URL → JSON)
+const parseJwt = (token: string): any => {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+            atob(base64)
+                .split('')
+                .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+        );
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        throw new Error('Token JWT inválido');
+    }
+};
+
 export default function NuevoProductoPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
@@ -109,21 +126,22 @@ export default function NuevoProductoPage() {
 
             const token = session?.user?.token || localStorage.getItem('token');
             if (!token) {
-                toast.error('Acceso denegado');
+                toast.error('Acceso denegado: no hay sesión activa');
                 router.push('/');
                 return;
             }
 
             try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
+                const payload = parseJwt(token);
                 if (!['admin', 'superadmin'].includes(payload.role)) {
                     toast.error('Acceso restringido a administradores');
                     router.push('/');
                     return;
                 }
                 setIsAuthorized(true);
-            } catch (err) {
-                toast.error('Sesión inválida');
+            } catch (err: any) {
+                console.error('Error al validar el token:', err);
+                toast.error('Sesión inválida o expirada');
                 router.push('/');
             }
         };
@@ -138,16 +156,32 @@ export default function NuevoProductoPage() {
             setLoadingOptions(true);
             try {
                 const resDepositos = await fetch('/api/gestion/depositos');
-                const depositosData = resDepositos.ok ? await resDepositos.json() : [];
-
                 const resCategorias = await fetch('/api/gestion/categorias');
-                const categoriasData = resCategorias.ok ? await resCategorias.json() : [];
+
+                let depositosData = [];
+                let categoriasData = [];
+
+                if (resDepositos.ok) {
+                    try {
+                        depositosData = await resDepositos.json();
+                    } catch (e) {
+                        console.warn('Respuesta no JSON en /api/gestion/depositos');
+                    }
+                }
+
+                if (resCategorias.ok) {
+                    try {
+                        categoriasData = await resCategorias.json();
+                    } catch (e) {
+                        console.warn('Respuesta no JSON en /api/gestion/categorias');
+                    }
+                }
 
                 setDepositos(Array.isArray(depositosData) ? depositosData : []);
                 setCategorias(Array.isArray(categoriasData) ? categoriasData : []);
             } catch (err) {
-                console.error(err);
-                toast.error('Error al cargar opciones');
+                console.error('Error fetching options:', err);
+                toast.error('Error al cargar las opciones de depósitos o categorías');
                 setDepositos([]);
                 setCategorias([]);
             } finally {
@@ -191,7 +225,7 @@ export default function NuevoProductoPage() {
         }
     };
 
-    // === Gestión de stock y lotes (igual que antes) ===
+    // === Gestión de stock y lotes ===
     const handleStockChange = (index: number, field: keyof StockEntry, value: string | number) => {
         const newStock = [...stock];
         newStock[index] = { ...newStock[index], [field]: value };
@@ -342,33 +376,25 @@ export default function NuevoProductoPage() {
 
             if (isEmpty) continue;
 
-            const hasSomeData =
-                l.lote.trim() ||
-                l.vencimiento ||
-                l.deposito.trim() ||
-                (l.cantidad && l.cantidad > 0);
-
-            if (hasSomeData) {
-                if (!l.lote.trim()) {
-                    toast.error("El número de lote es obligatorio si vas a cargar un lote.");
-                    return false;
-                }
-                if (!l.vencimiento) {
-                    toast.error("La fecha de vencimiento es obligatoria si vas a cargar un lote.");
-                    return false;
-                }
-                if (!l.deposito.trim()) {
-                    toast.error("El depósito es obligatorio si vas a cargar un lote.");
-                    return false;
-                }
-                if (!l.cantidad || l.cantidad <= 0) {
-                    toast.error("La cantidad del lote debe ser mayor a cero.");
-                    return false;
-                }
-                if (new Date(l.vencimiento) <= new Date()) {
-                    toast.error("La fecha de vencimiento debe ser futura.");
-                    return false;
-                }
+            if (!l.lote.trim()) {
+                toast.error("El número de lote es obligatorio si vas a cargar un lote.");
+                return false;
+            }
+            if (!l.vencimiento) {
+                toast.error("La fecha de vencimiento es obligatoria si vas a cargar un lote.");
+                return false;
+            }
+            if (!l.deposito.trim()) {
+                toast.error("El depósito es obligatorio si vas a cargar un lote.");
+                return false;
+            }
+            if (!l.cantidad || l.cantidad <= 0) {
+                toast.error("La cantidad del lote debe ser mayor a cero.");
+                return false;
+            }
+            if (new Date(l.vencimiento) <= new Date()) {
+                toast.error("La fecha de vencimiento debe ser futura.");
+                return false;
             }
         }
 
@@ -390,9 +416,17 @@ export default function NuevoProductoPage() {
                     method: 'POST',
                     body: formData,
                 });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Error al subir imagen');
-                imageUrl = data.url;
+
+                let uploadData;
+                try {
+                    uploadData = await res.json();
+                } catch (err) {
+                    console.error('Error al parsear respuesta de upload:', err);
+                    throw new Error('El servidor no respondió con un formato válido al subir la imagen.');
+                }
+
+                if (!res.ok) throw new Error(uploadData.error || 'Error desconocido al subir imagen');
+                imageUrl = uploadData.url;
             } catch (err: any) {
                 toast.error(err.message || 'Error al subir la imagen');
                 setLoading(false);
@@ -428,22 +462,28 @@ export default function NuevoProductoPage() {
                 body: JSON.stringify(productData),
             });
 
+            let responseData;
+            try {
+                responseData = await res.json();
+            } catch (jsonErr) {
+                console.error('Error al parsear respuesta del backend:', jsonErr);
+                throw new Error('El servidor devolvió una respuesta no válida.');
+            }
+
             if (res.ok) {
                 toast.success('✅ Producto creado con éxito');
                 router.push('/gestion/productos');
             } else {
-                const error = await res.json();
-                toast.error(error.error || 'Error al crear el producto');
+                toast.error(responseData.error || 'Error al crear el producto');
             }
         } catch (err: any) {
-            console.error(err);
-            toast.error('Error de conexión con el servidor');
+            console.error('Error en handleSubmit:', err);
+            toast.error(err.message || 'Error de conexión o del servidor');
         } finally {
             setLoading(false);
         }
     };
 
-    // ✅ ¡IMPORTANTE! Retorno condicional al FINAL, después de todos los Hooks
     if (!isAuthorized) {
         return null;
     }
