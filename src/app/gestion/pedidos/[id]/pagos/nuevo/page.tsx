@@ -85,20 +85,44 @@ export default function NuevoPagoPage() {
             name="monto"
             control={control}
             rules={{ required: true, min: 0.01 }}
-            render={({ field }) => (
-              <input
-                type="text"
-                inputMode="decimal"
-                placeholder="$ 0,00"
-                className="w-full p-2 bg-gray-700 text-white rounded"
-                value={field.value ? formatARS(field.value) : ''}
-                onChange={(e) => {
-                  const numericValue = parseARS(e.target.value);
-                  field.onChange(numericValue);
-                }}
-              />
-            )}
+            render={({ field }) => {
+              const [displayValue, setDisplayValue] = useState(
+                field.value ? field.value.toString() : ''
+              );
+
+              return (
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="$ 0,00"
+                  className="w-full p-2 bg-gray-700 text-white rounded"
+
+                  value={displayValue}
+
+                  // 👉 mientras escribe: LIBRE
+                  onChange={(e) => {
+                    // solo números, coma y punto
+                    const raw = e.target.value.replace(/[^\d.,]/g, '');
+                    setDisplayValue(raw);
+                  }}
+
+                  // 👉 cuando sale del input: FORMATEA
+                  onBlur={() => {
+                    const numeric = parseARS(displayValue);
+                    field.onChange(numeric);
+                    setDisplayValue(numeric ? formatARS(numeric) : '');
+                  }}
+
+                  // 👉 si vuelve a entrar, muestra número editable
+                  onFocus={() => {
+                    const numeric = parseARS(displayValue);
+                    setDisplayValue(numeric ? numeric.toString() : '');
+                  }}
+                />
+              );
+            }}
           />
+
 
         </div>
 

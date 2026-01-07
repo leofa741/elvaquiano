@@ -6,6 +6,7 @@ import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import { useForm } from 'react-hook-form';
 import Link from 'next/link';
 import { FaArrowLeft, FaMoneyBillWave } from 'react-icons/fa';
+import { formatARS, parseARS } from '@/app/lib/formatcurrenci';
 
 interface Cliente {
   razonSocial: string;
@@ -117,40 +118,41 @@ export default function PagoMultiplePage() {
         {/* Monto */}
         <div>
           <label className="block text-gray-300 text-sm mb-1">
-            Monto a pagar * (deuda total: ${deudaTotal.toFixed(2)})
+            Monto a pagar * (deuda total: $ {formatARS(deudaTotal)})
           </label>
           <input
-            type="number"
-            step="0.01"
-            min="0.01"
-            max={deudaTotal}
-            className="w-full p-2 bg-gray-700 text-white rounded"
-            {...register('monto', { 
-              required: 'El monto es obligatorio',
-              min: { value: 0.01, message: 'Mínimo $0.01' },
-              max: { value: deudaTotal, message: `No puede superar $${deudaTotal.toFixed(2)}` }
-            })}
+            type="text"
+            readOnly
+            value={formatARS(deudaTotal)}
+            className="
+    w-full p-2 rounded
+    bg-gray-800 text-amber-400 font-semibold
+    cursor-not-allowed
+    border border-gray-600
+  "
           />
+
           {errors.monto && (
             <p className="text-red-400 text-sm mt-1">{errors.monto.message}</p>
           )}
-          
+
           {/* Botones rápidos */}
           <div className="flex gap-2 mt-2">
-            <button
+            {/*  <button
               type="button"
               onClick={() => setValue('monto', deudaTotal)}
               className="text-xs bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded"
             >
               Pagar todo
             </button>
-            <button
+          <button
               type="button"
               onClick={() => setValue('monto', Math.min(5000, deudaTotal))}
               className="text-xs bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded"
             >
               $5.000
             </button>
+            */}
           </div>
         </div>
 
@@ -191,7 +193,7 @@ export default function PagoMultiplePage() {
             className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-4 py-2 rounded font-medium disabled:opacity-50 flex items-center gap-2"
           >
             <FaMoneyBillWave />
-            {submitting ? 'Procesando...' : `Pagar $${monto.toFixed(2)}`}
+            {submitting ? 'Procesando...' : `Pagar $${formatARS(monto)}`}
           </button>
           <button
             type="button"
