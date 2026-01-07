@@ -185,12 +185,12 @@ export default function ImprimirPresupuestoPage() {
         </div>
 
   
-        {/* BOTONES: solo visibles en pantalla */}
+        {/* BOTONES: solo visibles en pantalla v*/}
         <div className="no-print mt-4 flex flex-col gap-2">
           <BotonImprimir />
 
           {presupuesto.notas?.includes('Presupuesto regenerado a partir del pedido') ? (
-            <div className="text-xs text-gray-500 text-center italic">
+            <div className="text-xs text-gray-500 text-center italic"> 
               Este presupuesto fue regenerado a partir de un pedido ya existente.
             </div>
           ) : (
