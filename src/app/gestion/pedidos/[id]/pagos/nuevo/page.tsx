@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import { useForm } from 'react-hook-form';
-import { formatARS } from '@/app/lib/formatcurrenci';
+import { Controller } from 'react-hook-form';
+import { formatARS, parseARS } from '@/app/lib/formatcurrenci';
 
 type FormData = {
   monto: number;
@@ -22,22 +23,29 @@ const FORMAS_PAGO = [
   { value: 'otro', label: 'Otro' },
 ];
 
+
 export default function NuevoPagoPage() {
   const { id } = useParams();
   const router = useRouter();
   const isAuthorized = useAdminAuthorization();
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>();
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors }
+  } = useForm<FormData>();
+
   const [loading, setLoading] = useState(false);
 
   const onSubmit = async (data: FormData) => {
     if (!id || !isAuthorized) return;
-    
+
     setLoading(true);
     try {
       // Obtener clienteId desde el pedido (para validación)
       const pedidoRes = await fetch(`/api/gestion/pedidos/${id}`);
       const pedido = await pedidoRes.json();
-      
+
       const res = await fetch('/api/gestion/pagos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,17 +77,29 @@ export default function NuevoPagoPage() {
   return (
     <div className="p-6 max-w-md mx-auto">
       <h2 className="text-xl font-bold text-white mb-4">Registrar pago</h2>
-      
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
           <label className="block text-gray-300 text-sm mb-1">Monto *</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0.01"
-            className="w-full p-2 bg-gray-700 text-white rounded"
-            {...register('monto', { required: true, min: 0.01 })}
+          <Controller
+            name="monto"
+            control={control}
+            rules={{ required: true, min: 0.01 }}
+            render={({ field }) => (
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="$ 0,00"
+                className="w-full p-2 bg-gray-700 text-white rounded"
+                value={field.value ? formatARS(field.value) : ''}
+                onChange={(e) => {
+                  const numericValue = parseARS(e.target.value);
+                  field.onChange(numericValue);
+                }}
+              />
+            )}
           />
+
         </div>
 
         <div>
