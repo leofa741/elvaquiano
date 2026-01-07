@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
 
     const total = await Product.countDocuments();
     const products = await Product.find()
+      .populate('proveedor')
       .sort({ nombre: 1 })
       .skip(skip)
       .limit(limit);
@@ -59,9 +60,7 @@ export async function POST(req: NextRequest) {
     if (typeof data.precioMayorista !== 'number' || data.precioMayorista <= 0) {
       return NextResponse.json({ error: 'Precio mayorista inválido (debe ser número > 0)' }, { status: 400 });
     }
-    if (typeof data.precioMinorista !== 'number' || data.precioMinorista <= 0) {
-      return NextResponse.json({ error: 'Precio minorista inválido (debe ser número > 0)' }, { status: 400 });
-    }
+  
 
     // ✅ Precio de oferta es opcional
     if (data.precioOferta != null) {
@@ -108,8 +107,7 @@ export async function POST(req: NextRequest) {
       unidad: data.unidad || 'kg',
       cantidadUnidad: Number(data.cantidadUnidad) || 1,
       precioLista: data.precioLista,
-      precioMayorista: data.precioMayorista,
-      precioMinorista: data.precioMinorista,
+      precioMayorista: data.precioMayorista,    
       precioOferta: data.precioOferta ?? null,
       stock: data.stock,
       lotes: data.lotes || [],

@@ -11,12 +11,13 @@ export interface PresupuestoDocument extends Document {
     unidad: string;
     deposito: string;
     cantidad: number;
-    tipoPrecio: 'minorista' | 'mayorista';
+    tipoPrecio: 'mayorista' | 'oferta';
     precioAplicado: number;
     subtotal: number;
   }>;
-  estado: 'borrador' | 'enviado' | 'aceptado' | 'rechazado' | 'convertido';
+  estado: 'borrador' | 'enviado' | 'aceptado' | 'rechazado' | 'convertido';  
   total: number;
+  notas?: string;
   validoHasta?: Date | null;
   pedidoAsociado?: string | null;
   activo: boolean;
@@ -42,7 +43,7 @@ const PresupuestoSchema = new Schema({
     cantidad: { type: Number, required: true, min: 0.001 },
     tipoPrecio: {
       type: String,
-      enum: ['minorista', 'mayorista'],
+      enum: ['mayorista', 'oferta'],
       required: true
     },
     precioAplicado: { type: Number, required: true },
@@ -54,6 +55,7 @@ const PresupuestoSchema = new Schema({
     default: 'borrador'
   },
   total: { type: Number, required: true },
+  notas: { type: String },
   validoHasta: Date,
   pedidoAsociado: {
     type: Schema.Types.ObjectId,

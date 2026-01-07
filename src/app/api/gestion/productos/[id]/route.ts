@@ -29,6 +29,8 @@ export async function GET(
   }
 }
 
+
+
 // PUT: actualizar producto
 export async function PUT(
   request: NextRequest,
@@ -57,11 +59,28 @@ export async function PUT(
   }
 
   // ✅ 3. Determinar si es actualización parcial
-  // 👉 Más robusto: si NO se envían campos clave del formulario completo, es parcial
-  const camposFormularioCompleto = ['nombre', 'categoria', 'precioLista', 'precioMayorista', 'precioMinorista'];
+  const camposFormularioCompleto = ['nombre', 'categoria', 'precioLista', 'precioMayorista', 'stock'];
   const esParcial = !camposFormularioCompleto.every(campo => campo in body);
 
   let updateData: Record<string, any> = {};
+
+  // 👇 NUEVO: Manejo del campo `proveedor` (en ambos modos)
+  if ('proveedor' in body) {
+    const provValue = body.proveedor;
+    if (provValue === null || provValue === '' || provValue === undefined) {
+      updateData.proveedor = null;
+    } else if (typeof provValue === 'string') {
+      // Opcional: validar que el proveedor exista (recomendado)
+      const Proveedor = (await import('@/app/models/Proveedor')).default;
+      const existe = await Proveedor.findById(provValue);
+      if (!existe) {
+        return NextResponse.json({ error: 'Proveedor no encontrado' }, { status: 400 });
+      }
+      updateData.proveedor = provValue;
+    } else {
+      return NextResponse.json({ error: 'Proveedor debe ser un ID válido o null' }, { status: 400 });
+    }
+  }
 
   if (esParcial) {
     // ✅ Actualización parcial: solo permitir campos específicos
@@ -70,7 +89,6 @@ export async function PUT(
       if (!Array.isArray(body.lotes)) {
         return NextResponse.json({ error: 'Lotes debe ser un arreglo' }, { status: 400 });
       }
-      // Validación básica de lotes (puedes profundizar si necesitas)
       updateData.lotes = body.lotes;
     }
     if ('stockMinimoAlerta' in body) {
@@ -85,18 +103,17 @@ export async function PUT(
         updateData.stockMinimoAlerta = num;
       }
     }
+    // 👆 `proveedor` ya se manejó arriba, fuera del if, así aplica en ambos modos
   } else {
-    // ✅ Actualización completa: validar todo
+    // ✅ Actualización completa
     const { nombre, categoria, unidad, cantidadUnidad, stock, lotes } = body;
 
     if (!nombre || !categoria) {
       return NextResponse.json({ error: 'Nombre y categoría son obligatorios' }, { status: 400 });
     }
 
-    // ✅ Validar precios (permitir null en oferta)
     const precioLista = body.precioLista;
     const precioMayorista = body.precioMayorista;
-    const precioMinorista = body.precioMinorista;
     const precioOferta = body.precioOferta;
 
     if (typeof precioLista !== 'number' || precioLista <= 0) {
@@ -105,21 +122,13 @@ export async function PUT(
     if (typeof precioMayorista !== 'number' || precioMayorista <= 0) {
       return NextResponse.json({ error: 'Precio mayorista inválido (debe ser número > 0)' }, { status: 400 });
     }
-    if (typeof precioMinorista !== 'number' || precioMinorista <= 0) {
-      return NextResponse.json({ error: 'Precio minorista inválido (debe ser número > 0)' }, { status: 400 });
-    }
     if (precioOferta != null && (typeof precioOferta !== 'number' || precioOferta < 0)) {
       return NextResponse.json({ error: 'Precio de oferta inválido (debe ser número ≥ 0 o null)' }, { status: 400 });
     }
-
     if (precioLista > precioMayorista) {
       return NextResponse.json({ error: 'El precio mayorista no puede ser menor que el precio de lista.' }, { status: 400 });
     }
-    if (precioMayorista > precioMinorista) {
-      return NextResponse.json({ error: 'El precio minorista no puede ser menor que el mayorista.' }, { status: 400 });
-    }
 
-    // ✅ Validar stock
     if (!Array.isArray(stock) || stock.length === 0) {
       return NextResponse.json({ error: 'Se requiere al menos un depósito con stock' }, { status: 400 });
     }
@@ -129,7 +138,6 @@ export async function PUT(
       }
     }
 
-    // ✅ Validar lotes (si existen)
     if (lotes) {
       if (!Array.isArray(lotes)) {
         return NextResponse.json({ error: 'Lotes debe ser un arreglo' }, { status: 400 });
@@ -153,16 +161,19 @@ export async function PUT(
       cantidadUnidad: Number(cantidadUnidad) || 1,
       precioLista,
       precioMayorista,
-      precioMinorista,
       precioOferta: precioOferta ?? null,
       stock,
       lotes: lotes || [],
-      imagen: body.imagen || productoExistente.imagen, // mantener si no se envía
+      imagen: body.imagen || productoExistente.imagen,
+      // 👆 `proveedor` ya se agregó arriba
     };
   }
 
   try {
-    const productoActualizado = await Product.findByIdAndUpdate(id, updateData, { new: true });
+    // 👇 IMPORTANTE: Poblar el proveedor al devolver
+    const productoActualizado = await Product.findByIdAndUpdate(id, updateData, { new: true })
+      .populate('proveedor'); // ← esto devuelve el objeto completo, no solo el ID
+
     if (!productoActualizado) {
       return NextResponse.json({ error: 'No se pudo actualizar el producto' }, { status: 500 });
     }
@@ -181,6 +192,10 @@ export async function PUT(
     return NextResponse.json({ error: 'Error al guardar los cambios' }, { status: 500 });
   }
 }
+
+
+
+
 
 // DELETE: eliminar producto
 export async function DELETE(

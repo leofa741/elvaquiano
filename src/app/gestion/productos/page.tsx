@@ -9,6 +9,17 @@ import { FaBox, FaPlus } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import { Suspense } from 'react';
 import StockValueSummary from './StockValueSummary';
+import { formatARS } from '@/app/lib/formatcurrenci';
+
+
+interface Proveedor {
+  _id: string;
+  nombre: string;
+  contacto?: string;
+  telefono?: string;
+  email?: string;
+}
+
 
 interface Product {
   _id: string;
@@ -18,7 +29,6 @@ interface Product {
   cantidadUnidad: number;
   precioLista: number;
   precioMayorista: number;
-  precioMinorista: number;
   precioOferta: number;
   stock: Array<{ deposito: string; cantidad: number }>;
   lotes: Array<{ lote: string; vencimiento: string; cantidad: number; deposito: string }>;
@@ -26,6 +36,7 @@ interface Product {
   imagen?: string;
   createdAt: string;
   stockMinimoAlerta?: number;
+  proveedor?: Proveedor | null;
 }
 
 interface ProductResponse {
@@ -34,6 +45,9 @@ interface ProductResponse {
   page: number;
   totalPages: number;
 }
+
+
+
 
 export default function ProductosPage() {
   return (
@@ -64,6 +78,29 @@ function PageContent() {
   });
 
   const limit = 20;
+
+  const [selectedProductForProveedor, setSelectedProductForProveedor] = useState<Product | null>(null);
+  const [showProveedorModal, setShowProveedorModal] = useState(false);
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [loadingProveedores, setLoadingProveedores] = useState(false);
+
+  const [selectedProveedorId, setSelectedProveedorId] = useState<string | null>(null);
+
+  const [nuevoProveedorNombre, setNuevoProveedorNombre] = useState('');
+  const [nuevoProveedorTelefono, setNuevoProveedorTelefono] = useState('');
+  const [nuevoProveedorEmail, setNuevoProveedorEmail] = useState('');
+
+  const [isEditingProveedor, setIsEditingProveedor] = useState(false);
+
+
+  const resetProveedorForm = () => {
+    setNuevoProveedorNombre('');
+    setNuevoProveedorTelefono('');
+    setNuevoProveedorEmail('');
+    setSelectedProveedorId(null);
+  };
+
+
 
 
 
@@ -155,7 +192,7 @@ function PageContent() {
 
 
   // ✨✨✨ SSE: Escuchar eventos de producto en tiempo real ✨✨✨
-  useEffect(() => {   
+  useEffect(() => {
 
     const eventSource = new EventSource('/api/gestion/productos/events');
 
@@ -233,8 +270,6 @@ function PageContent() {
         ' ' +
         p.precioOferta +
         ' ' +
-        p.precioMinorista +
-        ' ' +
         JSON.stringify(p.stock) +
         JSON.stringify(p.lotes);
       return text.toLowerCase().includes(internalSearch.toLowerCase());
@@ -290,6 +325,34 @@ function PageContent() {
       );
     }
     return product.stock || 0;
+  };
+
+  const loadProveedores = async () => {
+    setLoadingProveedores(true);
+    try {
+      const res = await fetch('/api/gestion/proveedores?limit=100');
+
+      console.log('Respuesta de proveedores:', res);
+
+      if (!res.ok) {
+        throw new Error('Error HTTP');
+      }
+
+      const data = await res.json();
+
+      if (Array.isArray(data.proveedores)) {
+        setProveedores(data.proveedores);
+      } else {
+        console.error('Respuesta inesperada:', data);
+        setProveedores([]);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al cargar proveedores');
+      setProveedores([]);
+    } finally {
+      setLoadingProveedores(false);
+    }
   };
 
   return (
@@ -356,9 +419,9 @@ function PageContent() {
                       <th className="text-left py-3 px-4">Precio de Lista</th>
                       <th className="text-left py-3 px-4">Precio Mayorista</th>
                       <th className="text-left py-3 px-4">Precio Oferta</th>
-                      <th className="text-left py-3 px-4">Precio Minorista</th>
                       <th className="text-left py-3 px-4">Stock Total</th>
                       <th className="text-left py-3 px-4">Activo</th>
+                      <th className="text-left py-3 px-4">Proveedor</th>
                       <th className="text-left py-3 px-4">Acciones</th>
                     </tr>
                   </thead>
@@ -394,22 +457,24 @@ function PageContent() {
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
                               Total invertido: ${product.precioLista * stockTotal > 0
-                                ? (product.precioLista * stockTotal).toLocaleString('es-AR')
+                                ? (formatARS(product.precioLista * stockTotal))
                                 : '0'}
                             </div>
                           </td>
                           <td className="py-3 px-4">
                             <div className="text-amber-400 font-medium">
-                              ${product.precioMayorista.toLocaleString('es-AR')}
+                              ${(formatARS(product.precioMayorista))}
                               <span className="text-xs text-gray-400 ml-1">c/u</span>
                             </div>
                             {stockTotal > 0 ? (
                               <div className="mt-1 text-xs space-y-1">
                                 <div className="text-gray-300">
-                                  Ingreso total: <span className="font-medium">${(product.precioMayorista * stockTotal).toLocaleString('es-AR')}</span>
+                                  Ingreso total: <span className="font-medium">${(formatARS(product.precioMayorista * stockTotal))}
+
+                                  </span>
                                 </div>
                                 <div className="text-green-400">
-                                  Ganancia potencial: <span className="font-medium">${((product.precioMayorista - product.precioLista) * stockTotal).toLocaleString('es-AR')}</span>
+                                  Ganancia potencial: <span className="font-medium">${(formatARS((product.precioMayorista - product.precioLista) * stockTotal))}</span>
                                 </div>
                               </div>
                             ) : (
@@ -418,42 +483,40 @@ function PageContent() {
                           </td>
 
                           <td className="py-3 px-4">
-                            <div className="text-amber-400 font-medium">
-                              ${product.precioOferta.toLocaleString('es-AR')}
-                              <span className="text-xs text-gray-400 ml-1">c/u</span>
+                            {/* Precio de venta / Oferta */}
+                            <div className="flex items-baseline gap-1">
+                              {product.precioOferta === product.precioMayorista ? (
+                                <span className="text-gray-400 text-sm">Sin oferta</span>
+                              ) : (
+                                <>
+                                  <span className="text-amber-400 font-bold">
+                                    ${(formatARS(product.precioOferta))}
+                                  </span>
+                                  <span className="text-xs text-green-400 font-medium bg-green-900/20 px-1.5 py-0.5 rounded">
+                                    OFERTA
+                                  </span>
+                                </>
+                              )}
+                              <span className="text-xs text-gray-500 ml-1">c/u</span>
                             </div>
+
+                            {/* Cálculos (siempre usan precioOferta, que es numérico) */}
                             {stockTotal > 0 ? (
-                              <div className="mt-1 text-xs space-y-1">
+                              <div className="mt-2 text-xs space-y-1">
                                 <div className="text-gray-300">
-                                  Ingreso total: <span className="font-medium">${(product.precioOferta * stockTotal).toLocaleString('es-AR')}</span>
+                                  Ingreso total: <span className="font-medium text-amber-300">${(formatARS(product.precioOferta * stockTotal))}
+
+                                  </span>
                                 </div>
                                 <div className="text-green-400">
-                                  Ganancia potencial: <span className="font-medium">${((product.precioOferta - product.precioLista) * stockTotal).toLocaleString('es-AR')}</span>
+                                  Ganancia potencial: <span className="font-medium">${(formatARS((product.precioOferta - product.precioLista) * stockTotal))}</span>
                                 </div>
                               </div>
                             ) : (
-                              <div className="text-xs text-gray-600 italic mt-1">Sin stock</div>
+                              <div className="text-xs text-gray-600 italic mt-2">Sin stock</div>
                             )}
                           </td>
 
-                          <td className="py-3 px-4">
-                            <div className="text-amber-400 font-medium">
-                              ${product.precioMinorista.toLocaleString('es-AR')}
-                              <span className="text-xs text-gray-400 ml-1">c/u</span>
-                            </div>
-                            {stockTotal > 0 ? (
-                              <div className="mt-1 text-xs space-y-1">
-                                <div className="text-gray-300">
-                                  Ingreso total: <span className="font-medium">${(product.precioMinorista * stockTotal).toLocaleString('es-AR')}</span>
-                                </div>
-                                <div className="text-green-400">
-                                  Ganancia potencial: <span className="font-medium">${((product.precioMinorista - product.precioLista) * stockTotal).toLocaleString('es-AR')}</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="text-xs text-gray-600 italic mt-1">Sin stock</div>
-                            )}
-                          </td>
 
                           <td className="py-3 px-4">
                             <div className={`font-medium ${stockTotal <= (product.stockMinimoAlerta ?? 0) ? 'text-red-400' : 'text-white'}`}>
@@ -526,12 +589,46 @@ function PageContent() {
                               <span className="text-white">Activo</span>
                             </label>
                           </td>
+                          <td className="py-3 px-4 text-gray-300">
+                            {product.proveedor?.nombre || (
+                              <span className="text-gray-500 italic">—</span>
+                            )}
+                            <br />
+                            {product.proveedor?.telefono || (
+                              <span className="text-gray-500 italic">—</span>
+                            )}
+                            <br />
+                            {product.proveedor?.email || (
+                              <span className="text-gray-500 italic">—</span>
+                            )}
+                          </td>
                           <td className="py-3 px-4 flex gap-2">
                             <Link href={`/gestion/productos/editar/${product._id}`} className="text-blue-400 hover:underline">
                               Editar
                             </Link>
+
                             <button onClick={() => deleteProduct(product._id)} className="text-red-400 hover:underline">
                               Borrar
+                            </button>
+
+
+                            <button
+                              onClick={() => {
+                                // 👇 Maneja tanto string como objeto
+                                const currentProveedorId =
+                                  typeof product.proveedor === 'string'
+                                    ? product.proveedor
+                                    : product.proveedor?._id || null;
+
+                                setSelectedProductForProveedor(product);
+                                setSelectedProveedorId(currentProveedorId);
+                                setNuevoProveedorNombre('');
+                                setShowProveedorModal(true);
+                                loadProveedores();
+                              }}
+                              className="text-amber-400 hover:underline"
+                            >
+                              Proveedor
                             </button>
                           </td>
                         </tr>
@@ -627,6 +724,178 @@ function PageContent() {
           </>
         )}
       </div>
+
+
+      {/* 👇 MODAL DE PROVEEDOR */}
+      {showProveedorModal && selectedProductForProveedor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700 text-white">
+            <h3 className="text-xl font-bold mb-4">Asignar proveedor a: {selectedProductForProveedor.nombre}</h3>
+
+            {loadingProveedores ? (
+              <p className="text-gray-400">Cargando proveedores...</p>
+            ) : (
+              <>
+                {/* Selección de proveedor existente */}
+                <div className="mb-4">
+                  <label className="block text-sm text-gray-300 mb-1">Proveedor existente</label>
+                  <select
+                    value={selectedProveedorId || ''}
+
+                    onChange={(e) => {
+                      const proveedorId = e.target.value || null;
+                      setSelectedProveedorId(proveedorId);
+                      setIsEditingProveedor(false);
+
+                      if (proveedorId) {
+                        const prov = proveedores.find((p) => p._id === proveedorId);
+                        if (prov) {
+                          setNuevoProveedorNombre(prov.nombre || '');
+                          setNuevoProveedorTelefono(prov.telefono || '');
+                          setNuevoProveedorEmail(prov.email || '');
+                          setIsEditingProveedor(true); // 👈 entra en modo edición
+                        }
+                      } else {
+                        resetProveedorForm();
+                      }
+                    }}
+
+                    className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white"
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {proveedores.map((prov) => (
+                      <option key={prov._id} value={prov._id}>
+                        {prov.nombre}
+                      </option>
+                    ))}
+
+                  </select>
+                </div>
+
+                {/* O crear nuevo */}
+                <div className="mb-4">
+                  <label className="block text-sm text-gray-300 mb-1">
+                    ¿O crear nuevo?
+                  </label>
+                  {/* Nombre */}
+                  <input
+                    type="text"
+                    placeholder="Nombre del proveedor *"
+                    value={nuevoProveedorNombre}
+                    onChange={(e) => {
+                      setNuevoProveedorNombre(e.target.value);
+                      setSelectedProveedorId(null);
+                    }}
+                    className="w-full p-2 mb-2 bg-gray-700 border border-gray-600 rounded text-white"
+                  />
+
+                  {/* Teléfono */}
+                  <input
+                    type="text"
+                    placeholder="Teléfono"
+                    value={nuevoProveedorTelefono}
+                    onChange={(e) => setNuevoProveedorTelefono(e.target.value)}
+                    className="w-full p-2 mb-2 bg-gray-700 border border-gray-600 rounded text-white"
+                  />
+
+                  {/* Email */}
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={nuevoProveedorEmail}
+                    onChange={(e) => setNuevoProveedorEmail(e.target.value)}
+                    className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white"
+                  />
+
+                </div>
+
+                {/* Botones */}
+                <div className="flex gap-3 justify-end mt-4">
+                  <button
+                    onClick={() => {
+                      resetProveedorForm();
+                      setShowProveedorModal(false);
+                    }}
+                    className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded"
+                  >
+                    Cancelar
+                  </button>
+
+
+                  <button
+                    onClick={async () => {
+                      let proveedorIdToAssign = selectedProveedorId;
+
+                      // Si escribió un nuevo proveedor
+                      if (nuevoProveedorNombre.trim() && !selectedProveedorId) {
+                        try {
+                          const res = await fetch('/api/gestion/proveedores', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              nombre: nuevoProveedorNombre.trim(),
+                              telefono: nuevoProveedorTelefono.trim() || undefined,
+                              email: nuevoProveedorEmail.trim() || undefined,
+                            }),
+
+                          });
+                          if (res.ok) {
+                            const nuevoProv = await res.json();
+                            proveedorIdToAssign = nuevoProv._id;
+                            // Actualiza lista local de proveedores
+                            setProveedores((prev) => [...prev, nuevoProv]);
+                          } else {
+                            toast.error('Error al crear proveedor');
+                            return;
+                          }
+                        } catch (err) {
+                          toast.error('Error de red al crear proveedor');
+                          return;
+                        }
+                      }
+
+                      // Asignar proveedor al producto
+                      try {
+                        const res = await fetch(`/api/gestion/productos/${selectedProductForProveedor._id}`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ proveedor: proveedorIdToAssign }),
+                        });
+
+                        if (res.ok) {
+                          const updatedProduct = await res.json();
+
+                          // Actualizar en la UI localmente (SSE también lo capturará)
+                          setProducts((prev) =>
+                            prev.map((p) => (p._id === updatedProduct._id ? updatedProduct : p))
+                          );
+                          setAllProducts((prev) =>
+                            prev.map((p) => (p._id === updatedProduct._id ? updatedProduct : p))
+                          );
+
+                          toast.success('Proveedor asignado correctamente');
+                          setShowProveedorModal(false);
+                        } else {
+                          toast.error('Error al asignar proveedor');
+                        }
+                      } catch (err) {
+                        toast.error('Error de red al asignar proveedor');
+                      }
+                    }}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 rounded"
+                  >
+                    Guardar
+                  </button>
+
+
+
+
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

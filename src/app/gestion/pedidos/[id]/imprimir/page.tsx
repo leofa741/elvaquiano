@@ -7,6 +7,7 @@ import './print.css';
 
 import Swal from 'sweetalert2';
 import BotonImprimir from './BotonImprimir';
+import { formatARS } from '@/app/lib/formatcurrenci';
 
 // Tipos
 interface Cliente {
@@ -125,6 +126,14 @@ export default function ImprimirPedidoPage() {
             <div className="ticket bg-white text-black p-4 rounded shadow max-w-[300px]">
                 {/* Encabezado */}
                 <div className="text-center mb-2">
+
+                    {/* LOGO */}
+                    <div className="ticket-logo">
+                        <img
+                            src="/El-Vaquiano.png"
+                            alt="Distribuidora El Vaquiano"
+                        />
+                    </div>
                     <h2 className="font-bold text-lg">PEDIDO</h2>
                     <div className="text-sm">#{pedido._id.slice(-6).toUpperCase()}</div>
                     <div className="text-xs text-gray-600">
@@ -143,9 +152,17 @@ export default function ImprimirPedidoPage() {
                 <div className="mt-2 space-y-1">
                     {pedido.productos.map((p, i) => (
                         <div key={i} className="text-sm">
-                            <div>{p.cantidad} {p.unidad} {p.nombre}</div>
-                            <div className="text-right">
-                                ${p.subtotal.toFixed(2)}
+                            {/* ✅ Línea 1: "5 unidades de leche descremada" */}
+                            <div>
+                                {p.cantidad} {p.cantidad === 1 ? 'unidad' : 'unidades'} de {p.nombre}
+                            </div>
+                            {/* ✅ Línea 2: "(5 litros)" */}
+                            <div className="text-xs text-gray-600">
+                                ({p.cantidad} {p.unidad})
+                            </div>
+                            {/* Subtotal a la derecha */}
+                            <div className="text-right font-medium">
+                                ${formatARS(p.subtotal)}
                             </div>
                         </div>
                     ))}
@@ -156,7 +173,7 @@ export default function ImprimirPedidoPage() {
                 {/* Total */}
                 <div className="flex justify-between font-bold">
                     <span>TOTAL</span>
-                    <span>${pedido.total.toFixed(2)}</span>
+                    <span>${formatARS(pedido.total)}</span>
                 </div>
 
                 <hr className="my-2" />

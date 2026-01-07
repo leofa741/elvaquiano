@@ -7,15 +7,18 @@ import './print.css';
 import BotonImprimir from './BotonImprimir';
 import BotonConvertir from './BotonConvertir';
 import Swal from 'sweetalert2';
+import { formatARS } from '@/app/lib/formatcurrenci';
 
 interface Producto {
   nombre: string;
   unidad: string;
   cantidad: number;
+  unidadesFisicas: number; // ✅ NUEVA LÍNEA
   tipoPrecio: string;
   precioAplicado: number;
   deposito?: string;
 }
+
 
 interface Cliente {
   razonSocial?: string;
@@ -28,6 +31,7 @@ interface Presupuesto {
   total: number;
   validoHasta?: string;
   estado: string;
+  notas?: string;
 }
 
 function getRazonSocial(cliente: any): string {
@@ -118,6 +122,13 @@ export default function ImprimirPresupuestoPage() {
 
       <div className="ticket bg-white text-black p-4 rounded shadow max-w-[300px]">
         <div className="text-center">
+          {/* LOGO */}
+          <div className="ticket-logo">
+            <img
+              src="/El-Vaquiano.png"
+              alt="Distribuidora El Vaquiano"
+            />
+          </div>
           <h2 className="font-bold text-lg">PRESUPUESTO</h2>
           <div className="text-sm">#{presupuesto._id.slice(-6).toUpperCase()}</div>
           {presupuesto.validoHasta && (
@@ -136,34 +147,55 @@ export default function ImprimirPresupuestoPage() {
         <div className="mt-2 space-y-2">
           {presupuesto.productos.map((p, i) => (
             <div key={i}>
-              <div>
-                {p.cantidad} {p.unidad} {p.nombre}
+              {/* ✅ Siempre usamos p.cantidad como número de unidades físicas */}
+              <div className="font-medium text-sm">
+                {p.cantidad} {p.cantidad === 1 ? 'unidad' : 'unidades'} de {p.nombre}
               </div>
+
+              {/* ✅ Y mostramos la medida comercial: "3 litros" */}
               <div className="text-xs text-gray-600">
-                ({p.tipoPrecio}) x ${p.precioAplicado.toFixed(2)}
+                ({p.cantidad} {p.unidad})
+              </div>
+
+              <div className="text-xs text-gray-600">
+                ({p.tipoPrecio}) x ${formatARS(p.precioAplicado)}
               </div>
               <div className="text-right font-medium">
-                ${(p.cantidad * p.precioAplicado).toFixed(2)}
+                ${formatARS(p.cantidad * p.precioAplicado)}
               </div>
             </div>
           ))}
         </div>
+        {/* Mostrar nota si existe (ej: "regenerado a partir de...") */}
+        {presupuesto.notas && (
+          <div className="text-center text-xs text-gray-500 italic mt-2 mb-1">
+            {presupuesto.notas}
 
+          </div>
+        )}
         <hr className="my-2" />
 
         <div className="flex justify-between font-bold text-base">
           <span>TOTAL</span>
-          <span>${presupuesto.total.toFixed(2)}</span>
+          <span>${formatARS(presupuesto.total)}</span>
         </div>
 
         <div className="text-center mt-3 text-xs text-gray-500">
           Documento no válido como comprobante fiscal
         </div>
 
+  
         {/* BOTONES: solo visibles en pantalla */}
         <div className="no-print mt-4 flex flex-col gap-2">
           <BotonImprimir />
-          <BotonConvertir id={presupuesto._id} estado={presupuesto.estado} />
+
+          {presupuesto.notas?.includes('Presupuesto regenerado a partir del pedido') ? (
+            <div className="text-xs text-gray-500 text-center italic">
+              Este presupuesto fue regenerado a partir de un pedido ya existente.
+            </div>
+          ) : (
+            <BotonConvertir id={presupuesto._id} estado={presupuesto.estado} />
+          )}
         </div>
       </div>
     </div>

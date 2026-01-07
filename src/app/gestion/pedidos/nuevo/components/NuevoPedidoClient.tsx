@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { FaShoppingCart, FaUser } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import ProductoLinea from './ProductoLinea';
+import { formatARS } from '@/app/lib/formatcurrenci';
 
 
 // Tipos
@@ -23,7 +24,7 @@ interface ProductoOption {
   _id: string;
   nombre: string;
   unidad: string;
-  precioMinorista: number;
+  precioOferta: number;
   precioMayorista: number;
   stock: Array<{ deposito: string; cantidad: number }>;
 }
@@ -32,7 +33,7 @@ interface ProductoEnPedido {
   producto: ProductoOption;
   deposito: string;
   cantidad: number;
-  tipoPrecio: 'minorista' | 'mayorista';
+  tipoPrecio: 'mayorista' | 'oferta' ;
 }
 
 // ✅ Recibimos searchParams como Promise
@@ -124,7 +125,7 @@ export default function NuevoPedidoClient({
     }
     setProductosEnPedido(prev => [
       ...prev,
-      { producto, deposito: producto.stock[0].deposito, cantidad: 1, tipoPrecio: 'minorista' }
+      { producto, deposito: producto.stock[0].deposito, cantidad: 1, tipoPrecio: 'mayorista' }
     ]);
     setBusquedaProducto('');
   };
@@ -142,7 +143,7 @@ export default function NuevoPedidoClient({
   };
 
   const total = productosEnPedido.reduce((sum, p) => {
-    const precio = p.tipoPrecio === 'minorista' ? p.producto.precioMinorista : p.producto.precioMayorista;
+    const precio = p.tipoPrecio === 'mayorista' ? p.producto.precioMayorista : (p.producto.precioOferta || 0);
     return sum + p.cantidad * precio;
   }, 0);
 
@@ -166,8 +167,8 @@ export default function NuevoPedidoClient({
         deposito: p.deposito,
         cantidad: p.cantidad,
         tipoPrecio: p.tipoPrecio,
-        precioAplicado: p.tipoPrecio === 'minorista' ? p.producto.precioMinorista : p.producto.precioMayorista,
-        subtotal: p.cantidad * (p.tipoPrecio === 'minorista' ? p.producto.precioMinorista : p.producto.precioMayorista)
+        precioAplicado: p.tipoPrecio === 'mayorista' ? p.producto.precioMayorista : (p.producto.precioOferta || 0),
+        subtotal: p.cantidad * (p.tipoPrecio === 'mayorista' ? p.producto.precioMayorista : (p.producto.precioOferta || 0))
       }));
 
       const res = await fetch('/api/gestion/pedidos', {
@@ -277,7 +278,7 @@ export default function NuevoPedidoClient({
                   >
                     <div className="font-medium text-white">{producto.nombre}</div>
                     <div className="text-sm text-gray-300">
-                      {producto.unidad} • Min: ${producto.precioMinorista.toFixed(2)} • May: ${producto.precioMayorista.toFixed(2)}
+                      {producto.unidad} • Min: ${producto.precioOferta ? formatARS(producto.precioOferta) : 'N/A'} • May: ${formatARS(producto.precioMayorista)}
                     </div>
                     <div className="text-xs text-gray-400 mt-1">
                       Stock: {producto.stock.map(s => `${s.deposito} (${s.cantidad})`).join(', ')}

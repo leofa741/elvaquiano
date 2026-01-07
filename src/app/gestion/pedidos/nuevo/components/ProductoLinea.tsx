@@ -2,12 +2,13 @@
 'use client';
 
 import { FaStore, FaUserFriends } from 'react-icons/fa';
+import { formatARS } from '@/app/lib/formatcurrenci';
 
 interface ProductoOption {
   _id: string;
   nombre: string;
   unidad: string;
-  precioMinorista: number;
+  precioOferta: number;
   precioMayorista: number;
   stock: Array<{ deposito: string; cantidad: number }>;
 }
@@ -16,7 +17,7 @@ interface ProductoLineaProps {
   producto: ProductoOption;
   deposito: string;
   cantidad: number;
-  tipoPrecio: 'minorista' | 'mayorista';
+  tipoPrecio: 'mayorista' | 'oferta';
   onRemove: () => void;
   onChange: (field: 'deposito' | 'cantidad' | 'tipoPrecio', value: string | number) => void;
 }
@@ -29,10 +30,10 @@ export default function ProductoLinea({
   onRemove,
   onChange
 }: ProductoLineaProps) {
-  const precioAplicado = tipoPrecio === 'minorista'
-    ? producto.precioMinorista
+  const precioAplicado = tipoPrecio === 'oferta'
+    ? producto.precioOferta
     : producto.precioMayorista;
-  const subtotal = Number((cantidad * precioAplicado).toFixed(2));
+  const subtotal = cantidad * precioAplicado;
 
   return (
     <div className="bg-gray-750 p-4 rounded-lg border border-gray-600">
@@ -60,22 +61,31 @@ export default function ProductoLinea({
             <div>
               <label className="text-xs text-gray-400">Cantidad</label>
               <input
-                type="number"
-                min="0.001"
-                step="0.001"
-                value={cantidad === 0 ? "" : cantidad}
+                type="text"
+                inputMode="decimal" // ✅ abre teclado numérico en móviles
+                value={cantidad}
                 onChange={(e) => {
-                  const v = e.target.value;
-                  onChange("cantidad", v === "" ? 0 : parseFloat(v));
+                  const value = e.target.value;
+                  // Solo permitir números y un punto opcional (aunque en cantidades enteras, no lo necesitas)
+                  if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                    const num = parseFloat(value);
+                    onChange('cantidad', isNaN(num) ? 0 : num);
+                  }
+                }}
+                onBlur={(e) => {
+                  // Asegurar que no quede vacío
+                  if (e.target.value === '') {
+                    onChange('cantidad', 0);
+                  }
                 }}
                 className="w-full mt-1 px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                placeholder="0"
               />
-
             </div>
             <div>
               <label className="text-xs text-gray-400">Subtotal</label>
               <div className="mt-1 px-2 py-1.5 bg-gray-700 rounded text-white text-sm font-medium">
-                ${subtotal.toFixed(2)}
+                ${formatARS(subtotal)}
               </div>
             </div>
           </div>
@@ -85,25 +95,25 @@ export default function ProductoLinea({
             <div className="flex mt-1 gap-2">
               <button
                 type="button"
-                onClick={() => onChange('tipoPrecio', 'minorista')}
-                className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-sm rounded transition ${tipoPrecio === 'minorista'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                onClick={() => onChange('tipoPrecio', 'oferta')}
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-sm rounded transition ${tipoPrecio === 'oferta'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                   }`}
               >
                 <FaUserFriends className="text-xs" />
-                Minorista (${producto.precioMinorista.toFixed(2)})
+                Oferta  ($ {formatARS(producto.precioOferta)} )
               </button>
               <button
                 type="button"
                 onClick={() => onChange('tipoPrecio', 'mayorista')}
                 className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-sm rounded transition ${tipoPrecio === 'mayorista'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                   }`}
               >
                 <FaStore className="text-xs" />
-                Mayorista (${producto.precioMayorista.toFixed(2)})
+                Mayorista  ($ {formatARS(producto.precioMayorista)} )
               </button>
             </div>
           </div>

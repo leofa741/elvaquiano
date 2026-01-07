@@ -13,6 +13,9 @@ const loteSchema = new Schema({
   deposito: { type: String, required: false },
 });
 
+const Proveedor = models.Proveedor || model('Proveedor', new Schema({ nombre: String })); // referencia mínima
+
+
 const productSchema = new Schema({
   nombre: { type: String, required: true, trim: true },
   categoria: { type: String, required: true, trim: true },
@@ -23,14 +26,14 @@ const productSchema = new Schema({
   },
   cantidadUnidad: { type: Number, required: true, min: 0.001 }, // Ej: 0.5 kg en un pack de 500g
   precioLista: { type: Number, required: true, min: 0 },
-  precioMayorista: { type: Number, required: true, min: 0 },
-  precioMinorista: { type: Number, required: true, min: 0 },
+  precioMayorista: { type: Number, required: true, min: 0 },  
   precioOferta: { type: Number, required: false, min: 0 },
   stock: [stockSchema],
   lotes: [loteSchema],
   activo: { type: Boolean, default: true },
   imagen: { type: String },
   stockMinimoAlerta: { type: Number, required: false, min: 0 },
+  proveedor: { type: Schema.Types.ObjectId, ref: 'Proveedor', required: false },
 }, {
   timestamps: true,
 });

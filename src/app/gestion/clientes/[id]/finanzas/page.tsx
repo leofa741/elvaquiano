@@ -99,7 +99,7 @@ export default function ClienteFinanzasPage() {
           href="/gestion/dashboard"
           className="flex items-center gap-2 text-amber-400 hover:text-amber-300 mb-4"
         >
-          <FaArrowLeft /> Volver 
+          <FaArrowLeft /> Volver
         </Link>
 
         <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
@@ -119,7 +119,7 @@ export default function ClienteFinanzasPage() {
         <div className="text-gray-300 mt-2">
           Deuda total en {pedidosConDeuda.length} pedido(s) pendiente(s)
         </div>
-        
+
         {deudaTotal > 0 && (
           <button
             onClick={() => router.push(`/gestion/clientes/${cliente._id}/pagos/multiple`)}
@@ -176,6 +176,19 @@ export default function ClienteFinanzasPage() {
               </div>
             ))}
           </div>
+
+          {/* Total acumulado */}
+          <div className="p-4 bg-gray-900 border-t border-gray-700">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400 font-medium">Total pendiente:</span>
+              <span className="text-xl font-bold text-white">
+                $
+                {pedidosConDeuda
+                  .reduce((acc, p) => acc + p.saldo, 0)
+                  .toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -207,16 +220,16 @@ export default function ClienteFinanzasPage() {
                     )}
                   </div>
                   <div className="text-right text-gray-400">
-                    {new Date(pago.fechaPago).toLocaleDateString('es-AR')}  
-                    {' '}  
+                    {new Date(pago.fechaPago).toLocaleDateString('es-AR')}
+                    {' '}
                     {new Date(pago.fechaPago).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
-                
+
                 {/* Pedido asociado */}
                 {pago.pedidoId && (
-                  <div className="mt-2 text-xs text-gray-500">
-                    Pedido #{pago.pedidoId.slice(-6).toUpperCase()} • 
+                  <div className="mt-2 text-xs text-white bg-gray-500 inline-block px-2 py-1 rounded">
+                    Pedido #{pago.pedidoId.slice(-6).toUpperCase()} •
                     Total: ${pago.pedidoTotal?.toFixed(2)}
                   </div>
                 )}

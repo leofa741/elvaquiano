@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { toast } from 'react-toastify';
 import { useSession } from 'next-auth/react';
 
+
 // Tipos
 interface StockEntry {
   deposito: string;
@@ -30,7 +31,6 @@ interface Product {
   cantidadUnidad: number;
   precioLista: number;
   precioMayorista: number;
-  precioMinorista: number;
   precioOferta: number | null;
   stock: StockEntry[];
   lotes: LoteEntry[];
@@ -95,8 +95,7 @@ export default function EditProductPage() {
     unidad: 'kg' as Unidad, // ✅ Ahora acepta todas las opciones válidas
     cantidadUnidad: 1,
     precioLista: '' as number | '',
-    precioMayorista: '' as number | '',
-    precioMinorista: '' as number | '',
+    precioMayorista: '' as number | '', 
     precioOferta: '' as number | '',
     imagen: '' as string | null,
   });
@@ -106,7 +105,6 @@ export default function EditProductPage() {
   const [displayPrecios, setDisplayPrecios] = useState({
     precioLista: '',
     precioMayorista: '',
-    precioMinorista: '',
     precioOferta: '',
   });
 
@@ -220,8 +218,7 @@ export default function EditProductPage() {
           unidad: data.unidad || 'kg',
           cantidadUnidad: data.cantidadUnidad || 1,
           precioLista: data.precioLista ?? 0,
-          precioMayorista: data.precioMayorista ?? 0,
-          precioMinorista: data.precioMinorista ?? 0,
+          precioMayorista: data.precioMayorista ?? 0,        
           precioOferta: data.precioOferta ?? 0,
           imagen: data.imagen || null,
         });
@@ -234,8 +231,7 @@ export default function EditProductPage() {
 
         setDisplayPrecios({
           precioLista: formatArgentineFinal(data.precioLista ?? null),
-          precioMayorista: formatArgentineFinal(data.precioMayorista ?? null),
-          precioMinorista: formatArgentineFinal(data.precioMinorista ?? null),
+          precioMayorista: formatArgentineFinal(data.precioMayorista ?? null),        
           precioOferta: formatArgentineFinal(data.precioOferta ?? null),
         });
 
@@ -420,7 +416,7 @@ export default function EditProductPage() {
 
     const pl = form.precioLista;
     const pm = form.precioMayorista;
-    const pn = form.precioMinorista;
+   
 
     if (typeof pl !== 'number' || pl <= 0) {
       toast.error('El precio de lista debe ser mayor a 0.');
@@ -430,20 +426,14 @@ export default function EditProductPage() {
       toast.error('El precio mayorista debe ser mayor a 0.');
       return false;
     }
-    if (typeof pn !== 'number' || pn <= 0) {
-      toast.error('El precio minorista debe ser mayor a 0.');
-      return false;
-    }
+   
 
     if (pl > pm) {
       toast.error('El precio mayorista no puede ser menor que el precio de lista.');
       return false;
     }
 
-    if (pm > pn) {
-      toast.error('El precio minorista no puede ser menor que el mayorista.');
-      return false;
-    }
+   
 
     for (const s of stock) {
       if (!s.deposito.trim()) {
@@ -547,8 +537,7 @@ export default function EditProductPage() {
         unidad: form.unidad,
         cantidadUnidad: form.cantidadUnidad,
         precioLista: form.precioLista as number,
-        precioMayorista: form.precioMayorista as number,
-        precioMinorista: form.precioMinorista as number,
+        precioMayorista: form.precioMayorista as number,      
         precioOferta: typeof form.precioOferta === 'number' ? form.precioOferta : null,
         stock: updatedStock,
         lotes: lotesFiltrados,
@@ -755,20 +744,6 @@ export default function EditProductPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Precio Minorista *
-              </label>
-              <input
-                type="text"
-                name="precioMinorista"
-                value={displayPrecios.precioMinorista}
-                onChange={(e) => handlePriceChange('precioMinorista', e.target.value)}
-                onBlur={() => handlePriceBlur('precioMinorista')}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                required
-              />
-            </div>
           </div>
 
           {/* Stock por depósito */}

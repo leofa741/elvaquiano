@@ -13,8 +13,10 @@ import {
   FaEdit,
   FaTrash,
   FaPlus,
+  FaFileInvoice,
 } from 'react-icons/fa';
 import Swal from 'sweetalert2';
+import { formatARS } from '@/app/lib/formatcurrenci';
 
 // Tipos
 interface Cliente {
@@ -32,7 +34,7 @@ interface Producto {
   nombre: string;
   unidad: string;
   cantidad: number;
-  tipoPrecio: 'minorista' | 'mayorista';
+  tipoPrecio: 'mayorista' | 'oferta';
   precioAplicado: number;
   subtotal: number;
 }
@@ -41,7 +43,7 @@ interface ProductoSimple {
   _id: string;
   nombre: string;
   unidad: string;
-  precio: { minorista: number; mayorista: number };
+  precio: { mayorista: number; oferta: number; };
 }
 
 interface Pedido {
@@ -268,6 +270,11 @@ export default function DetallePedidoPage() {
           Volver a pedidos
         </Link>
         <h1 className="text-2xl md:text-3xl font-bold text-white">Pedido #{pedido._id.slice(-6).toUpperCase()}</h1>
+        <Link href="/gestion/dashboard" className="text-amber-500 hover:text-amber-400 flex items-center gap-1">
+          <FaWarehouse />
+          Ir al dashboard de Cuentas Corrientes
+        </Link>
+
       </div>
 
       <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 max-w-4xl mx-auto">
@@ -307,11 +314,10 @@ export default function DetallePedidoPage() {
               <button
                 key={estado}
                 onClick={() => handleCambiarEstado(estado)}
-                className={`px-3 py-1 text-xs rounded-full ${
-                  pedido.estado === estado
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
+                className={`px-3 py-1 text-xs rounded-full ${pedido.estado === estado
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
               >
                 {ESTADO_LABEL[estado]}
               </button>
@@ -320,7 +326,7 @@ export default function DetallePedidoPage() {
         </div>
 
         {/* Botón para agregar producto */}
-        {[ 'preparacion'].includes(pedido.estado) && (
+        {['preparacion', 'enviado', 'entregado'].includes(pedido.estado) && (
           <div className="mb-4">
             <button
               onClick={() => setMostrarAgregar(!mostrarAgregar)}
@@ -387,7 +393,7 @@ export default function DetallePedidoPage() {
                 <div>
                   <div className="text-white">{p.nombre}</div>
                   <div className="text-sm text-gray-400">
-                    <span className="ml-2 capitalize">{p.tipoPrecio}</span> (${p.precioAplicado.toFixed(2)})
+                    <span className="ml-2 capitalize">{p.tipoPrecio}</span> ($({formatARS(p.precioAplicado)} c/u))
                   </div>
                 </div>
 
@@ -428,12 +434,20 @@ export default function DetallePedidoPage() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
-                      <span className="text-white">
-                        {p.cantidad} {p.unidad}
-                      </span>
-                      <div className="text-white font-medium">${p.subtotal.toFixed(2)}</div>
+                      <div className="text-right">
+                        {/* ✅ Línea 1: "5 unidades de Harina" */}
+                        <div className="text-white">
+                          {p.cantidad} {p.cantidad === 1 ? 'unidad' : 'unidades'} de {p.nombre}
+                        </div>
+                        {/* ✅ Línea 2: "(5 kg)" */}
+                        <div className="text-xs text-gray-400">
+                          ({p.cantidad} {p.unidad})
+                        </div>
+                        {/* Total */}
+                        <div className="text-white font-medium">${formatARS(p.subtotal)}</div>
+                      </div>
 
-                      {['preparacion'].includes(pedido.estado) && (
+                      {['preparacion', 'enviado', 'entregado'].includes(pedido.estado) && (
                         <div className="flex gap-1">
                           <button
                             onClick={() => iniciarEdicion(idx, p.cantidad)}
@@ -472,7 +486,9 @@ export default function DetallePedidoPage() {
           </div>
           <div className="text-right">
             <div className="text-gray-400">Total</div>
-            <div className="text-2xl font-bold text-white">${pedido.total.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-white">
+              ${formatARS(pedido.total)}
+            </div>
           </div>
         </div>
 
@@ -480,7 +496,7 @@ export default function DetallePedidoPage() {
           <div className="mt-4 p-3 bg-gray-750 rounded">
             <div className="text-sm text-gray-300">Saldo pendiente:</div>
             <div className="text-xl font-bold text-amber-400">
-              ${saldo.saldoPendiente.toFixed(2)}
+              ${formatARS(saldo.saldoPendiente)}
             </div>
 
             {saldo.pagos.length > 0 && (
@@ -489,7 +505,7 @@ export default function DetallePedidoPage() {
                 {saldo.pagos.map((p) => (
                   <div key={p._id} className="flex justify-between mt-1">
                     <span>{new Date(p.fechaPago).toLocaleDateString()} • {p.formaPago}</span>
-                    <span>${p.monto.toFixed(2)}</span>
+                    <span>${formatARS(p.monto)}</span>
                   </div>
                 ))}
               </div>
@@ -504,12 +520,55 @@ export default function DetallePedidoPage() {
           </div>
         )}
 
-        <Link
-          href={`/gestion/pedidos/${pedido._id}/imprimir`}
-          className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 mt-2"
-        >
-          <FaPrint /> Imprimir ticket
-        </Link>
+        <div className="flex flex-col gap-2 mt-4">
+          <Link
+            href={`/gestion/pedidos/${pedido._id}/imprimir`}
+            className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+          >
+            <FaPrint /> Imprimir ticket
+          </Link>
+
+          {/* ✅ Botón para regenerar presupuesto */}
+          <button
+            onClick={async () => {
+              const result = await Swal.fire({
+                title: '¿Regenerar presupuesto actualizado?',
+                text: 'Se creará un nuevo presupuesto con los productos actuales de este pedido, incluyendo cambios recientes.',
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Sí, regenerar',
+                cancelButtonText: 'Cancelar',
+              });
+
+              if (result.isConfirmed) {
+                try {
+                  const res = await fetch(`/api/gestion/pedidos/${id}/regenerar-presupuesto`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                  });
+
+                  if (res.ok) {
+                    const data = await res.json();
+                    Swal.fire('¡Éxito!', 'Presupuesto regenerado con éxito.', 'success');
+                    // Opcional: redirigir al nuevo presupuesto
+                    router.push(`/gestion/presupuestos/imprimir/${data._id}`);
+                  } else {
+                    const error = await res.json();
+                    Swal.fire('Error', error.error || 'No se pudo regenerar el presupuesto', 'error');
+                  }
+                } catch (err) {
+                  console.error('Error:', err);
+                  Swal.fire('Error', 'Error de conexión con el servidor', 'error');
+                }
+              }
+            }}
+            className="text-blue-400 hover:text-blue-300 flex items-center gap-1"
+          >
+            <FaFileInvoice /> Regenerar presupuesto actualizado
+          </button>
+        </div>
       </div>
     </div>
   );

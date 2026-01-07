@@ -12,9 +12,9 @@ export async function GET() {
       { 
         _id: 1, 
         nombre: 1, 
-        unidad: 1, 
-        precioMinorista: 1,  // ✅ Campo real del modelo
-        precioMayorista: 1   // ✅ Campo real del modelo
+        unidad: 1,       
+        precioMayorista: 1,   // ✅ Campo real del modelo
+        precioOferta: 1,    // ✅ Campo real del modelo
       }
     ).sort({ nombre: 1 });
 
@@ -24,7 +24,7 @@ export async function GET() {
       nombre: p.nombre,
       unidad: p.unidad,
       precio: {
-        minorista: p.precioMinorista || 0,
+        oferta: p.precioOferta || null,
         mayorista: p.precioMayorista || 0
       }
     }));

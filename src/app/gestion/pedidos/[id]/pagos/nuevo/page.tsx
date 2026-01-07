@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import { useForm } from 'react-hook-form';
+import { formatARS } from '@/app/lib/formatcurrenci';
 
 type FormData = {
   monto: number;

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
+import { formatARS } from '@/app/lib/formatcurrenci';
 
 // Tipos
 interface StockEntry {
@@ -84,6 +85,7 @@ export default function NuevoProductoPage() {
     const [loading, setLoading] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [imageFile, setImageFile] = useState<File | null>(null);
+    const [displayCantidad, setDisplayCantidad] = useState('');
 
     const [form, setForm] = useState({
         nombre: '',
@@ -92,7 +94,6 @@ export default function NuevoProductoPage() {
         cantidadUnidad: 1,
         precioLista: '' as number | '',
         precioMayorista: '' as number | '',
-        precioMinorista: '' as number | '',
         precioOferta: '' as number | '',
     });
 
@@ -104,7 +105,6 @@ export default function NuevoProductoPage() {
     const [displayPrecios, setDisplayPrecios] = useState({
         precioLista: '',
         precioMayorista: '',
-        precioMinorista: '',
         precioOferta: '',
     });
 
@@ -192,15 +192,35 @@ export default function NuevoProductoPage() {
         fetchOptions();
     }, [isAuthorized]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        if (name === 'cantidadUnidad') {
-            setForm(prev => ({
-                ...prev,
-                [name]: value === '' ? 0 : parseFloat(value),
-            }));
+    const handleCantidadChange = (rawValue: string) => {
+        // Permitir vacío o números válidos
+        if (rawValue === '') {
+            setDisplayCantidad('');
+            setForm(prev => ({ ...prev, cantidadUnidad: 0 })); // temporal, se validará al final
+            return;
+        }
+
+        // Eliminar caracteres no numéricos ni puntos
+        let clean = rawValue.replace(/[^\d.]/g, '');
+
+        // Evitar múltiples puntos
+        const dotCount = (clean.match(/\./g) || []).length;
+        if (dotCount > 1) {
+            clean = clean.slice(0, clean.lastIndexOf('.'));
+        }
+
+        // Si empieza con punto, prependemos "0"
+        if (clean.startsWith('.')) {
+            clean = '0' + clean;
+        }
+
+        setDisplayCantidad(clean);
+
+        const num = parseFloat(clean);
+        if (!isNaN(num) && num > 0) {
+            setForm(prev => ({ ...prev, cantidadUnidad: num }));
         } else {
-            setForm(prev => ({ ...prev, [name]: value }));
+            setForm(prev => ({ ...prev, cantidadUnidad: 0 })); // inválido, pero lo validaremos al submit
         }
     };
 
@@ -335,7 +355,7 @@ export default function NuevoProductoPage() {
 
         const pl = form.precioLista;
         const pm = form.precioMayorista;
-        const pn = form.precioMinorista;
+
 
         if (typeof pl !== 'number' || pl <= 0) {
             toast.error('El precio de lista debe ser mayor a 0.');
@@ -345,20 +365,14 @@ export default function NuevoProductoPage() {
             toast.error('El precio mayorista debe ser mayor a 0.');
             return false;
         }
-        if (typeof pn !== 'number' || pn <= 0) {
-            toast.error('El precio minorista debe ser mayor a 0.');
-            return false;
-        }
+
 
         if (pl > pm) {
             toast.error('El precio mayorista no puede ser menor que el precio de lista (costo).');
             return false;
         }
 
-        if (pm > pn) {
-            toast.error('El precio minorista no puede ser menor que el mayorista.');
-            return false;
-        }
+
 
         for (const s of stock) {
             if (!s.deposito.trim() || s.cantidad <= 0) {
@@ -449,8 +463,9 @@ export default function NuevoProductoPage() {
                 cantidadUnidad: form.cantidadUnidad,
                 precioLista: form.precioLista as number,
                 precioMayorista: form.precioMayorista as number,
-                precioMinorista: form.precioMinorista as number,
-                precioOferta: typeof form.precioOferta === 'number' ? form.precioOferta : null,
+                precioOferta: typeof form.precioOferta === 'number' && form.precioOferta > 0
+                    ? form.precioOferta
+                    : form.precioMayorista, // ← Si no hay oferta, usamos el precio mayorista
                 stock,
                 lotes: lotesFiltrados,
                 imagen: imageUrl || null,
@@ -527,7 +542,7 @@ export default function NuevoProductoPage() {
                                 type="text"
                                 name="nombre"
                                 value={form.nombre}
-                                onChange={handleChange}
+                                onChange={(e) => setForm(prev => ({ ...prev, nombre: e.target.value }))}
                                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                                 required
                             />
@@ -569,7 +584,8 @@ export default function NuevoProductoPage() {
                                         type="text"
                                         name="categoria"
                                         value={form.categoria}
-                                        onChange={handleChange}
+                                        onChange={(e) => setForm(prev => ({ ...prev, categoria: e.target.value }))}
+                                        placeholder="Nueva categoría"
                                         className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                                         required
                                     />
@@ -588,7 +604,7 @@ export default function NuevoProductoPage() {
                             <select
                                 name="unidad"
                                 value={form.unidad}
-                                onChange={handleChange}
+                                onChange={(e) => setForm(prev => ({ ...prev, unidad: e.target.value }))}
                                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                             >
                                 <option value="kg">Kilogramo (kg)</option>
@@ -601,14 +617,13 @@ export default function NuevoProductoPage() {
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-1">Cantidad por unidad *</label>
                             <input
-                                type="number"
-                                name="cantidadUnidad"
-                                value={form.cantidadUnidad}
-                                onChange={handleChange}
-                                min="0.001"
-                                step="0.001"
+                                type="text"
+                                value={displayCantidad}
+                                onChange={(e) => handleCantidadChange(e.target.value)}
+                                placeholder="Ej: 1, 0.5, 0.25"
                                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                                required
+                                inputMode="decimal" // ← teclado numérico en móviles
+                                pattern="[0-9]*[.,]?[0-9]*" // ← ayuda en algunos navegadores
                             />
                             <p className="text-xs text-gray-400 mt-1">
                                 Ej: 1 → 1 kg, 0.5 → medio kg, 0.25 → 250 g
@@ -653,18 +668,7 @@ export default function NuevoProductoPage() {
                             />
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Precio Minorista *</label>
-                            <input
-                                type="text"
-                                name="precioMinorista"
-                                value={displayPrecios.precioMinorista}
-                                onChange={(e) => handlePriceChange('precioMinorista', e.target.value)}
-                                onBlur={() => handlePriceBlur('precioMinorista')}
-                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                                required
-                            />
-                        </div>
+
                     </div>
 
                     {/* Stock por depósito */}

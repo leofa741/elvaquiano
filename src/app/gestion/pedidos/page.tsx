@@ -13,6 +13,7 @@ import {
 } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
+import { formatARS } from '@/app/lib/formatcurrenci';
 
 /* =======================
    TIPOS
@@ -25,7 +26,7 @@ interface ClientePedido {
 interface ProductoPedido {
   nombre?: string;
   cantidad: number;
-  tipoPrecio?: 'minorista' | 'mayorista';
+  tipoPrecio?:  'mayorista' | 'oferta' ;
 }
 
 interface Pedido {
@@ -253,7 +254,7 @@ export default function PedidosPage() {
                       <div className="text-sm text-gray-400 flex flex-wrap gap-3 mt-2">
                         <span className="flex items-center gap-1">
                           <FaDollarSign className="text-amber-400" />
-                          <span className="font-medium">${pedido.total.toFixed(2)}</span>
+                          <span className="font-medium">${formatARS(pedido.total)}</span>
                         </span>
                         {pedido.fechaEstimadaEntrega && (
                           <span className="flex items-center gap-1">

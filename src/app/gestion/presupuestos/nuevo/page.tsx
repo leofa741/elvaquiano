@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { FaFileInvoice, FaUser, FaCalendar } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import ProductoLinea from '../../pedidos/nuevo/components/ProductoLinea';
+import { formatARS } from '@/app/lib/formatcurrenci';
+
 
 
 // Tipos
@@ -22,17 +24,17 @@ interface ProductoOption {
   _id: string;
   nombre: string;
   unidad: string;
-  precioMinorista: number;
+  precioOferta: number;
   precioMayorista: number;
   stock: Array<{ deposito: string; cantidad: number }>;
 }
-
 interface ProductoEnPresupuesto {
   producto: ProductoOption;
   deposito: string;
   cantidad: number;
-  tipoPrecio: 'minorista' | 'mayorista';
+  tipoPrecio: 'mayorista' | 'oferta';
 }
+
 
 export default function NuevoPresupuestoPage() {
   const isAuthorized = useAdminAuthorization();
@@ -50,30 +52,30 @@ export default function NuevoPresupuestoPage() {
   useEffect(() => {
     if (!isAuthorized) return;
 
-   const loadData = async () => {
-  try {
-    const [resClientes, resProductos] = await Promise.all([
-      fetch('/api/gestion/clientes'),
-      fetch('/api/gestion/productos')
-    ]);
+    const loadData = async () => {
+      try {
+        const [resClientes, resProductos] = await Promise.all([
+          fetch('/api/gestion/clientes'),
+          fetch('/api/gestion/productos')
+        ]);
 
-    const dataClientes = await resClientes.json();
-    const dataProductos = await resProductos.json();
+        const dataClientes = await resClientes.json();
+        const dataProductos = await resProductos.json();
 
-    // Clientes OK (sí devuelve array)
-    setClientes(dataClientes.filter((c: any) => c.activo));
+        // Clientes OK (sí devuelve array)
+        setClientes(dataClientes.filter((c: any) => c.activo));
 
-    // Productos viene dentro de dataProductos.products
-    setProductos(
-      dataProductos.products.filter((p: any) =>
-        p.stock?.some((s: any) => s.cantidad > 0)
-      )
-    );
+        // Productos viene dentro de dataProductos.products
+        setProductos(
+          dataProductos.products.filter((p: any) =>
+            p.stock?.some((s: any) => s.cantidad > 0)
+          )
+        );
 
-  } catch (err) {
-    Swal.fire('Error', 'No se pudieron cargar clientes o productos', 'error');
-  }
-};
+      } catch (err) {
+        Swal.fire('Error', 'No se pudieron cargar clientes o productos', 'error');
+      }
+    };
 
 
     loadData();
@@ -92,14 +94,15 @@ export default function NuevoPresupuestoPage() {
       return;
     }
     setProductosEnPresupuesto(prev => [
-      ...prev,
       {
         producto,
         deposito: producto.stock[0].deposito,
         cantidad: 1,
-        tipoPrecio: 'minorista'
-      }
+        tipoPrecio: 'mayorista'
+      },
+      ...prev
     ]);
+
     setBusquedaProducto('');
   };
 
@@ -120,7 +123,7 @@ export default function NuevoPresupuestoPage() {
   };
 
   const total = productosEnPresupuesto.reduce((sum, p) => {
-    const precio = p.tipoPrecio === 'minorista' ? p.producto.precioMinorista : p.producto.precioMayorista;
+    const precio = p.tipoPrecio === 'mayorista' ? p.producto.precioMayorista : p.producto.precioOferta;
     return sum + p.cantidad * precio;
   }, 0);
 
@@ -143,16 +146,20 @@ export default function NuevoPresupuestoPage() {
     setLoading(true);
 
     try {
-      const productosParaGuardar = productosEnPresupuesto.map(p => ({
-        producto: p.producto._id,
-        nombre: p.producto.nombre,
-        unidad: p.producto.unidad,
-        deposito: p.deposito,
-        cantidad: p.cantidad,
-        tipoPrecio: p.tipoPrecio,
-        precioAplicado: p.tipoPrecio === 'minorista' ? p.producto.precioMinorista : p.producto.precioMayorista,
-        subtotal: p.cantidad * (p.tipoPrecio === 'minorista' ? p.producto.precioMinorista : p.producto.precioMayorista)
-      }));
+      const productosParaGuardar = productosEnPresupuesto.map(p => {
+        const unidadesFisicas = p.cantidad; // ✅ NUEVA LÍNEA
+        return {
+          producto: p.producto._id,
+          nombre: p.producto.nombre,
+          unidad: p.producto.unidad,
+          deposito: p.deposito,
+          cantidad: p.cantidad,
+          unidadesFisicas, // ✅ NUEVA LÍNEA
+          tipoPrecio: p.tipoPrecio,
+          precioAplicado: p.tipoPrecio === 'mayorista' ? p.producto.precioMayorista : p.producto.precioOferta,
+          subtotal: p.cantidad * (p.tipoPrecio === 'mayorista' ? p.producto.precioMayorista : p.producto.precioOferta)
+        };
+      });
 
       const res = await fetch('/api/gestion/presupuestos', {
         method: 'POST',
@@ -248,7 +255,8 @@ export default function NuevoPresupuestoPage() {
                   >
                     <div className="font-medium text-white">{producto.nombre}</div>
                     <div className="text-sm text-gray-300">
-                      {producto.unidad} • Min: ${producto.precioMinorista.toFixed(2)} • May: ${producto.precioMayorista.toFixed(2)}
+                      {producto.unidad} • ${formatARS(producto.precioOferta)} (oferta) • ${formatARS(producto.precioMayorista)} (mayorista)
+
                     </div>
                   </div>
                 ))}
@@ -276,7 +284,8 @@ export default function NuevoPresupuestoPage() {
           <div className="border-t border-gray-700 pt-4">
             <div className="flex justify-between items-center text-lg">
               <span className="text-gray-300">Total:</span>
-              <span className="text-white font-bold">${total.toFixed(2)}</span>
+              <span className="text-white font-bold">${formatARS(total)}
+              </span>
             </div>
           </div>
 
