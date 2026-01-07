@@ -4,10 +4,7 @@ import Pedido from '@/app/models/Pedido';
 import Presupuesto from '@/app/models/Presupuesto';
 import { NextRequest } from 'next/server';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, { params }: any) {
   await connectDB();
 
   const { id } = params;
