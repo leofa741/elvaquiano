@@ -166,7 +166,7 @@ export default function LoginForm() {
           </Link>
 
           <Link
-            href="/forgot-password"
+            href="/reset-password"
             className="text-sm text-yellow-400 hover:underline block text-center"
           >
             ¿Olvidaste tu contraseña?
