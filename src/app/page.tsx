@@ -31,7 +31,7 @@ const Benefit = ({ icon, title, description }: { icon: string; title: string; de
 
 export default async function Home() {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SITE_URL}/api/gestion/public/categorias/resumen`,
+    `${process.env.NEXT_PUBLIC_APP_URL}/api/gestion/public/categorias/resumen`,
     { cache: "no-store" }
   );
 
