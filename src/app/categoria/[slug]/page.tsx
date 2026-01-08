@@ -6,16 +6,15 @@ import CategoriaClient from './CategoriaClient';
 
 export const revalidate = 300;
 
-interface PageProps {
-  params: {
-    slug: string;
-  };
-}
-
-export default async function CategoriaPage({ params }: PageProps) {
+// ✅ Tipado correcto: Next.js infiere `params` como { slug: string }
+export default async function CategoriaPage({
+  params,
+}: {
+  params: { slug: string };
+}) {
   await connectDB();
 
-  const productosDB = await Product.find({ activo: true });
+  const productosDB = await Product.find({ activo: true }).lean(); // 👈 .lean() mejora perf y evita problemas con JSON
 
   const productos = productosDB.map((p: any) => ({
     _id: p._id.toString(),
@@ -45,11 +44,7 @@ export default async function CategoriaPage({ params }: PageProps) {
 
   return (
     <div className="max-w-7xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">
-        {filtrados[0].categoria}
-      </h1>
-
-      {/* 👇 Client Component */}
+      <h1 className="text-2xl font-bold mb-6">{filtrados[0].categoria}</h1>
       <CategoriaClient productos={filtrados} />
     </div>
   );
