@@ -1,6 +1,6 @@
 import { formatARS } from './formatcurrenci';
 
-export function sendWhatsApp(cart: any[]) {
+export function sendWhatsApp(cart: any[], userName?: string, userEmail?: string) {
   if (!cart.length) return;
 
   let total = 0;
@@ -20,7 +20,13 @@ export function sendWhatsApp(cart: any[]) {
   message += `PRODUCTOS:\n${productList.trim()}\n\n`;
   message += `TOTAL: ${formatARS(total)}\n\n`;
 
-
+  // Si el usuario está logueado, incluimos sus datos
+  if (userName && userEmail) {
+    message += `CLIENTE:\nNombre: ${userName}\nEmail: ${userEmail}\n\n`;
+  } else {
+    // Si NO está logueado, mensaje amable de recordatorio
+    message += `ℹ️ *¿Sabías que podrías agilizar tu próxima compra?*\nRegístrate en nuestro sitio con tu cuenta de Gmail o tus datos para guardar tu historial y disfrutar de una experiencia más rápida.\n\n`;
+  }
 
   message += `Origen: www.elvaquianodigital.com.ar\n¿Listo para confirmar este pedido?`;
 
