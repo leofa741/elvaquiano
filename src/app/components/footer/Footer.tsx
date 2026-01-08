@@ -28,7 +28,7 @@ const Footer = () => {
           <div>
             <h3 className="text-lg font-semibold mb-4">Categorías</h3>
             <ul className="space-y-2 text-sm text-gray-300">
-              <li><Link href="/categoria/carnes" className="hover:text-amber-300 transition">Carnes y Embutidos</Link></li>
+              <li><Link href="/categoria/carnes" className="hover:text-amber-300 transition">Embutidos</Link></li>
               <li><Link href="/categoria/lácteos" className="hover:text-amber-300 transition">Lácteos y Huevos</Link></li>
               <li><Link href="/categoria/panadería" className="hover:text-amber-300 transition">Panadería y Repostería</Link></li>
               <li><Link href="/categoria/bebidas" className="hover:text-amber-300 transition">Bebidas y Jugos</Link></li>
@@ -40,9 +40,7 @@ const Footer = () => {
             <h3 className="text-lg font-semibold mb-4">Atención al Cliente</h3>
             <ul className="space-y-2 text-sm text-gray-300">
               <li><Link href="/contact" className="hover:text-amber-300 transition">Contacto</Link></li>
-              <li><Link href="/faq" className="hover:text-amber-300 transition">Preguntas Frecuentes</Link></li>
-              <li><Link href="/terminos" className="hover:text-amber-300 transition">Términos y Condiciones</Link></li>
-              <li><Link href="/politicas" className="hover:text-amber-300 transition">Políticas de Privacidad</Link></li>
+       
             </ul>
           </div>
 

@@ -21,21 +21,24 @@ import DarkModeToggle from '../darkmode/DarkModeToggle';
 
 
 
-const CATEGORIES = [
-  { id: 'carnes', name: 'Carnes y Embutidos' },
-  { id: 'lácteos', name: 'Lácteos y Huevos' },
-  { id: 'panadería', name: 'Panadería y Repostería' },
-  { id: 'bebidas', name: 'Bebidas y Jugos' },
-  { id: 'conservas', name: 'Conservas y Enlatados' },
-  { id: 'congelados', name: 'Productos Congelados' },
-];
-
 export default function Navbar() {
   const { data: session } = useSession();
   const { userRole, setUserRole, userName, userEmail } = useContext(AuthContext);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDesktopCategoriesOpen, setIsDesktopCategoriesOpen] = useState(false);
   const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
+
+  const [categories, setCategories] = useState<
+    { name: string; slug: string }[]
+  >([]);
+
+  useEffect(() => {
+    fetch('/api/gestion/public/categorias')
+      .then(res => res.json())
+      .then(setCategories)
+      .catch(console.error);
+  }, []);
+
 
   const handleLogout = () => {
     signOut({ callbackUrl: '/' });
@@ -105,8 +108,8 @@ export default function Navbar() {
 
           <DarkModeToggle />
 
-         
-    
+
+
           <a
             href="https://www.instagram.com/el_vaquiano"
             target="_blank"
@@ -163,10 +166,10 @@ export default function Navbar() {
                 onMouseLeave={() => setIsDesktopCategoriesOpen(false)}
                 className="absolute left-0 mt-1 w-56 bg-white shadow-xl rounded-lg py-2 z-50"
               >
-                {CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <Link
-                    key={cat.id}
-                    href={`/categoria/${cat.id}`}
+                    key={cat.slug}
+                    href={`/categoria/${cat.slug}`}
                     className="block px-4 py-2.5 text-gray-800 hover:bg-red-50 font-medium"
                     onClick={closeMenu}
                   >
@@ -175,6 +178,7 @@ export default function Navbar() {
                 ))}
               </div>
             )}
+
           </div>
 
           <Link
@@ -265,16 +269,17 @@ export default function Navbar() {
                 </button>
                 {mobileCategoryOpen && (
                   <div className="mt-1 space-y-1 pl-4">
-                    {CATEGORIES.map((cat) => (
+                    {categories.map((cat) => (
                       <Link
-                        key={cat.id}
-                        href={`/categoria/${cat.id}`}
+                        key={cat.slug}
+                        href={`/categoria/${cat.slug}`}
                         onClick={closeMenu}
                         className="block py-2 px-2 rounded hover:bg-red-600 transition-colors"
                       >
                         {cat.name}
                       </Link>
                     ))}
+
                   </div>
                 )}
               </div>
@@ -333,13 +338,7 @@ export default function Navbar() {
                   >
                     Iniciar sesión
                   </Link>
-                  <Link
-                    href="/register"
-                    onClick={closeMenu}
-                    className="block py-2.5 px-4 rounded-lg border border-white text-white font-medium text-center"
-                  >
-                    Registrarse
-                  </Link>
+              
                 </div>
               )}
 

@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import{ formatARS } from "@/app/lib/formatcurrenci";
 
 export default function SearchResults() {
   const searchParams = useSearchParams();
@@ -37,8 +38,11 @@ export default function SearchResults() {
               <img src={p.imagen} alt={p.nombre} className="w-full h-48 object-cover rounded-t-lg" />
               <h2 className="text-lg font-bold">{p.nombre}</h2>
               <p className="text-sm">{p.categoria}</p>
-              <p className="mt-2">Precio Minorista: ${p.precioMinorista.toFixed(2)}</p>
-              <p>Precio Mayorista: ${p.precioMayorista.toFixed(2)}</p>
+            
+              <p>Precio Mayorista: {formatARS(p.precioMayorista)}</p>
+              <p>Precio Oferta: {p.precioOferta ? formatARS(p.precioOferta) : "N/A"}
+
+              </p>
             </div>
           ))}
         </div>

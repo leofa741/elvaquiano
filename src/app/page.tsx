@@ -2,6 +2,7 @@
 import Banner from "./components/baner/Banner";
 import { Metadata } from "next";
 import Image from "next/image";
+import CategoryResumenCard from "./components/categoryresumencard/CategoryResumenCard";
 
 export const metadata: Metadata = {
   title: "Distribuidora El Vaquiano - Venta Mayorista y Minorista",
@@ -11,39 +12,7 @@ export const metadata: Metadata = {
     "distribuidora, venta mayorista alimentos, suministros comerciales, productos para kioscos, bodegas, restaurantes, El Vaquiano, distribuidora alimentos Patagonia",
 };
 
-// Tarjeta de categoría profesional
-const CategoryCard = ({
-  title,
-  description,
-  image,
-  href
-}: {
-  title: string;
-  description: string;
-  image: string;
-  href: string;
-}) => (
-  <a
-    href={href}
-    className="group block  dark:bg-gray-800 rounded-xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
-  >
-    <div className="h-48 overflow-hidden">
-      <img
-        src={image}
-        alt={title}
-        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-      />
-    </div>
-    <div className="p-5">
-      <h3 className="text-xl font-bold  dark:text-white group-hover:text-amber-600 transition-colors">
-        {title}
-      </h3>
-      <p className="text-gray-600 dark:text-gray-300 text-sm mt-2">
-        {description}
-      </p>
-    </div>
-  </a>
-);
+
 
 // Beneficio clave (icono + texto)
 const Benefit = ({ icon, title, description }: { icon: string; title: string; description: string }) => (
@@ -56,14 +25,36 @@ const Benefit = ({ icon, title, description }: { icon: string; title: string; de
   </div>
 );
 
-export default function Home() {
+
+
+// Datos de categorías destacadas (pueden venir de una API o base de datos)
+
+export default async function Home() {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_SITE_URL}/api/gestion/public/categorias/resumen`,
+    { cache: "no-store" }
+  );
+
+  if (!res.ok) {
+    throw new Error("Error al cargar categorías");
+  }
+
+  const categorias: {
+    _id: string;
+    totalProductos: number;
+    precioDesde: number;
+  }[] = await res.json();
+
+
+
+
   return (
     <>
       {/* Hero Banner (ya lo tienes en Banner.tsx) */}
       <div className="relative">
         <Banner />
       </div>
-     
+
 
 
       {/* Sección: Valor principal + CTAs */}
@@ -78,12 +69,7 @@ export default function Home() {
               Precios mayoristas, entrega rápida y atención personalizada para kioscos, bodegas, restaurantes y minimercados.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <a
-                href="/categoria"
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-6 py-3.5 rounded-lg shadow-md transition duration-300 text-center"
-              >
-                Ver Catálogo de Productos
-              </a>
+            
               <a
                 href="/contact"
                 className="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-amber-600 dark:text-amber-400 border border-amber-600 dark:border-amber-600 font-bold px-6 py-3.5 rounded-lg shadow-md transition duration-300 text-center"
@@ -140,47 +126,34 @@ export default function Home() {
         </div>
       </section>
 
+
       {/* Categorías destacadas */}
-      <section className="py-16  dark:bg-gray-900">
+      <section className="py-16 dark:bg-gray-900">
         <div className="container mx-auto px-4 md:px-6">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold  dark:text-white">
+            <h2 className="text-3xl font-bold dark:text-white">
               Nuestras Categorías
             </h2>
             <p className="text-gray-600 dark:text-gray-400 mt-4">
-              Explorá todo lo que ofrecemos para tu negocio
+              Explorá lo que tenemos disponible hoy
             </p>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            <CategoryCard
-              title="Carnes y Embutidos"
-              description="Vacío, asado, chorizos artesanales y más. Siempre frescos."
-              image="/img/no-image.png"
-              href="/categoria/carnes"
-            />
-            <CategoryCard
-              title="Lácteos y Huevos"
-              description="Leche, quesos, yogures y huevos de granja."
-              image="/img/no-image.png"
-              href="/categoria/lacteos"
-            />
-            <CategoryCard
-              title="Bebidas y Jugos"
-              description="Gaseosas, aguas, jugos naturales y bebidas sin alcohol."
-              image="/img/no-image.png"
-              href="/categoria/bebidas"
-            />
+            {categorias.map((cat: any) => (
+              <CategoryResumenCard
+                key={cat._id}
+                categoria={cat._id}
+                total={cat.totalProductos}
+                desde={cat.precioDesde}
+              />
+            ))}
           </div>
-          <div className="text-center mt-10">
-            <a
-              href="/categoria"
-              className="inline-block text-amber-600 dark:text-amber-400 font-semibold hover:underline"
-            >
-              Ver todas las categorías →
-            </a>
-          </div>
+
+       
         </div>
       </section>
+
 
       {/* CTA final estratégico */}
       <section className="py-20 bg-gradient-to-r from-red-700 to-red-800 text-white text-center">
@@ -193,13 +166,13 @@ export default function Home() {
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <a
-              href="/register"
+              href="/contact"
               className="bg-white text-red-800 hover:bg-gray-100 font-bold px-8 py-4 rounded-lg text-lg shadow-lg transition duration-300"
             >
-              Registrarme como Mayorista
+              Contactarme como Mayorista
             </a>
             <a
-              href="https://wa.me/542944412756?text=Hola,%20quiero%20ser%20cliente%20mayorista"
+              href="https://wa.me/5492224492051?text=Hola,%20quiero%20ser%20cliente%20mayorista"
               className="bg-transparent border-2 border-white text-white hover:bg-white/10 font-bold px-8 py-4 rounded-lg text-lg transition duration-300"
             >
               Consultar por WhatsApp

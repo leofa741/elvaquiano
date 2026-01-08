@@ -8,6 +8,7 @@ import { RingLoader } from 'react-spinners';
 import Image from 'next/image';
 import { ArrowPathIcon } from '@heroicons/react/24/solid';
 import { AuthContext } from '../context/AuthContext';
+import Link from 'next/link';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
@@ -156,8 +157,29 @@ export default function LoginForm() {
             {loading ? <RingLoader size={30} color="#000" /> : 'Iniciar sesión'}
           </button>
 
+          <Link
+            href="/register"
+            className="text-sm text-yellow-400 hover:underline block text-center"
+          >
+            ¿No tienes una cuenta? Regístrate <br/>
+            o simplemente ingresa con tu cuenta de Gmail.
+          </Link>
+
+          <Link
+            href="/forgot-password"
+            className="text-sm text-yellow-400 hover:underline block text-center"
+          >
+            ¿Olvidaste tu contraseña?
+          </Link>
+
+
+
         </form>
+      
       </div>
+
+     
+
     </div>
   );
 }

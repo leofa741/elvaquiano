@@ -37,19 +37,14 @@ export default function DistribuidoraBanner() {
         </h1>
         
         <p className="text-base sm:text-lg mb-8 max-w-2xl opacity-95">
-          Carnes, lácteos, bebidas, envasados y más. Entregas rápidas, stock constante y atención personalizada para kioscos, bodegas, restaurantes y minimercados.
+          Lácteos, bebidas, envasados y más. Entregas rápidas, stock constante y atención personalizada para kioscos, bodegas, restaurantes y minimercados.
         </p>
 
         {/* Botones de llamado a la acción */}
         <div className="flex flex-col sm:flex-row gap-4 mb-10">
+         
           <a
-            href="/categoria"
-            className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-6 py-3.5 rounded-lg shadow-md transition duration-300"
-          >
-            Ver Catálogo
-          </a>
-          <a
-            href="https://wa.me/542944412756?text=Hola,%20quiero%20la%20lista%20de%20precios%20mayorista"
+            href="https://wa.me/5492224492051?text=Hola,%20quiero%20la%20lista%20de%20precios%20mayorista"
             className="bg-transparent border-2 border-white hover:bg-white/10 text-white font-bold px-6 py-3.5 rounded-lg transition duration-300"
           >
             Consultar por WhatsApp
