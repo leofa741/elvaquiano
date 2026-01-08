@@ -6,18 +6,15 @@ import CategoriaClient from './CategoriaClient';
 
 export const revalidate = 300;
 
-// 👇 Definimos el tipo correcto: params es una PROMESA en componentes async
+// ✅ Tipado correcto: Next.js infiere `params` como { slug: string }
 export default async function CategoriaPage({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: { slug: string };
 }) {
-  // 👇 Desestructuramos luego de esperar la promesa
-  const { slug } = await params;
-
   await connectDB();
 
-  const productosDB = await Product.find({ activo: true }).lean();
+  const productosDB = await Product.find({ activo: true }).lean(); // 👈 .lean() mejora perf y evita problemas con JSON
 
   const productos = productosDB.map((p: any) => ({
     _id: p._id.toString(),
@@ -38,7 +35,7 @@ export default async function CategoriaPage({
   }));
 
   const filtrados = productos.filter(
-    (p: any) => slugify(p.categoria) === slug // 👈 usamos `slug` (ya resuelto)
+    (p: any) => slugify(p.categoria) === params.slug
   );
 
   if (!filtrados.length) {
