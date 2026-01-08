@@ -4,9 +4,18 @@ import { useCart } from '@/app/context/CartContext';
 import { formatARS } from '@/app/lib/formatcurrenci';
 import { sendWhatsApp } from '@/app/lib/whatsApp';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSession } from 'next-auth/react';
+import { useContext } from 'react';
+import { AuthContext } from '@/app/context/AuthContext';
 
 export default function CartDrawer() {
   const { cart, removeFromCart, incrementQty, decrementQty } = useCart();
+  const { data: session } = useSession();
+  const { userRole, userName, userEmail } = useContext(AuthContext);
+
+  const name = session?.user?.name || userName || undefined;
+  const email = session?.user?.email || userEmail || undefined;
+
 
 
   if (!cart.length) return null;
@@ -19,6 +28,7 @@ export default function CartDrawer() {
   }, 0);
 
   return (
+
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -99,7 +109,7 @@ export default function CartDrawer() {
 
         <motion.button
           whileTap={{ scale: 0.98 }}
-          onClick={() => sendWhatsApp(cart)}
+          onClick={() => sendWhatsApp(cart, name, email)}
           className="w-full bg-[#FFB81C] hover:bg-[#E5A50D] text-[#0D4A6B] py-2.5 rounded-lg text-sm font-bold transition-colors duration-200 shadow-lg"
         >
           Confirmar pedido vía WhatsApp
