@@ -232,9 +232,7 @@ export default function Navbar() {
               <Link href="/login" className="text-sm hover:text-amber-200 transition-colors">
                 Iniciar
               </Link>
-              <Link href="/register" className="text-sm hover:text-amber-200 transition-colors">
-                Registrarse
-              </Link>
+             
             </div>
           )}
         </div>
