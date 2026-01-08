@@ -1,3 +1,4 @@
+// ProductCard.tsx
 'use client';
 
 import Image from 'next/image';
@@ -17,58 +18,81 @@ export default function ProductCard({ product, onAdd }: any) {
     ? product.precioOferta
     : product.precioMayorista;
 
+  const isOutOfStock = stockTotal === 0;
+  const isLowStock = !isOutOfStock && stockTotal <= product.stockMinimoAlerta;
+
   return (
-    <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition overflow-hidden relative">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+      {/* Badge de oferta */}
       {hasOffer && (
-        <span className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-1 rounded">
-          OFERTA
-        </span>
+        <div className="absolute top-2 left-2 z-10">
+          <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full">
+            OFERTA
+          </span>
+        </div>
       )}
 
-      <Image
-        src={product.imagen}
-        alt={product.nombre}
-        width={300}
-        height={300}
-        className="object-contain mx-auto p-4"
-      />
+      {/* Imagen */}
+      <div className="relative h-40 w-full flex items-center justify-center bg-gray-50">
+        <Image
+          src={product.imagen}
+          alt={product.nombre}
+          fill
+          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 33vw"
+          className="object-contain p-2"
+          priority={false}
+        />
+      </div>
 
-      <div className="p-4 space-y-2">
-        <h3 className="font-medium text-gray-800">
-          {product.nombre}
-        </h3>
+      {/* Contenido */}
+      <div className="p-3 flex flex-col flex-grow justify-between">
+        <div>
+          <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2">
+            {product.nombre}
+          </h3>
 
-        {hasOffer && (
-          <p className="text-sm text-gray-400 line-through">
-            {formatARS(product.precioMayorista)}
+          {/* Precio original tachado */}
+          {hasOffer && (
+            <p className="text-xs text-gray-500 mt-1 line-through">
+              {formatARS(product.precioMayorista)}
+            </p>
+          )}
+
+          {/* Precio final */}
+          <p className="text-lg font-bold text-red-600 mt-1">
+            {formatARS(finalPrice)}
           </p>
-        )}
 
-        <p className="text-xl font-bold text-red-600">
-          {formatARS(finalPrice)}
-        </p>
+          {/* Stock status */}
+          <div className="mt-2">
+            {isOutOfStock ? (
+              <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded">
+                Sin stock
+              </span>
+            ) : isLowStock ? (
+              <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded">
+                Últimas unidades
+              </span>
+            ) : (
+              <span className="text-xs text-green-600 font-medium">
+                En stock
+              </span>
+            )}
+          </div>
+        </div>
 
-        {/* Stock */}
-        {stockTotal === 0 ? (
-          <p className="text-sm text-red-600 font-medium">
-            ❌ Sin stock
-          </p>
-        ) : stockTotal <= product.stockMinimoAlerta ? (
-          <p className="text-sm text-amber-600 font-medium">
-            ⚠ Últimas unidades
-          </p>
-        ) : (
-          <p className="text-sm text-green-600">
-            ✔ Stock disponible
-          </p>
-        )}
-
+        {/* Botón */}
         <button
           onClick={() => onAdd(product)}
-          disabled={stockTotal === 0}
-          className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition disabled:opacity-50"
+          disabled={isOutOfStock}
+          className={`mt-3 w-full py-2.5 rounded-lg font-semibold transition text-sm
+            ${
+              isOutOfStock
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-red-600 hover:bg-red-700 text-white active:scale-[0.98]'
+            }`}
         >
-          Agregar al carrito
+          {isOutOfStock ? 'Sin stock' : 'Agregar al carrito'}
         </button>
       </div>
     </div>
