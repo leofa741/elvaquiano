@@ -6,7 +6,8 @@ import { sendWhatsApp } from '@/app/lib/whatsApp';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function CartDrawer() {
-  const { cart, removeFromCart } = useCart();
+  const { cart, removeFromCart, incrementQty, decrementQty } = useCart();
+
 
   if (!cart.length) return null;
 
@@ -54,13 +55,36 @@ export default function CartDrawer() {
                 </p>
               </div>
 
-              <button
-                onClick={() => removeFromCart(p._id)}
-                className="flex items-center justify-center w-7 h-7 rounded-full bg-[#1A5A7A] text-[#FFB81C] hover:bg-[#2A6A8A] transition-colors duration-200"
-                aria-label={`Eliminar ${p.nombre}`}
-              >
-                <span className="text-sm">×</span>
-              </button>
+              <div className="flex items-center gap-2 mt-1">
+                <button
+                  onClick={() => decrementQty(p._id)}
+                  className="w-6 h-6 rounded-full bg-[#1A5A7A] text-white hover:bg-[#2A6A8A]"
+                  aria-label="Disminuir"
+                >
+                  −
+                </button>
+
+                <span className="text-xs text-[#A0D2E7] min-w-[16px] text-center">
+                  {p.qty}
+                </span>
+
+                <button
+                  onClick={() => incrementQty(p._id)}
+                  className="w-6 h-6 rounded-full bg-[#1A5A7A] text-white hover:bg-[#2A6A8A]"
+                  aria-label="Aumentar"
+                >
+                  +
+                </button>
+
+                <span className="text-xs text-[#A0D2E7] ml-2">
+                  · {formatARS(
+                    p.precioOferta && p.precioOferta < p.precioMayorista
+                      ? p.precioOferta
+                      : p.precioMayorista
+                  )}
+                </span>
+              </div>
+
             </motion.div>
           ))}
         </AnimatePresence>

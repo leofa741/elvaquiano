@@ -18,7 +18,7 @@ export function CartProvider({ children }: any) {
   const addToCart = (product: any) => {
     setCart((prev) => {
       const existing = prev.find(p => p._id === product._id);
-     // console.log('Adding to cart:', product);
+      // console.log('Adding to cart:', product);
       if (existing) {
         return prev.map(p =>
           p._id === product._id
@@ -34,8 +34,27 @@ export function CartProvider({ children }: any) {
     setCart(prev => prev.filter(p => p._id !== id));
   };
 
+  const incrementQty = (id: string) => {
+    setCart(prev =>
+      prev.map(p =>
+        p._id === id ? { ...p, qty: p.qty + 1 } : p
+      )
+    );
+  };
+
+  const decrementQty = (id: string) => {
+    setCart(prev =>
+      prev
+        .map(p =>
+          p._id === id ? { ...p, qty: p.qty - 1 } : p
+        )
+        .filter(p => p.qty > 0) // si llega a 0, se elimina
+    );
+  };
+
+
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart }}>
+    <CartContext.Provider value={{ cart, addToCart, removeFromCart , incrementQty, decrementQty }}>
       {children}
     </CartContext.Provider>
   );
