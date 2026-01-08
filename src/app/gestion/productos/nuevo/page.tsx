@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
-import { formatARS } from '@/app/lib/formatcurrenci';
 
 // Tipos
 interface StockEntry {

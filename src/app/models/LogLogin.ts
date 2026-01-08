@@ -1,3 +1,4 @@
+
 import mongoose, { Schema, models } from 'mongoose';
 
 const LogSchema = new Schema({

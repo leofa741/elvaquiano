@@ -2,6 +2,7 @@
 import { Suspense } from 'react';
 import NuevoPedidoClient from './components/NuevoPedidoClient';
 
+
 // ✅ searchParams es una Promise en Next.js 14+
 export default function NuevoPedidoPage({
   searchParams,
