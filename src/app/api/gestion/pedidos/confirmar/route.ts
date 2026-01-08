@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongoose';
 import Product from '@/app/models/Product';
+import { notifyProducts } from '@/app/api/gestion/productos/events/productsNotifier';
+
 
 export async function POST(req: Request) {
   try {
@@ -56,6 +58,8 @@ export async function POST(req: Request) {
       }
 
       await product.save();
+        notifyProducts({ type: 'stock_modificado', data: product });
+
     }
 
     return NextResponse.json({ success: true });

@@ -31,7 +31,7 @@ export function notifyProducts(event: { type: string; data: any }) {
   const encoder = new TextEncoder();
 
   // 🔥 Normalizar producto ANTES de enviar el evento
-  if (event.type.includes("producto")) {
+  if (  event.type.includes("producto") ||  event.type === "stock_modificado")  {
     event = {
       ...event,
       data: normalizeProduct(event.data)
