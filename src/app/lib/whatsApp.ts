@@ -23,7 +23,7 @@ export function sendWhatsApp(cart: any[]) {
     `Origen: www.elvaquianodigital.com.ar\n` +
     `¿Listo para confirmar el pedido?`;
 
-  const phone = '5491141461312';
+  const phone = '5492224492051';
   const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 
   window.open(url, '_blank');
