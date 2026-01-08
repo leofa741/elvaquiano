@@ -10,6 +10,7 @@ import Swal from 'sweetalert2';
 import { Suspense } from 'react';
 import StockValueSummary from './StockValueSummary';
 import { formatARS } from '@/app/lib/formatcurrenci';
+import { Pencil, Trash2, Truck } from 'lucide-react';
 
 
 interface Proveedor {
@@ -603,33 +604,59 @@ function PageContent() {
                             )}
                           </td>
                           <td className="py-3 px-4 flex gap-2">
-                            <Link href={`/gestion/productos/editar/${product._id}`} className="text-blue-400 hover:underline">
-                              Editar
-                            </Link>
+                            <div className="relative group">
+                              <Link
+                                href={`/gestion/productos/editar/${product._id}`}
+                                className="text-blue-500 hover:text-blue-700 transition-colors"
+                                aria-label="Editar producto"
+                              >
+                                <Pencil size={18} />
+                              </Link>
+                              {/* Tooltip */}
+                              <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                Editar
+                              </span>
+                            </div>
 
-                            <button onClick={() => deleteProduct(product._id)} className="text-red-400 hover:underline">
-                              Borrar
-                            </button>
 
+                            <div className="relative group">
+                              <button
+                                onClick={() => deleteProduct(product._id)}
+                                className="text-red-500 hover:text-red-700 transition-colors focus:outline-none"
+                                aria-label="Borrar producto"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                              {/* Tooltip */}
+                              <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                Borrar
+                              </span>
+                            </div>
 
-                            <button
-                              onClick={() => {
-                                // 👇 Maneja tanto string como objeto
-                                const currentProveedorId =
-                                  typeof product.proveedor === 'string'
-                                    ? product.proveedor
-                                    : product.proveedor?._id || null;
+                            <div className="relative group">
+                              <button
+                                onClick={() => {
+                                  const currentProveedorId =
+                                    typeof product.proveedor === 'string'
+                                      ? product.proveedor
+                                      : product.proveedor?._id || null;
 
-                                setSelectedProductForProveedor(product);
-                                setSelectedProveedorId(currentProveedorId);
-                                setNuevoProveedorNombre('');
-                                setShowProveedorModal(true);
-                                loadProveedores();
-                              }}
-                              className="text-amber-400 hover:underline"
-                            >
-                              Proveedor
-                            </button>
+                                  setSelectedProductForProveedor(product);
+                                  setSelectedProveedorId(currentProveedorId);
+                                  setNuevoProveedorNombre('');
+                                  setShowProveedorModal(true);
+                                  loadProveedores();
+                                }}
+                                className="text-amber-500 hover:text-amber-700 transition-colors focus:outline-none"
+                                aria-label="Asignar o editar proveedor"
+                              >
+                                <Truck size={18} />
+                              </button>
+                              {/* Tooltip */}
+                              <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                Proveedor
+                              </span>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -886,9 +913,6 @@ function PageContent() {
                   >
                     Guardar
                   </button>
-
-
-
 
                 </div>
               </>
