@@ -3,7 +3,6 @@ import connectDB from '@/app/lib/mongoose';
 import Product from '@/app/models/Product';
 import { notifyProducts } from '@/app/api/gestion/productos/events/productsNotifier';
 
-
 export async function POST(req: Request) {
   try {
     await connectDB();
@@ -17,7 +16,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1️⃣ VALIDAR STOCK REAL
+    // 1️⃣ VALIDAR STOCK DISPONIBLE
     for (const item of cart) {
       const product = await Product.findById(item._id);
 
@@ -33,33 +32,26 @@ export async function POST(req: Request) {
         0
       );
 
-      if (item.qty > stockTotal) {
-        return NextResponse.json(
-          {
-            error: `Stock insuficiente para ${product.nombre}. Disponible: ${stockTotal}`
-          },
-          { status: 400 }
-        );
+      const disponible = stockTotal - product.stockReservado;
+
+      if (item.qty > disponible) {
+        return NextResponse.json({
+          error: `Stock insuficiente para ${product.nombre}. Disponible: ${disponible}`
+        }, { status: 400 });
       }
     }
 
-    // 2️⃣ DESCONTAR STOCK (DEPÓSITOS)
+    // 2️⃣ RESERVAR STOCK (NO DESCONTAR)
     for (const item of cart) {
-      let restante = item.qty;
-
       const product = await Product.findById(item._id);
 
-      for (const s of product.stock) {
-        if (restante <= 0) break;
-
-        const descontar = Math.min(s.cantidad, restante);
-        s.cantidad -= descontar;
-        restante -= descontar;
-      }
-
+      product.stockReservado += item.qty;
       await product.save();
-        notifyProducts({ type: 'stock_modificado', data: product });
 
+      notifyProducts({
+        type: 'stock_reservado',
+        data: product,
+      });
     }
 
     return NextResponse.json({ success: true });

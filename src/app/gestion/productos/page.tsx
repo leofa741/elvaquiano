@@ -211,15 +211,22 @@ function PageContent() {
         }
 
         // ➤ Producto actualizado
-        if (parsed.type === 'producto_actualizado' || parsed.type === 'stock_modificado') {
+        if (
+          parsed.type === 'producto_actualizado' ||
+          parsed.type === 'stock_modificado' ||
+          parsed.type === 'stock_reservado'
+        ) {
           const updatedProduct = parsed.data.producto || parsed.data;
+
           setProducts(prev =>
             prev.map(p => p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p)
           );
+
           setAllProducts(prev =>
             prev.map(p => p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p)
           );
         }
+
 
         // ➤ Producto eliminado
         if (parsed.type === 'producto_eliminado') {
@@ -327,6 +334,13 @@ function PageContent() {
     }
     return product.stock || 0;
   };
+
+  const getStockReservado = (product: any) =>
+    product.stockReservado || 0;
+
+  const getStockDisponible = (product: any) =>
+    getStockTotal(product) - getStockReservado(product);
+
 
   const loadProveedores = async () => {
     setLoadingProveedores(true);
@@ -518,18 +532,42 @@ function PageContent() {
                             )}
                           </td>
 
-
                           <td className="py-3 px-4">
-                            <div className={`font-medium ${stockTotal <= (product.stockMinimoAlerta ?? 0) ? 'text-red-400' : 'text-white'}`}>
-                              {stockTotal}
+                            {/* STOCK TOTAL (lo que ya tenías) */}
+                            <div
+                              className={`font-medium ${stockTotal <= (product.stockMinimoAlerta ?? 0)
+                                  ? 'text-red-400'
+                                  : 'text-white'
+                                }`}
+                            >
+                              Total: {stockTotal}
+
                               {stockTotal <= (product.stockMinimoAlerta ?? 0) && (
                                 <span className="ml-1 text-xs text-red-400">⚠️ Bajo stock</span>
                               )}
                             </div>
+
+                            {/* STOCK RESERVADO */}
+                            {product.stockReservado > 0 && (
+                              <div className="text-xs text-amber-400 mt-0.5">
+                                Reservado: {product.stockReservado}
+                              </div>
+                            )}
+
+                            {/* STOCK DISPONIBLE */}
+                            <div className="text-sm font-semibold text-green-400">
+                              Disponible: {getStockDisponible(product)}
+                            </div>
+
+                            {/* ALERTA MÍNIMA (no se toca nada) */}
                             <div className="mt-1 flex items-center gap-1">
-                              <label htmlFor={`alerta-${product._id}`} className="text-[10px] text-gray-400 whitespace-nowrap">
+                              <label
+                                htmlFor={`alerta-${product._id}`}
+                                className="text-[10px] text-gray-400 whitespace-nowrap"
+                              >
                                 Alerta:
                               </label>
+
                               <input
                                 id={`alerta-${product._id}`}
                                 type="number"
@@ -537,21 +575,29 @@ function PageContent() {
                                 value={product.stockMinimoAlerta != null ? product.stockMinimoAlerta : ''}
                                 onChange={async (e) => {
                                   const rawValue = e.target.value;
-                                  const newAlertValue = rawValue === '' ? undefined : Number(rawValue);
+                                  const newAlertValue =
+                                    rawValue === '' ? undefined : Number(rawValue);
 
-                                  const res = await fetch(`/api/gestion/productos/${product._id}`, {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ stockMinimoAlerta: newAlertValue }),
-                                  });
+                                  const res = await fetch(
+                                    `/api/gestion/productos/${product._id}`,
+                                    {
+                                      method: 'PUT',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ stockMinimoAlerta: newAlertValue }),
+                                    }
+                                  );
 
                                   if (res.ok) {
                                     const updatedProduct = await res.json();
-                                    setProducts(prev =>
-                                      prev.map(p => p._id === product._id ? updatedProduct : p)
+                                    setProducts((prev) =>
+                                      prev.map((p) =>
+                                        p._id === product._id ? updatedProduct : p
+                                      )
                                     );
-                                    setAllProducts(prev =>
-                                      prev.map(p => p._id === product._id ? updatedProduct : p)
+                                    setAllProducts((prev) =>
+                                      prev.map((p) =>
+                                        p._id === product._id ? updatedProduct : p
+                                      )
                                     );
                                   } else {
                                     toast.error('Error al guardar umbral');
@@ -562,6 +608,9 @@ function PageContent() {
                               />
                             </div>
                           </td>
+
+
+
                           <td className="py-3 px-4">
                             {product.activo ? (
                               <span className="text-green-500 font-semibold">Sí</span>

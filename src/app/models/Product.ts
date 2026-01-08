@@ -33,6 +33,7 @@ const productSchema = new Schema({
   activo: { type: Boolean, default: true },
   imagen: { type: String },
   stockMinimoAlerta: { type: Number, required: false, min: 0 },
+  stockReservado: { type: Number, default: 0 },
   proveedor: { type: Schema.Types.ObjectId, ref: 'Proveedor', required: false },
 }, {
   timestamps: true,
