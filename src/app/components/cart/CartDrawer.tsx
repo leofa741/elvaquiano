@@ -19,6 +19,30 @@ export default function CartDrawer() {
     return acc + price * p.qty;
   }, 0);
 
+  const confirmOrder = async () => {
+    try {
+      const res = await fetch('/api/gestion/pedidos/confirmar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cart }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || 'Error al confirmar el pedido');
+        return;
+      }
+
+      // ✅ Stock confirmado → recién ahora WhatsApp
+      sendWhatsApp(cart);
+
+    } catch (error) {
+      alert('Error de conexión con el servidor');
+    }
+  };
+
+
   return (
 
     <motion.div
@@ -72,7 +96,12 @@ export default function CartDrawer() {
 
                 <button
                   onClick={() => incrementQty(p._id)}
-                  className="w-6 h-6 rounded-full bg-[#1A5A7A] text-white hover:bg-[#2A6A8A]"
+                  disabled={p.qty >= p.stockTotal}
+                  className={`w-6 h-6 rounded-full
+    ${p.qty >= p.stockTotal
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-[#1A5A7A] hover:bg-[#2A6A8A]'
+                    }`}
                   aria-label="Aumentar"
                 >
                   +
@@ -101,11 +130,12 @@ export default function CartDrawer() {
 
         <motion.button
           whileTap={{ scale: 0.98 }}
-          onClick={() => sendWhatsApp(cart)}
+          onClick={confirmOrder}
           className="w-full bg-[#FFB81C] hover:bg-[#E5A50D] text-[#0D4A6B] py-2.5 rounded-lg text-sm font-bold transition-colors duration-200 shadow-lg"
         >
           Confirmar pedido vía WhatsApp
         </motion.button>
+
       </div>
     </motion.div>
   );

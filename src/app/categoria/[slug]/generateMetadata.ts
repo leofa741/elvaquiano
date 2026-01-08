@@ -1,7 +1,7 @@
 // app/categoria/[slug]/generateMetadata.ts
 import Product from '@/app/models/Product';
 import connectDB from '@/app/lib/mongoose';
-import { slugify } from '@/app/lib/slugify';
+
 
 export async function generateMetadata({ params }: any) {
   await connectDB();

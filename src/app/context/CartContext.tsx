@@ -16,29 +16,36 @@ export function CartProvider({ children }: any) {
   }, [cart]);
 
   const addToCart = (product: any) => {
-    setCart((prev) => {
+    setCart(prev => {
       const existing = prev.find(p => p._id === product._id);
-      // console.log('Adding to cart:', product);
+
       if (existing) {
+        if (existing.qty >= existing.stockTotal) {
+          return prev; // 🚫 NO agrega más
+        }
+
         return prev.map(p =>
           p._id === product._id
             ? { ...p, qty: p.qty + 1 }
             : p
         );
       }
+
       return [...prev, { ...product, qty: 1 }];
     });
   };
 
-  const removeFromCart = (id: string) => {
-    setCart(prev => prev.filter(p => p._id !== id));
-  };
-
   const incrementQty = (id: string) => {
     setCart(prev =>
-      prev.map(p =>
-        p._id === id ? { ...p, qty: p.qty + 1 } : p
-      )
+      prev.map(p => {
+        if (p._id !== id) return p;
+
+        if (p.qty >= p.stockTotal) {
+          return p; // 🚫 stock máximo
+        }
+
+        return { ...p, qty: p.qty + 1 };
+      })
     );
   };
 
@@ -48,13 +55,24 @@ export function CartProvider({ children }: any) {
         .map(p =>
           p._id === id ? { ...p, qty: p.qty - 1 } : p
         )
-        .filter(p => p.qty > 0) // si llega a 0, se elimina
+        .filter(p => p.qty > 0)
     );
   };
 
+  const removeFromCart = (id: string) => {
+    setCart(prev => prev.filter(p => p._id !== id));
+  };
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart , incrementQty, decrementQty }}>
+    <CartContext.Provider
+      value={{
+        cart,
+        addToCart,
+        incrementQty,
+        decrementQty,
+        removeFromCart,
+      }}
+    >
       {children}
     </CartContext.Provider>
   );

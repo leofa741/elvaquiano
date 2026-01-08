@@ -4,6 +4,7 @@
 import Image from 'next/image';
 import { formatARS } from '@/app/lib/formatcurrenci';
 
+
 export default function ProductCard({ product, onAdd }: any) {
   const stockTotal = product.stock.reduce(
     (acc: number, s: any) => acc + s.cantidad,
@@ -83,17 +84,22 @@ export default function ProductCard({ product, onAdd }: any) {
 
         {/* Botón */}
         <button
-          onClick={() => onAdd(product)}
+          onClick={() =>
+            onAdd({
+              ...product,
+              stockTotal
+            })
+          }
           disabled={isOutOfStock}
           className={`mt-3 w-full py-2.5 rounded-lg font-semibold transition text-sm
-            ${
-              isOutOfStock
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-red-600 hover:bg-red-700 text-white active:scale-[0.98]'
+    ${isOutOfStock
+              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              : 'bg-red-600 hover:bg-red-700 text-white active:scale-[0.98]'
             }`}
         >
           {isOutOfStock ? 'Sin stock' : 'Agregar al carrito'}
         </button>
+
       </div>
     </div>
   );
