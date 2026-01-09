@@ -33,7 +33,7 @@ interface Presupuesto {
   validoHasta?: string;
   estado: string;
   notas?: string;
- 
+
 }
 
 function getRazonSocial(cliente: any): string {
@@ -114,7 +114,7 @@ export default function ImprimirPresupuestoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 p-4 flex flex-col items-center justify-start">
+    <div className="bg-gray-900 p-4 flex flex-col items-center justify-start min-[print]:min-h-0">
       <p className="text-white text-center mb-4">
         <strong>Presupuesto:</strong> #{presupuesto._id.slice(-6).toUpperCase()}
         <br />
@@ -219,7 +219,7 @@ export default function ImprimirPresupuestoPage() {
 
           {presupuesto.notas?.includes('Presupuesto regenerado a partir del pedido') ? (
             <div className="text-xs text-gray-500 text-center italic">
-              Este presupuesto fue regenerado a partir de un pedido ya existente.
+              Este presupuesto fue regenerado a partir de un pedido ya existente...
             </div>
           ) : (
             <BotonConvertir id={presupuesto._id} estado={presupuesto.estado} origen={presupuesto.origen} />
