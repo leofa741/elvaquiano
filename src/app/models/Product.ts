@@ -13,7 +13,6 @@ const loteSchema = new Schema({
   deposito: { type: String, required: false },
 });
 
-const Proveedor = models.Proveedor || model('Proveedor', new Schema({ nombre: String })); // referencia mínima
 
 
 const productSchema = new Schema({

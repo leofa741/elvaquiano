@@ -4,6 +4,8 @@ import Product from "@/app/models/Product";
 import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse } from "next/server";
 import { notifyProducts } from './events/productsNotifier';
+import '@/app/models/Proveedor';
+
 
 connectDB();
 

@@ -14,11 +14,13 @@ const ProveedorSchema = new Schema(
     telefono: {
       type: String,
       trim: true,
+      required: false,
     },
     email: {
       type: String,
       trim: true,
       lowercase: true,
+      required: false,
       match: [/^\S+@\S+\.\S+$/, 'Email inválido'],
     },
    

@@ -21,14 +21,14 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     const proveedores = await Proveedor.find()
-   
+
       .sort({ nombre: 1 })
       .skip(skip)
       .limit(limit);
 
     const total = await Proveedor.countDocuments();
 
-   
+
 
     return new Response(
       JSON.stringify({
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+  
     const { nombre, telefono, email } = body;
 
     if (!nombre?.trim()) {
@@ -73,11 +74,12 @@ export async function POST(request: NextRequest) {
     }
 
     const nuevoProveedor = new Proveedor({
-      nombre: nombre.trim(), 
+      nombre: nombre.trim(),
       telefono: telefono?.trim() || undefined,
       email: email?.trim() || undefined,
 
     });
+  
 
     await nuevoProveedor.save();
 

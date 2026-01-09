@@ -20,12 +20,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    console.log('Cuerpo recibido para nuevo presupuesto:', body);
+  
     const { clienteId, productos, validoHasta } = body;
 
-    console.log('Origen:', productos.map((p: any) => p.origen));
+   
     const origen = productos[0]?.origen;
-    console.log('Origen determinado:', origen);
+   
     if (!clienteId || !productos?.length) {
       return NextResponse.json({ error: 'Cliente y productos son obligatorios' }, { status: 400 });
     }

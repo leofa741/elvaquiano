@@ -86,8 +86,8 @@ function PageContent() {
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [loadingProveedores, setLoadingProveedores] = useState(false);
 
-  const [selectedProveedorId, setSelectedProveedorId] = useState<string | null>(null);
 
+  const [selectedProveedorId, setSelectedProveedorId] = useState<string | null>(null);
   const [nuevoProveedorNombre, setNuevoProveedorNombre] = useState('');
   const [nuevoProveedorTelefono, setNuevoProveedorTelefono] = useState('');
   const [nuevoProveedorEmail, setNuevoProveedorEmail] = useState('');
@@ -348,7 +348,7 @@ function PageContent() {
     try {
       const res = await fetch('/api/gestion/proveedores?limit=100');
 
-      console.log('Respuesta de proveedores:', res);
+    
 
       if (!res.ok) {
         throw new Error('Error HTTP');
@@ -537,8 +537,8 @@ function PageContent() {
                             {/* STOCK TOTAL (lo que ya tenías) */}
                             <div
                               className={`font-medium ${stockTotal <= (product.stockMinimoAlerta ?? 0)
-                                  ? 'text-red-400'
-                                  : 'text-white'
+                                ? 'text-red-400'
+                                : 'text-white'
                                 }`}
                             >
                               Total: {stockTotal}
@@ -902,9 +902,48 @@ function PageContent() {
                   <button
                     onClick={async () => {
                       let proveedorIdToAssign = selectedProveedorId;
+                      // 👇 SI ESTÁ EDITANDO UN PROVEEDOR EXISTENTE
+                      if (isEditingProveedor && selectedProveedorId) {
+                        try {
+                          const res = await fetch(
+                            `/api/gestion/proveedores/${selectedProveedorId}`,
+                            {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                nombre: nuevoProveedorNombre.trim(),
+                                telefono: nuevoProveedorTelefono.trim() || undefined,
+                                email: nuevoProveedorEmail.trim() || undefined,
+                              }),
+                            }
+                          );
+
+                          if (!res.ok) {
+                            toast.error('Error al actualizar proveedor');
+                            return;
+                          }
+
+                          const proveedorActualizado = await res.json();
+
+                          // Actualizar lista local
+                          setProveedores((prev) =>
+                            prev.map((p) =>
+                              p._id === proveedorActualizado._id ? proveedorActualizado : p
+                            )
+                          );
+
+                          // asegurar que se use este proveedor
+                          proveedorIdToAssign = proveedorActualizado._id;
+                        } catch (err) {
+                          toast.error('Error de red al actualizar proveedor');
+                          return;
+                        }
+                      }
+
 
                       // Si escribió un nuevo proveedor
                       if (nuevoProveedorNombre.trim() && !selectedProveedorId) {
+
                         try {
                           const res = await fetch('/api/gestion/proveedores', {
                             method: 'POST',
