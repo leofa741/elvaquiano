@@ -34,6 +34,7 @@ interface Product {
   stock: Array<{ deposito: string; cantidad: number }>;
   lotes: Array<{ lote: string; vencimiento: string; cantidad: number; deposito: string }>;
   activo: boolean;
+  stockReservado: number;
   imagen?: string;
   createdAt: string;
   stockMinimoAlerta?: number;
