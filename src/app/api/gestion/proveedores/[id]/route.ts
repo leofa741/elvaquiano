@@ -4,10 +4,12 @@ import connectDB from '@/app/lib/mongoose';
 import Proveedor from '@/app/models/Proveedor';
 import { authOptions } from '@/app/lib/auth';
 
+
+
 export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  request: NextRequest,
+  { params }: { params: any }
+)  {
   await connectDB();
 
   const session = await getServerSession(authOptions);
@@ -16,7 +18,7 @@ export async function PUT(
   }
 
   try {
-    const { nombre, telefono, email } = await req.json();
+    const { nombre, telefono, email } = await request.json();
 
     const proveedor = await Proveedor.findById(params.id);
     if (!proveedor) {
