@@ -22,9 +22,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('Cuerpo recibido para nuevo presupuesto:', body);
     const { clienteId, productos, validoHasta } = body;
-  
+
     console.log('Origen:', productos.map((p: any) => p.origen));
-    const origen = productos[0]?.origen ;
+    const origen = productos[0]?.origen;
     console.log('Origen determinado:', origen);
     if (!clienteId || !productos?.length) {
       return NextResponse.json({ error: 'Cliente y productos son obligatorios' }, { status: 400 });
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       total,
       validoHasta: validoHasta || null,
       estado: 'enviado',
-      origen: origen ,
+      origen: origen,
     });
 
     const guardado = await nuevo.save();
@@ -51,17 +51,29 @@ export async function POST(request: NextRequest) {
 }
 
 // GET: Listar presupuestos
-export async function GET() {
-
-
+export async function GET(request: NextRequest) {
   try {
+    const url = new URL(request.url);
+    const page = parseInt(url.searchParams.get('page') || '1'); // página actual
+    const limit = parseInt(url.searchParams.get('limit') || '10'); // cantidad por página
+    const skip = (page - 1) * limit;
+
+    const total = await Presupuesto.countDocuments(); // total de registros
     const presupuestos = await Presupuesto.find()
       .populate('cliente', 'razonSocial pedidoAsociado')
-      .sort({ createdAt: -1 });
-    return NextResponse.json(presupuestos, { status: 200 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return NextResponse.json({
+      data: presupuestos,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    }, { status: 200 });
   } catch (error) {
     console.error('Error al listar presupuestos:', error);
     return NextResponse.json({ error: 'Error al cargar presupuestos' }, { status: 500 });
   }
 }
-

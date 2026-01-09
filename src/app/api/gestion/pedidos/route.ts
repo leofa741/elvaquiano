@@ -82,21 +82,29 @@ export async function POST(request: NextRequest) {
 // ---------------------------------------------
 // GET: Listar pedidos
 // ---------------------------------------------
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    await connectDB();
+    const url = new URL(request.url);
+    const page = parseInt(url.searchParams.get('page') || '1');
+    const limit = parseInt(url.searchParams.get('limit') || '10');
+    const skip = (page - 1) * limit;
 
+    const total = await Pedido.countDocuments();
     const pedidos = await Pedido.find()
       .populate('cliente', 'razonSocial')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
-    return NextResponse.json(pedidos, { status: 200 });
-
-  } catch (error: any) {
+    return NextResponse.json({
+      data: pedidos,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
     console.error('Error al listar pedidos:', error);
-    return NextResponse.json(
-      { error: 'Error al cargar pedidos', details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Error al cargar pedidos' }, { status: 500 });
   }
 }

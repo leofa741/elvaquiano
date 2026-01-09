@@ -32,20 +32,24 @@ export default function PresupuestosPage() {
   const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
 
   // Cargar datos solo cuando autorizado
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
   useEffect(() => {
     if (auth !== true) return;
 
     setLoading(true);
     const fetchPresupuestos = async () => {
       try {
-        const res = await fetch('/api/gestion/presupuestos', {
+        const res = await fetch(`/api/gestion/presupuestos?page=${page}&limit=10`, {
           cache: 'no-store',
         });
 
         if (!res.ok) throw new Error('Error al cargar');
 
-        const data = await res.json();
+        const { data, totalPages: total } = await res.json();
         setPresupuestos(data);
+        setTotalPages(total);
       } catch (err: any) {
         Swal.fire(
           'Error',
@@ -58,7 +62,10 @@ export default function PresupuestosPage() {
     };
 
     fetchPresupuestos();
-  }, [auth]);
+  }, [auth, page]);
+
+
+
 
   // Mientras valida la sesión
   if (auth === null) {
@@ -86,9 +93,9 @@ export default function PresupuestosPage() {
           <p className="text-gray-400 mt-1">
             Crear, imprimir y convertir cotizaciones en pedidos.
           </p>
-             <p className="text-gray-400 mt-1">
-              volver a la sección de <a href="/gestion" className="text-amber-400 underline">Gestión</a>.
-            </p>
+          <p className="text-gray-400 mt-1">
+            volver a la sección de <a href="/gestion" className="text-amber-400 underline">Gestión</a>.
+          </p>
         </div>
 
         <Link
@@ -149,6 +156,31 @@ export default function PresupuestosPage() {
           </div>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center gap-2 p-4">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
+          >
+            ← Anterior
+          </button>
+          <span className="px-3 py-1 text-gray-300">
+            Página {page} de {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
+          >
+            Siguiente →
+          </button>
+        </div>
+      )}
+
+
+
     </div>
   );
 }

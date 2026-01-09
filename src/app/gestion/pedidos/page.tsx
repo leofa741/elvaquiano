@@ -26,7 +26,7 @@ interface ClientePedido {
 interface ProductoPedido {
   nombre?: string;
   cantidad: number;
-  tipoPrecio?:  'mayorista' | 'oferta' ;
+  tipoPrecio?: 'mayorista' | 'oferta';
 }
 
 interface Pedido {
@@ -94,22 +94,25 @@ export default function PedidosPage() {
   const [loading, setLoading] = useState(true);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
 
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
   /* =======================
      FETCH INICIAL + POLLING
   ======================= */
+
+
   useEffect(() => {
     if (!isAuthorized) return;
 
+    setLoading(true);
     const fetchPedidos = async () => {
       try {
-        const res = await fetch('/api/gestion/pedidos', { cache: 'no-store' });
-        const data = await res.json();
-
-        const list = Array.isArray(data)
-          ? data.map(sanitizePedido)
-          : [];
-
+        const res = await fetch(`/api/gestion/pedidos?page=${page}&limit=10`, { cache: 'no-store' });
+        const { data, totalPages: total } = await res.json();
+        const list = Array.isArray(data) ? data.map(sanitizePedido) : [];
         setPedidos(list);
+        setTotalPages(total);
       } catch (err) {
         console.error('Error al cargar pedidos:', err);
       } finally {
@@ -118,9 +121,10 @@ export default function PedidosPage() {
     };
 
     fetchPedidos();
-    const interval = setInterval(fetchPedidos, 12000);
+    const interval = setInterval(fetchPedidos, 12000); // polling
     return () => clearInterval(interval);
-  }, [isAuthorized]);
+  }, [isAuthorized, page]);
+
 
   /* =======================
      SSE
@@ -211,7 +215,7 @@ export default function PedidosPage() {
         <Link
           href="/gestion/pedidos/nuevo"
           className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition" >
-        
+
           <FaPlus /> Nuevo Pedido
         </Link>
       </div>
@@ -303,6 +307,30 @@ export default function PedidosPage() {
           </div>
         )}
       </div>
+      {totalPages > 1 && (
+        <div className="flex justify-center gap-2 p-4">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
+          >
+            ← Anterior
+          </button>
+
+          <span className="px-3 py-1 text-gray-300">
+            Página {page} de {totalPages}
+          </span>
+
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
+          >
+            Siguiente →
+          </button>
+        </div>
+      )}
+
     </div>
   );
 }
