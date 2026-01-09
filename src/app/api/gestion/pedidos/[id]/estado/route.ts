@@ -8,6 +8,26 @@ import connectDB from '@/app/lib/mongoose';
 import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClientsNotifier';
 import { notifyProducts } from '../../../productos/events/productsNotifier';
 
+async function liberarStockReservado(pedido: any) {
+  for (const item of pedido.productos) {
+    const producto = await Producto.findById(item.producto);
+    if (!producto) continue;
+
+    producto.stockReservado = Math.max(
+      0,
+      (producto.stockReservado || 0) - item.cantidad
+    );
+
+    await producto.save();
+
+    notifyProducts({
+      type: 'stock_reservado',
+      data: producto,
+    });
+  }
+}
+
+
 
 
 connectDB();
@@ -34,6 +54,8 @@ export async function PATCH(request: NextRequest, { params }: any) {
        pendiente → preparacion
     ========================= */
     if (estadoAnterior === 'pendiente' && estado === 'preparacion') {
+
+       await liberarStockReservado(pedido); 
       // validar stock
       for (const item of pedido.productos) {
         const producto = await Producto.findById(item.producto);
@@ -84,6 +106,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
        preparacion → cancelado
     ========================= */
     if (estadoAnterior === 'preparacion' && estado === 'cancelado') {
+       await liberarStockReservado(pedido); 
       for (const item of pedido.productos) {
         const producto = await Producto.findById(item.producto);
         if (!producto) continue;
