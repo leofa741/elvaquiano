@@ -1,22 +1,28 @@
-// app/api/gestion/pedidos/[id]/estado/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-
 import Pedido from '@/app/models/Pedido';
 import Producto from '@/app/models/Product';
 import connectDB from '@/app/lib/mongoose';
-
 import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClientsNotifier';
 import { notifyProducts } from '../../../productos/events/productsNotifier';
 
-async function liberarStockReservado(pedido: any) {
+connectDB();
+
+/**
+ * 🔹 Función para procesar stock reservado
+ * Solo afecta stockReservado si es online
+ */
+async function procesarStockReservado(pedido: any, accion: 'liberar' | 'descontar') {
+  if (pedido.origen !== 'online') return; // solo online
+
   for (const item of pedido.productos) {
     const producto = await Producto.findById(item.producto);
     if (!producto) continue;
 
-    producto.stockReservado = Math.max(
-      0,
-      (producto.stockReservado || 0) - item.cantidad
-    );
+    if (accion === 'liberar') {
+      producto.stockReservado = Math.max(0, (producto.stockReservado || 0) - item.cantidad);
+    } else if (accion === 'descontar') {
+      producto.stockReservado = Math.max(0, (producto.stockReservado || 0) + item.cantidad);
+    }
 
     await producto.save();
 
@@ -27,10 +33,38 @@ async function liberarStockReservado(pedido: any) {
   }
 }
 
+/**
+ * 🔹 Función para descontar o devolver stock físico (real)
+ */
+async function procesarStockFisico(pedido: any, accion: 'descontar' | 'devolver') {
+  for (const item of pedido.productos) {
+    const producto = await Producto.findById(item.producto);
+    if (!producto) continue;
 
+    const stock = producto.stock.find((s: any) => s.deposito === pedido.deposito);
+    if (!stock) continue;
 
+    if (accion === 'descontar') {
+      if (stock.cantidad < item.cantidad) {
+        throw new Error(`Stock insuficiente para "${item.nombre}" en depósito "${pedido.deposito}". Disponible: ${stock.cantidad}`);
+      }
+      stock.cantidad -= item.cantidad;
+    } else if (accion === 'devolver') {
+      stock.cantidad += item.cantidad;
+    }
 
-connectDB();
+    await producto.save();
+
+    notifyProducts({
+      type: 'stock_modificado',
+      data: {
+        producto,
+        motivo: accion === 'descontar' ? 'pedido_en_preparacion' : 'pedido_cancelado',
+        pedidoId: pedido._id,
+      },
+    });
+  }
+}
 
 export async function PATCH(request: NextRequest, { params }: any) {
   try {
@@ -43,108 +77,45 @@ export async function PATCH(request: NextRequest, { params }: any) {
     }
 
     const pedido = await Pedido.findById(id).populate('productos.producto');
-    if (!pedido) {
-      return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 });
-    }
+    if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 });
 
     const estadoAnterior = pedido.estado;
 
     /* =========================
-       1️⃣ DESCONTAR STOCK
-       pendiente → preparacion
+       PEDIDO ONLINE O MOSTRADOR: PENDIENTE → PREPARACION
     ========================= */
     if (estadoAnterior === 'pendiente' && estado === 'preparacion') {
-
-       await liberarStockReservado(pedido); 
-      // validar stock
-      for (const item of pedido.productos) {
-        const producto = await Producto.findById(item.producto);
-        if (!producto) {
-          return NextResponse.json(
-            { error: `Producto no encontrado` },
-            { status: 400 }
-          );
-        }
-
-        const stock = producto.stock.find(
-          (s: any) => s.deposito === pedido.deposito
-        );
-
-        if (!stock || stock.cantidad < item.cantidad) {
-          return NextResponse.json(
-            {
-              error: `Stock insuficiente para "${item.nombre}" en depósito "${pedido.deposito}". Disponible: ${stock?.cantidad || 0}`,
-            },
-            { status: 400 }
-          );
-        }
-      }
-
-      // descontar stock
-      for (const item of pedido.productos) {
-        const producto = await Producto.findById(item.producto);
-        const stock = producto.stock.find(
-          (s: any) => s.deposito === pedido.deposito
-        )!;
-        stock.cantidad -= item.cantidad;
-        await producto.save();
-
-        // 🔥 EVENTO DE STOCK
-         notifyProducts({
-          type: 'stock_modificado',
-          data: {
-            producto,
-            motivo: 'pedido_en_preparacion',
-            pedidoId: pedido._id,
-          },
-        });
+      if (pedido.origen === 'online') {
+        // descontar stock reservado y stock real
+        await procesarStockReservado(pedido, 'liberar'); // libera el reservado
+        await procesarStockFisico(pedido, 'descontar');   // descuenta stock real
+      } else {
+        // mostrador → solo stock real
+        await procesarStockFisico(pedido, 'descontar');
       }
     }
 
     /* =========================
-       2️⃣ DEVOLVER STOCK
-       preparacion → cancelado
+       PEDIDO CANCELADO DESDE PREPARACION
     ========================= */
     if (estadoAnterior === 'preparacion' && estado === 'cancelado') {
-       await liberarStockReservado(pedido); 
-      for (const item of pedido.productos) {
-        const producto = await Producto.findById(item.producto);
-        if (!producto) continue;
-
-        const stock = producto.stock.find(
-          (s: any) => s.deposito === pedido.deposito
-        );
-
-        if (stock) {
-          stock.cantidad += item.cantidad;
-          await producto.save();
-
-          // 🔥 EVENTO DE STOCK
-          notifyProducts({
-            type: 'stock_modificado',
-            data: {
-              producto,
-              motivo: 'pedido_cancelado',
-              pedidoId: pedido._id,
-            },
-          });
-        }
+      if (pedido.origen === 'online') {
+        // vuelve a reservar y devuelve stock real
+        await procesarStockReservado(pedido, 'descontar'); // vuelve a reservar
+        await procesarStockFisico(pedido, 'devolver');
+      } else {
+        // mostrador → solo devolver stock real
+        await procesarStockFisico(pedido, 'devolver');
       }
     }
 
-    /* =========================
-       3️⃣ ACTUALIZAR PEDIDO
-    ========================= */
+    // Actualizar estado
     pedido.estado = estado;
     await pedido.save();
 
-    /* =========================
-       4️⃣ EVENTO DE PEDIDO
-    ========================= */
+    // Notificar cambio de estado
     notifyPedidoClients({
-      type: estado === 'cancelado'
-        ? 'pedido_cancelado'
-        : 'pedido_estado_actualizado',
+      type: estado === 'cancelado' ? 'pedido_cancelado' : 'pedido_estado_actualizado',
       data: pedido,
     });
 
@@ -152,9 +123,6 @@ export async function PATCH(request: NextRequest, { params }: any) {
 
   } catch (error: any) {
     console.error('Error al actualizar estado del pedido:', error);
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

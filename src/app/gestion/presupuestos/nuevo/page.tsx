@@ -26,12 +26,14 @@ interface ProductoOption {
   unidad: string;
   precioOferta: number;
   precioMayorista: number;
+
   stock: Array<{ deposito: string; cantidad: number }>;
 }
 interface ProductoEnPresupuesto {
   producto: ProductoOption;
   deposito: string;
   cantidad: number;
+
   tipoPrecio: 'mayorista' | 'oferta';
 }
 
@@ -46,6 +48,7 @@ export default function NuevoPresupuestoPage() {
 
   const [clienteId, setClienteId] = useState<string>('');
   const [validoHasta, setValidoHasta] = useState<string>('');
+  const [origen, setOrigen] = useState<string>('');
   const [productosEnPresupuesto, setProductosEnPresupuesto] = useState<ProductoEnPresupuesto[]>([]);
 
   // Cargar datos
@@ -148,6 +151,7 @@ export default function NuevoPresupuestoPage() {
     try {
       const productosParaGuardar = productosEnPresupuesto.map(p => {
         const unidadesFisicas = p.cantidad; // ✅ NUEVA LÍNEA
+        
         return {
           producto: p.producto._id,
           nombre: p.producto.nombre,
@@ -156,6 +160,7 @@ export default function NuevoPresupuestoPage() {
           cantidad: p.cantidad,
           unidadesFisicas, // ✅ NUEVA LÍNEA
           tipoPrecio: p.tipoPrecio,
+          origen: origen,
           precioAplicado: p.tipoPrecio === 'mayorista' ? p.producto.precioMayorista : p.producto.precioOferta,
           subtotal: p.cantidad * (p.tipoPrecio === 'mayorista' ? p.producto.precioMayorista : p.producto.precioOferta)
         };
@@ -229,6 +234,23 @@ export default function NuevoPresupuestoPage() {
               className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Origen del pedido *
+            </label>
+            <select
+              value={origen}
+              onChange={(e) => setOrigen(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+              required
+            >
+              <option value="">Seleccione...</option>
+              <option value="mostrador">Mostrador</option>
+              <option value="online">Online</option>
+            </select>
+          </div>
+
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">

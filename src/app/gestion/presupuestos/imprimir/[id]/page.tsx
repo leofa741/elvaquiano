@@ -29,9 +29,11 @@ interface Presupuesto {
   cliente: Cliente | string | null;
   productos: Producto[];
   total: number;
+  origen: string;
   validoHasta?: string;
   estado: string;
   notas?: string;
+ 
 }
 
 function getRazonSocial(cliente: any): string {
@@ -184,17 +186,43 @@ export default function ImprimirPresupuestoPage() {
           Documento no válido como comprobante fiscal
         </div>
 
-  
+        <div className="no-print mt-3">
+          <label className="text-xs text-gray-500 block mb-1">
+            Origen del pedido <span className="text-red-400">*</span>
+          </label>
+
+          <select
+            value={presupuesto.origen || ''}
+            onChange={async (e) => {
+              const origen = e.target.value;
+
+              await fetch(`/api/gestion/presupuestos/${presupuesto._id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ origen }),
+              });
+
+              setPresupuesto(prev => prev ? { ...prev, origen } : prev);
+            }}
+            className="w-full bg-gray-800 text-white border border-gray-600 rounded px-2 py-1"
+            required
+          >
+            <option value="">Seleccionar...</option>
+            <option value="mostrador">Mostrador</option>
+            <option value="online">Online (WhatsApp / Web)</option>
+          </select>
+        </div>
+
         {/* BOTONES: solo visibles en pantalla v*/}
         <div className="no-print mt-4 flex flex-col gap-2">
           <BotonImprimir />
 
           {presupuesto.notas?.includes('Presupuesto regenerado a partir del pedido') ? (
-            <div className="text-xs text-gray-500 text-center italic"> 
+            <div className="text-xs text-gray-500 text-center italic">
               Este presupuesto fue regenerado a partir de un pedido ya existente.
             </div>
           ) : (
-            <BotonConvertir id={presupuesto._id} estado={presupuesto.estado} />
+            <BotonConvertir id={presupuesto._id} estado={presupuesto.estado} origen={presupuesto.origen} />
           )}
         </div>
       </div>

@@ -15,7 +15,7 @@ export interface PresupuestoDocument extends Document {
     precioAplicado: number;
     subtotal: number;
   }>;
-  estado: 'borrador' | 'enviado' | 'aceptado' | 'rechazado' | 'convertido';  
+  estado: 'borrador' | 'enviado' | 'aceptado' | 'rechazado' | 'convertido';
   total: number;
   notas?: string;
   validoHasta?: Date | null;
@@ -56,6 +56,11 @@ const PresupuestoSchema = new Schema({
   },
   total: { type: Number, required: true },
   notas: { type: String },
+  origen: {
+    type: String,
+    enum: ['online', 'mostrador'],
+    required: true
+  },
   validoHasta: Date,
   pedidoAsociado: {
     type: Schema.Types.ObjectId,

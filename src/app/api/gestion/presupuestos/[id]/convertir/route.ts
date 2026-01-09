@@ -41,6 +41,7 @@ export async function POST(
       deposito: presupuesto.productos[0]?.deposito || 'principal',
       total: presupuesto.total,
       estado: 'pendiente',
+      origen: presupuesto.origen || 'mostrador',
     });
 
     const pedidoGuardado = await nuevoPedido.save();

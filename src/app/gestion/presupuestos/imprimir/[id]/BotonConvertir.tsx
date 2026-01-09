@@ -1,17 +1,31 @@
 "use client";
+import Swal from "sweetalert2";
 
 export default function BotonConvertir({
   id,
   estado,
+  origen
 }: {
   id: string;
   estado: string;
+  origen: string;
 }) {
   if (estado === "convertido") {
     return <p className="text-gray-400">Este presupuesto ya fue convertido en pedido.</p>;
   }
 
   const convertir = async () => {
+    if (origen !== 'online' && origen !== 'mostrador') {
+      Swal.fire(
+        'Falta información',
+        'Debes indicar si el pedido es Online o Mostrador antes de convertir.',
+        'warning'
+      );
+      return;
+    }
+
+
+
     try {
       const res = await fetch(`/api/gestion/presupuestos/${id}/convertir`, {
         method: "POST",
@@ -30,9 +44,9 @@ export default function BotonConvertir({
   return (
     <button
       onClick={convertir}
-      className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition"
+      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
     >
-      Convertir en Pedido
+      Convertir a Pedido
     </button>
   );
 }
