@@ -6,6 +6,11 @@ import { formatARS } from '@/app/lib/formatcurrenci';
 
 
 export default function ProductCard({ product, onAdd }: any) {
+
+  //console.log('Rendering ProductCard for:', product.cantidadUnidad + ' ' + product.unidad);
+
+  const cantidadUnidadText = `${product.cantidadUnidad} ${product.unidad}`;
+
   const stockTotal = product.stock.reduce(
     (acc: number, s: any) => acc + s.cantidad,
     0
@@ -51,6 +56,9 @@ export default function ProductCard({ product, onAdd }: any) {
           <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2">
             {product.nombre}
           </h3>
+          <p className="text-xs text-gray-600 mt-1">
+            {cantidadUnidadText}
+          </p>
 
           {/* Precio original tachado */}
           {hasOffer && (
