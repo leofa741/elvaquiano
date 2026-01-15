@@ -1,14 +1,10 @@
-// ProductCard.tsx
+// src/app/components/productcard/ProductCard.tsx
 'use client';
 
 import Image from 'next/image';
 import { formatARS } from '@/app/lib/formatcurrenci';
 
-
 export default function ProductCard({ product, onAdd }: any) {
-
-  //console.log('Rendering ProductCard for:', product.cantidadUnidad + ' ' + product.unidad);
-
   const cantidadUnidadText = `${product.cantidadUnidad} ${product.unidad}`;
 
   const stockTotal = product.stock.reduce(
@@ -27,8 +23,13 @@ export default function ProductCard({ product, onAdd }: any) {
   const isOutOfStock = stockTotal === 0;
   const isLowStock = !isOutOfStock && stockTotal <= product.stockMinimoAlerta;
 
+  // ✅ Manejo seguro de la imagen
+  const imageSrc = product.imagen && product.imagen.trim() !== ''
+    ? product.imagen
+    : '/img/no-image.png'; // o '/placeholder.svg', etc.
+  
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full relative">
       {/* Badge de oferta */}
       {hasOffer && (
         <div className="absolute top-2 left-2 z-10">
@@ -41,8 +42,8 @@ export default function ProductCard({ product, onAdd }: any) {
       {/* Imagen */}
       <div className="relative h-40 w-full flex items-center justify-center bg-gray-50">
         <Image
-          src={product.imagen}
-          alt={product.nombre}
+          src={imageSrc}
+          alt={product.nombre || 'Producto'}
           fill
           sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 33vw"
           className="object-contain p-2"
@@ -60,19 +61,16 @@ export default function ProductCard({ product, onAdd }: any) {
             {cantidadUnidadText}
           </p>
 
-          {/* Precio original tachado */}
           {hasOffer && (
             <p className="text-xs text-gray-500 mt-1 line-through">
               {formatARS(product.precioMayorista)}
             </p>
           )}
 
-          {/* Precio final */}
           <p className="text-lg font-bold text-red-600 mt-1">
             {formatARS(finalPrice)}
           </p>
 
-          {/* Stock status */}
           <div className="mt-2">
             {isOutOfStock ? (
               <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded">
@@ -90,7 +88,6 @@ export default function ProductCard({ product, onAdd }: any) {
           </div>
         </div>
 
-        {/* Botón */}
         <button
           onClick={() =>
             onAdd({
@@ -100,14 +97,13 @@ export default function ProductCard({ product, onAdd }: any) {
           }
           disabled={isOutOfStock}
           className={`mt-3 w-full py-2.5 rounded-lg font-semibold transition text-sm
-    ${isOutOfStock
+            ${isOutOfStock
               ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
               : 'bg-red-600 hover:bg-red-700 text-white active:scale-[0.98]'
             }`}
         >
           {isOutOfStock ? 'Sin stock' : 'Agregar al carrito'}
         </button>
-
       </div>
     </div>
   );

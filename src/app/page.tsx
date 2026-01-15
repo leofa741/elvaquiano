@@ -69,7 +69,7 @@ export default async function Home() {
               Precios mayoristas, entrega rápida y atención personalizada para kioscos, bodegas, restaurantes y minimercados.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-            
+
               <a
                 href="/contact"
                 className="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-amber-600 dark:text-amber-400 border border-amber-600 dark:border-amber-600 font-bold px-6 py-3.5 rounded-lg shadow-md transition duration-300 text-center"
@@ -150,13 +150,14 @@ export default async function Home() {
             ))}
           </div>
 
-       
+
         </div>
       </section>
 
 
       {/* CTA final estratégico */}
-      <section className="py-20 bg-gradient-to-r from-red-700 to-red-800 text-white text-center">
+      <section className="py-20 bg-gradient-to-r from-[#0f3d0f] to-[#145214] text-white text-center">
+
         <div className="container mx-auto px-4 md:px-6">
           <h2 className="text-3xl md:text-4xl font-bold mb-6">
             ¿Querés ser cliente mayorista?
@@ -167,7 +168,7 @@ export default async function Home() {
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <a
               href="/contact"
-              className="bg-white text-red-800 hover:bg-gray-100 font-bold px-8 py-4 rounded-lg text-lg shadow-lg transition duration-300"
+              className="bg-white text-green-700 font-bold px-8 py-4 rounded-lg text-lg hover:bg-green-100 transition duration-300"
             >
               Contactarme como Mayorista
             </a>

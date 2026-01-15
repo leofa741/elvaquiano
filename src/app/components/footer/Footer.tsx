@@ -5,89 +5,127 @@ import Image from 'next/image';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
-  const companyName = "Distribuidora El Vaquiano";
+  const companyName = 'Distribuidora El Vaquiano';
 
   return (
-    <footer className="bg-red-800 text-white pt-10 pb-6 relative">
-      {/* Degradado sutil para profundidad */}
-      <div className="absolute inset-0 bg-gradient-to-b from-red-800 to-red-900"></div>
+    <footer className="relative bg-[#0b1f0b] text-white pt-14 pb-8">
+      {/* Degradado de profundidad */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0b1f0b] to-[#0f3d0f]" />
 
-      <div className="container mx-auto px-4 relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+      <div className="relative z-10 max-w-7xl mx-auto px-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
 
-          {/* Logo + Descripción */}
+          {/* Marca */}
           <div>
-            <h3 className="text-xl font-bold mb-3">{companyName}</h3>
-            <p className="text-sm text-gray-300 leading-relaxed">
-              Distribuidora mayorista confiable de productos alimenticios frescos y de primera calidad. 
-              Servicio ágil, precios competitivos y entrega en toda la región.
+            <Image
+              src="/El-Vaquiano.png"
+              alt="Distribuidora El Vaquiano"
+              width={160}
+              height={50}
+              className="mb-4"
+            />
+            <p className="text-sm text-white/80 leading-relaxed max-w-xs">
+              Distribuidora mayorista de productos alimenticios.
+              Stock constante, entregas ágiles y atención directa para comercios.
             </p>
           </div>
 
           {/* Categorías */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Categorías</h3>
-            <ul className="space-y-2 text-sm text-gray-300">
-              <li><Link href="/categoria/carnes" className="hover:text-amber-300 transition">Embutidos</Link></li>
-              <li><Link href="/categoria/lácteos" className="hover:text-amber-300 transition">Lácteos y Huevos</Link></li>
-              <li><Link href="/categoria/panadería" className="hover:text-amber-300 transition">Panadería y Repostería</Link></li>
-              <li><Link href="/categoria/bebidas" className="hover:text-amber-300 transition">Bebidas y Jugos</Link></li>
+            <h3 className="text-lg font-semibold mb-4 text-[#39FF14]">
+              Categorías
+            </h3>
+            <ul className="space-y-2 text-sm text-white/80">
+              <li>
+                <Link href="/categoria/carnes" className="hover:text-[#39FF14] transition">
+                  Embutidos
+                </Link>
+              </li>
+              <li>
+                <Link href="/categoria/lacteos" className="hover:text-[#39FF14] transition">
+                  Lácteos y Huevos
+                </Link>
+              </li>
+              <li>
+                <Link href="/categoria/panaderia" className="hover:text-[#39FF14] transition">
+                  Panadería y Repostería
+                </Link>
+              </li>
+              <li>
+                <Link href="/categoria/bebidas" className="hover:text-[#39FF14] transition">
+                  Bebidas
+                </Link>
+              </li>
             </ul>
           </div>
 
-          {/* Ayuda y Soporte */}
+          {/* Atención */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Atención al Cliente</h3>
-            <ul className="space-y-2 text-sm text-gray-300">
-              <li><Link href="/contact" className="hover:text-amber-300 transition">Contacto</Link></li>
-       
+            <h3 className="text-lg font-semibold mb-4 text-[#39FF14]">
+              Atención al cliente
+            </h3>
+            <ul className="space-y-2 text-sm text-white/80">
+              <li>
+                <Link href="/contact" className="hover:text-[#39FF14] transition">
+                  Contacto
+                </Link>
+              </li>
+              <li>
+                <Link href="/login" className="hover:text-[#39FF14] transition">
+                  Acceso clientes
+                </Link>
+              </li>
             </ul>
           </div>
 
-          {/* Contacto y Redes */}
+          {/* Contacto */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Contáctanos</h3>
-            <div className="flex space-x-4 mb-5">
+            <h3 className="text-lg font-semibold mb-4 text-[#39FF14]">
+              Contacto
+            </h3>
+
+            {/* Redes */}
+            <div className="flex items-center gap-3 mb-5">
               <Link
                 href="https://www.instagram.com/el_vaquiano"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram"
-                className="block"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-[#39FF14] hover:text-black transition"
               >
-                <div className="bg-white/10 hover:bg-white/20 w-10 h-10 rounded-full flex items-center justify-center transition">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fillRule="evenodd" d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772A4.902 4.902 0 012.427 2.427c.636-.247 1.363-.416 2.427-.465C5.879 2.013 6.233 2 8.662 2h.63zm4.335 13.79a1.3 1.3 0 100-2.6 1.3 1.3 0 000 2.6zm-4.55-1.3a1.8 1.8 0 10-3.6 0 1.8 1.8 0 003.6 0z" clipRule="evenodd" />
-                  </svg>
-                </div>
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M7.75 2h8.5A5.75 5.75 0 0122 7.75v8.5A5.75 5.75 0 0116.25 22h-8.5A5.75 5.75 0 012 16.25v-8.5A5.75 5.75 0 017.75 2zm4.25 5.5a4.75 4.75 0 100 9.5 4.75 4.75 0 000-9.5zm0 7.8a3.05 3.05 0 110-6.1 3.05 3.05 0 010 6.1zm5.2-7.95a1.15 1.15 0 11-2.3 0 1.15 1.15 0 012.3 0z" />
+                </svg>
               </Link>
             </div>
 
+            {/* WhatsApp */}
             <Link
-              href="https://api.whatsapp.com/send?phone=5492224492051&text=Hola,%20necesito%20información%20sobre%20productos%20mayoristas"
+              href="https://api.whatsapp.com/send?phone=5492224492051&text=Hola,%20quiero%20información%20mayorista"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center text-gray-300 hover:text-amber-300 transition"
+              className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-[#39FF14] transition"
             >
-              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.249-.597-.497-.52-.695-.52-.198 0-.422-.024-.644-.024-.224 0-.596.074-.92.446-.324.372-1.239 1.211-1.239 2.949 0 1.737 1.264 3.425 1.412 3.623.149.199 2.096 3.175 5.077 4.488.71.306 1.262.489 1.69.625.712.227 1.36.195 1.871.124.571-.075 1.758-.719 2.006-1.413.249-.694.249-1.289.174-1.413-.074-.124-.272-.199-.57-.348z"/>
-                <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8z"/>
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20.52 3.48A11.88 11.88 0 0012 0C5.37 0 0 5.37 0 12a11.93 11.93 0 001.63 6L0 24l6.2-1.63A11.93 11.93 0 0012 24c6.63 0 12-5.37 12-12 0-3.19-1.24-6.19-3.48-8.52z" />
               </svg>
               +54 9 222 449 2051
             </Link>
           </div>
         </div>
 
-        {/* Barra inferior */}
-        <div className="border-t border-red-700 mt-10 pt-6 text-center text-sm text-gray-400">
-          <p>&copy; {currentYear} {companyName}. Todos los derechos reservados.</p>
+        {/* Línea inferior */}
+        <div className="border-t border-[#39FF14]/30 mt-12 pt-6 text-center text-sm text-white/60">
+          <p>
+            © {currentYear} {companyName}. Todos los derechos reservados.
+          </p>
           <p className="mt-1">
             Desarrollado por{' '}
             <Link
               href="https://www.tumarca.ar"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-amber-300 hover:underline"
+              className="text-[#39FF14] hover:underline"
             >
               TuMarca.ar
             </Link>

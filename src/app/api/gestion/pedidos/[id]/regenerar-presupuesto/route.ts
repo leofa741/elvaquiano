@@ -4,10 +4,13 @@ import Pedido from '@/app/models/Pedido';
 import Presupuesto from '@/app/models/Presupuesto';
 import { NextRequest } from 'next/server';
 
-export async function POST(request: NextRequest, { params }: any) {
-  await connectDB();
+await connectDB();
 
-  const { id } = params;
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params; // ✅ Ahora sí
+ 
+
+
 
   try {
     const pedido = await Pedido.findById(id);
@@ -31,6 +34,7 @@ export async function POST(request: NextRequest, { params }: any) {
       })),
       total: pedido.total,
       estado: 'borrador',
+      origen: pedido.origen || 'regenerado', // ✅ Asegura que siempre haya un valor
       notas: `Presupuesto regenerado a partir del pedido #${pedido._id.toString().slice(-6).toUpperCase()}`,
       // Puedes agregar validoHasta si lo usás
     });

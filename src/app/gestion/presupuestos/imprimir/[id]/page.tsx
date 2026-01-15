@@ -163,7 +163,7 @@ export default function ImprimirPresupuestoPage() {
                 ({p.tipoPrecio}) x ${formatARS(p.precioAplicado)}
               </div>
               <div className="text-right font-medium">
-                ${formatARS(p.cantidad * p.precioAplicado)}
+                {formatARS(p.cantidad * p.precioAplicado)}
               </div>
             </div>
           ))}
@@ -179,7 +179,7 @@ export default function ImprimirPresupuestoPage() {
 
         <div className="flex justify-between font-bold text-base">
           <span>TOTAL</span>
-          <span>${formatARS(presupuesto.total)}</span>
+          <span>{formatARS(presupuesto.total)}</span>
         </div>
 
         <div className="text-center mt-3 text-xs text-gray-500">

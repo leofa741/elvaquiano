@@ -32,7 +32,7 @@ export default function SearchBar() {
             className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"
           />
         </div>
-        <button type="submit" className="ml-2 px-5 py-2 rounded-full bg-amber-600 text-white">
+        <button type="submit" className="ml-2 px-5 py-2 rounded-full bg-red-600 text-white hover:bg-red-700 focus:outline-none">
           <FontAwesomeIcon icon={faSearch} className="w-4 h-4" />
         </button>
       </form>

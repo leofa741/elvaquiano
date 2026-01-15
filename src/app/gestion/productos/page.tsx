@@ -348,7 +348,7 @@ function PageContent() {
     try {
       const res = await fetch('/api/gestion/proveedores?limit=100');
 
-    
+
 
       if (!res.ok) {
         throw new Error('Error HTTP');
@@ -406,6 +406,10 @@ function PageContent() {
           </div>
         ) : (
           <>
+            {/* ✅ Leyenda con total de productos */}
+            <div className="mb-4 text-sm text-gray-400">
+              Total de productos registrados: <span className="font-semibold text-white">{pagination.total}</span>
+            </div>
             <div className="mb-4">
               <input
                 type="text"
@@ -472,25 +476,25 @@ function PageContent() {
                               <span className="text-xs text-gray-400 ml-1">c/u</span>
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
-                              Total invertido: ${product.precioLista * stockTotal > 0
+                              Total invertido: {product.precioLista * stockTotal > 0
                                 ? (formatARS(product.precioLista * stockTotal))
                                 : '0'}
                             </div>
                           </td>
                           <td className="py-3 px-4">
                             <div className="text-amber-400 font-medium">
-                              ${(formatARS(product.precioMayorista))}
+                              {(formatARS(product.precioMayorista))}
                               <span className="text-xs text-gray-400 ml-1">c/u</span>
                             </div>
                             {stockTotal > 0 ? (
                               <div className="mt-1 text-xs space-y-1">
                                 <div className="text-gray-300">
-                                  Ingreso total: <span className="font-medium">${(formatARS(product.precioMayorista * stockTotal))}
+                                  Ingreso total: <span className="font-medium">{(formatARS(product.precioMayorista * stockTotal))}
 
                                   </span>
                                 </div>
                                 <div className="text-green-400">
-                                  Ganancia potencial: <span className="font-medium">${(formatARS((product.precioMayorista - product.precioLista) * stockTotal))}</span>
+                                  Ganancia potencial: <span className="font-medium">{(formatARS((product.precioMayorista - product.precioLista) * stockTotal))}</span>
                                 </div>
                               </div>
                             ) : (
@@ -506,7 +510,7 @@ function PageContent() {
                               ) : (
                                 <>
                                   <span className="text-amber-400 font-bold">
-                                    ${(formatARS(product.precioOferta))}
+                                    {(formatARS(product.precioOferta))}
                                   </span>
                                   <span className="text-xs text-green-400 font-medium bg-green-900/20 px-1.5 py-0.5 rounded">
                                     OFERTA
@@ -520,12 +524,12 @@ function PageContent() {
                             {stockTotal > 0 ? (
                               <div className="mt-2 text-xs space-y-1">
                                 <div className="text-gray-300">
-                                  Ingreso total: <span className="font-medium text-amber-300">${(formatARS(product.precioOferta * stockTotal))}
+                                  Ingreso total: <span className="font-medium text-amber-300">{(formatARS(product.precioOferta * stockTotal))}
 
                                   </span>
                                 </div>
                                 <div className="text-green-400">
-                                  Ganancia potencial: <span className="font-medium">${(formatARS((product.precioOferta - product.precioLista) * stockTotal))}</span>
+                                  Ganancia potencial: <span className="font-medium">{(formatARS((product.precioOferta - product.precioLista) * stockTotal))}</span>
                                 </div>
                               </div>
                             ) : (

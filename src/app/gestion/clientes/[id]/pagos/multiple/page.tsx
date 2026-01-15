@@ -118,7 +118,7 @@ export default function PagoMultiplePage() {
         {/* Monto */}
         <div>
           <label className="block text-gray-300 text-sm mb-1">
-            Monto a pagar * (deuda total: $ {formatARS(deudaTotal)})
+            Monto a pagar * (deuda total:  {formatARS(deudaTotal)})
           </label>
           <input
             type="text"
@@ -193,7 +193,7 @@ export default function PagoMultiplePage() {
             className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-4 py-2 rounded font-medium disabled:opacity-50 flex items-center gap-2"
           >
             <FaMoneyBillWave />
-            {submitting ? 'Procesando...' : `Pagar $${formatARS(monto)}`}
+            {submitting ? 'Procesando...' : `Pagar ${formatARS(monto)}`}
           </button>
           <button
             type="button"

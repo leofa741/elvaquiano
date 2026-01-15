@@ -66,7 +66,8 @@ export default function Navbar() {
   }, []);
 
   return (
-    <nav className="bg-red-600 text-white shadow-lg fixed top-0 w-full z-50">
+    <nav className="bg-[#0b1f0b] text-white shadow-lg fixed top-0 w-full z-50">
+
       {/* Header principal */}
       <div className="max-w-7xl mx-auto px-4 lg:px-6 flex items-center justify-between py-2.5">
         {/* Logo (izquierda en escritorio) */}
@@ -114,7 +115,7 @@ export default function Navbar() {
             href="https://www.instagram.com/el_vaquiano"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-white hover:text-amber-200 transition-colors"
+            className="hover:text-amber-200 transition-colors"
             aria-label="Instagram"
           >
             <FontAwesomeIcon icon={faInstagram} className="text-xl" />
@@ -137,7 +138,7 @@ export default function Navbar() {
       </div>
 
       {/* Navegación principal - escritorio */}
-      <div className="hidden lg:flex bg-red-700 py-2">
+      <div className="hidden lg:flex items-center h-12 bg-[#145214]">
         <div className="max-w-7xl mx-auto px-6 flex items-center space-x-6">
           <Link
             href="/"

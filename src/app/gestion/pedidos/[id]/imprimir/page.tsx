@@ -162,7 +162,7 @@ export default function ImprimirPedidoPage() {
                             </div>
                             {/* Subtotal a la derecha */}
                             <div className="text-right font-medium">
-                                ${formatARS(p.subtotal)}
+                                {formatARS(p.subtotal)}
                             </div>
                         </div>
                     ))}
@@ -173,7 +173,7 @@ export default function ImprimirPedidoPage() {
                 {/* Total */}
                 <div className="flex justify-between font-bold">
                     <span>TOTAL</span>
-                    <span>${formatARS(pedido.total)}</span>
+                    <span>{formatARS(pedido.total)}</span>
                 </div>
 
                 <hr className="my-2" />

@@ -393,7 +393,7 @@ export default function DetallePedidoPage() {
                 <div>
                   <div className="text-white">{p.nombre}</div>
                   <div className="text-sm text-gray-400">
-                    <span className="ml-2 capitalize">{p.tipoPrecio}</span> ($({formatARS(p.precioAplicado)} c/u))
+                    <span className="ml-2 capitalize">{p.tipoPrecio}</span> ({formatARS(p.precioAplicado)} c/u)
                   </div>
                 </div>
 
@@ -444,7 +444,7 @@ export default function DetallePedidoPage() {
                           ({p.cantidad} {p.unidad})
                         </div>
                         {/* Total */}
-                        <div className="text-white font-medium">${formatARS(p.subtotal)}</div>
+                        <div className="text-white font-medium">{formatARS(p.subtotal)}</div>
                       </div>
 
                       {['preparacion', 'enviado', 'entregado'].includes(pedido.estado) && (
@@ -487,7 +487,7 @@ export default function DetallePedidoPage() {
           <div className="text-right">
             <div className="text-gray-400">Total</div>
             <div className="text-2xl font-bold text-white">
-              ${formatARS(pedido.total)}
+              {formatARS(pedido.total)}
             </div>
           </div>
         </div>
@@ -496,7 +496,7 @@ export default function DetallePedidoPage() {
           <div className="mt-4 p-3 bg-gray-750 rounded">
             <div className="text-sm text-gray-300">Saldo pendiente:</div>
             <div className="text-xl font-bold text-amber-400">
-              ${formatARS(saldo.saldoPendiente)}
+              {formatARS(saldo.saldoPendiente)}
             </div>
 
             {saldo.pagos.length > 0 && (

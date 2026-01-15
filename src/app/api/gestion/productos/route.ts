@@ -20,6 +20,27 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
+    
+    // ✅ NUEVO: verificar si se pide "todos"
+    const all = searchParams.get('all') === 'true';
+
+    if (all) {
+      // Devuelve TODOS los productos sin paginación
+      const products = await Product.find()
+        .populate('proveedor')
+        .sort({ nombre: 1 });
+
+      return NextResponse.json(
+        { products },
+        {
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          },
+        }
+      );
+    }
+
+    // Comportamiento original (con paginación)
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '10', 10);
     const skip = (page - 1) * limit;

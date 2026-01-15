@@ -33,7 +33,6 @@ interface ProductoEnPresupuesto {
   producto: ProductoOption;
   deposito: string;
   cantidad: number;
-
   tipoPrecio: 'mayorista' | 'oferta';
 }
 
@@ -59,11 +58,13 @@ export default function NuevoPresupuestoPage() {
       try {
         const [resClientes, resProductos] = await Promise.all([
           fetch('/api/gestion/clientes'),
-          fetch('/api/gestion/productos')
+          fetch('/api/gestion/productos?all=true') // 👈 ¡Así de simple!
         ]);
 
         const dataClientes = await resClientes.json();
         const dataProductos = await resProductos.json();
+        // 👇 LOG 1: Ver la respuesta completa de productos
+        //console.log('🔍 Respuesta completa de /api/gestion/productos:', dataProductos);
 
         // Clientes OK (sí devuelve array)
         setClientes(dataClientes.filter((c: any) => c.activo));
@@ -89,6 +90,7 @@ export default function NuevoPresupuestoPage() {
   // Handlers (mismos que en pedidos)
   const productosFiltrados = productos.filter(p =>
     p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase())
+
   );
 
   const handleAgregarProducto = (producto: ProductoOption) => {
@@ -151,7 +153,7 @@ export default function NuevoPresupuestoPage() {
     try {
       const productosParaGuardar = productosEnPresupuesto.map(p => {
         const unidadesFisicas = p.cantidad; // ✅ NUEVA LÍNEA
-        
+
         return {
           producto: p.producto._id,
           nombre: p.producto.nombre,
@@ -306,7 +308,7 @@ export default function NuevoPresupuestoPage() {
           <div className="border-t border-gray-700 pt-4">
             <div className="flex justify-between items-center text-lg">
               <span className="text-gray-300">Total:</span>
-              <span className="text-white font-bold">${formatARS(total)}
+              <span className="text-white font-bold">{formatARS(total)}
               </span>
             </div>
           </div>

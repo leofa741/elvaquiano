@@ -258,7 +258,7 @@ export default function PedidosPage() {
                       <div className="text-sm text-gray-400 flex flex-wrap gap-3 mt-2">
                         <span className="flex items-center gap-1">
                           <FaDollarSign className="text-amber-400" />
-                          <span className="font-medium">${formatARS(pedido.total)}</span>
+                          <span className="font-medium">{formatARS(pedido.total)}</span>
                         </span>
                         {pedido.fechaEstimadaEntrega && (
                           <span className="flex items-center gap-1">
