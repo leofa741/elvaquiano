@@ -83,11 +83,11 @@ export default function AdminPage() {
         const usersData = await response.json();
         setUsers(usersData);
       } else {
-        throw new Error('Error al cargar los usuarios');
+        throw new Error('Error al cargar los usuarios intente salir y volver a entrar ');
       }
     } catch (error) {
       console.error('Error al cargar los usuarios:', error);
-      toast.error('Hubo un error al cargar los usuarios');
+      toast.error('Hubo un error al cargar los usuarios intente salir y volver a entrar ');
     } finally {
       setIsLoading(false);
     }

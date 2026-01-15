@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(users);
   } catch (error) {
     console.error('Error en GET:', error);
-    return NextResponse.json({ message: 'Error al obtener los usuarios' }, { status: 500 });
+    return NextResponse.json({ message: 'Error al obtener los usuarios intente salir y volver a entrar ' }, { status: 500 });
   }
 }
 
