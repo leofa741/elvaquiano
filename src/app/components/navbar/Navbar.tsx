@@ -19,26 +19,27 @@ import MobileSearchBar from '../mobilesearch/MobileSearchBar';
 import { faInstagram } from '@fortawesome/free-brands-svg-icons';
 import DarkModeToggle from '../darkmode/DarkModeToggle';
 
-
-
 export default function Navbar() {
   const { data: session } = useSession();
   const { userRole, setUserRole, userName, userEmail } = useContext(AuthContext);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDesktopCategoriesOpen, setIsDesktopCategoriesOpen] = useState(false);
   const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
-
-  const [categories, setCategories] = useState<
-    { name: string; slug: string }[]
-  >([]);
+  const [categories, setCategories] = useState<{ name: string; slug: string }[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
 
   useEffect(() => {
     fetch('/api/gestion/public/categorias')
-      .then(res => res.json())
-      .then(setCategories)
-      .catch(console.error);
+      .then((res) => res.json())
+      .then((data) => {
+        setCategories(data);
+        setLoadingCategories(false);
+      })
+      .catch(() => {
+        setLoadingCategories(false);
+        console.error('Error al cargar categorías');
+      });
   }, []);
-
 
   const handleLogout = () => {
     signOut({ callbackUrl: '/' });
@@ -67,10 +68,9 @@ export default function Navbar() {
 
   return (
     <nav className="bg-[#0b1f0b] text-white shadow-lg fixed top-0 w-full z-50">
-
       {/* Header principal */}
       <div className="max-w-7xl mx-auto px-4 lg:px-6 flex items-center justify-between py-2.5">
-        {/* Logo (izquierda en escritorio) */}
+        {/* Logo móvil */}
         <div className="lg:hidden">
           <Link href="/" onClick={closeMenu}>
             <Image
@@ -83,17 +83,15 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Buscador solo visible en pantallas grandes */}
+        {/* Buscador desktop */}
         <div className="hidden lg:flex flex-1 justify-start">
           <div className="w-full max-w-lg">
             <SearchBar />
           </div>
         </div>
 
-
-        {/* Logo centrado solo en escritorio */}
+        {/* Logo centrado desktop */}
         <div className="hidden lg:block absolute left-1/2 transform -translate-x-1/2">
-
           <Image
             src="/El-Vaquiano.png"
             alt="Distribuidora El Vaquiano"
@@ -101,15 +99,11 @@ export default function Navbar() {
             height={45}
             priority
           />
-
         </div>
 
-        {/* Íconos y auth (derecha) */}
+        {/* Íconos y auth */}
         <div className="flex items-center space-x-4">
-
           <DarkModeToggle />
-
-
 
           <a
             href="https://www.instagram.com/el_vaquiano"
@@ -137,17 +131,14 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Navegación principal - escritorio */}
+      {/* Navegación escritorio */}
       <div className="hidden lg:flex items-center h-12 bg-[#145214]">
         <div className="max-w-7xl mx-auto px-6 flex items-center space-x-6">
-          <Link
-            href="/"
-            className="font-medium hover:text-amber-200 transition-colors py-1"
-          >
+          <Link href="/" className="font-medium hover:text-amber-200 transition-colors py-1">
             Inicio
           </Link>
 
-          {/* Dropdown de categorías */}
+          {/* Dropdown categorías escritorio */}
           <div className="relative">
             <button
               onMouseEnter={() => setIsDesktopCategoriesOpen(true)}
@@ -165,21 +156,26 @@ export default function Navbar() {
             {isDesktopCategoriesOpen && (
               <div
                 onMouseLeave={() => setIsDesktopCategoriesOpen(false)}
-                className="absolute left-0 mt-1 w-56 bg-white shadow-xl rounded-lg py-2 z-50"
+                className="absolute left-0 mt-1 w-56 bg-white shadow-xl rounded-lg py-2 z-50 max-h-96 overflow-y-auto"
               >
-                {categories.map((cat) => (
-                  <Link
-                    key={cat.slug}
-                    href={`/categoria/${cat.slug}`}
-                    className="block px-4 py-2.5 text-gray-800 hover:bg-red-50 font-medium"
-                    onClick={closeMenu}
-                  >
-                    {cat.name}
-                  </Link>
-                ))}
+                {loadingCategories ? (
+                  <span className="block px-4 py-2 text-gray-500 italic">Cargando...</span>
+                ) : categories.length > 0 ? (
+                  categories.map((cat) => (
+                    <Link
+                      key={cat.slug}
+                      href={`/categoria/${cat.slug}`}
+                      className="block px-4 py-2.5 text-gray-800 hover:bg-[#e0f0e0] font-medium transition-colors"
+                      onClick={closeMenu}
+                    >
+                      {cat.name}
+                    </Link>
+                  ))
+                ) : (
+                  <span className="block px-4 py-2 text-gray-500 italic">Sin categorías</span>
+                )}
               </div>
             )}
-
           </div>
 
           <Link
@@ -189,10 +185,9 @@ export default function Navbar() {
             Contacto
           </Link>
 
-          {/* Auth en escritorio */}
+          {/* Auth escritorio */}
           {session ? (
             <div className="ml-auto flex items-center space-x-6">
-
               <Link
                 href="/profile"
                 className="flex items-center gap-1 hover:text-amber-200 transition-colors"
@@ -217,7 +212,7 @@ export default function Navbar() {
                     title="Subir Productos"
                   >
                     <FontAwesomeIcon icon={faBoxes} />
-                    <span className="text-sm">Gestion Operativa</span>
+                    <span className="text-sm">Gestión Operativa</span>
                   </Link>
                 </>
               )}
@@ -233,7 +228,6 @@ export default function Navbar() {
               <Link href="/login" className="text-sm hover:text-amber-200 transition-colors">
                 Iniciar
               </Link>
-             
             </div>
           )}
         </div>
@@ -241,24 +235,24 @@ export default function Navbar() {
 
       {/* Menú móvil */}
       {isMenuOpen && (
-        <div className="lg:hidden bg-red-700 py-4">
+        <div className="lg:hidden bg-[#145214] max-h-[calc(100vh-80px)] overflow-y-auto">
           <div className="max-w-7xl mx-auto px-4">
             <MobileSearchBar isMenuOpen={isMenuOpen} closeMenu={closeMenu} />
 
-            <div className="space-y-1 mt-4">
+            <div className="space-y-1 mt-4 pb-6">
               <Link
                 href="/"
                 onClick={closeMenu}
-                className="block py-2.5 px-4 rounded-lg hover:bg-red-600 transition-colors font-medium"
+                className="block py-2.5 px-4 rounded-lg hover:bg-[#0b3a0b] transition-colors font-medium"
               >
                 Inicio
               </Link>
 
-              {/* Categorías móviles */}
+              {/* Categorías móviles con scroll */}
               <div>
                 <button
                   onClick={() => setMobileCategoryOpen(!mobileCategoryOpen)}
-                  className="w-full flex justify-between items-center py-2.5 px-4 rounded-lg hover:bg-red-600 transition-colors font-medium"
+                  className="w-full flex justify-between items-center py-2.5 px-4 rounded-lg hover:bg-[#0b3a0b] transition-colors font-medium"
                 >
                   Categorías
                   <FontAwesomeIcon
@@ -267,18 +261,23 @@ export default function Navbar() {
                   />
                 </button>
                 {mobileCategoryOpen && (
-                  <div className="mt-1 space-y-1 pl-4">
-                    {categories.map((cat) => (
-                      <Link
-                        key={cat.slug}
-                        href={`/categoria/${cat.slug}`}
-                        onClick={closeMenu}
-                        className="block py-2 px-2 rounded hover:bg-red-600 transition-colors"
-                      >
-                        {cat.name}
-                      </Link>
-                    ))}
-
+                  <div className="mt-1 pl-4 max-h-60 overflow-y-auto">
+                    {loadingCategories ? (
+                      <p className="py-2 text-gray-300 italic">Cargando...</p>
+                    ) : categories.length > 0 ? (
+                      categories.map((cat) => (
+                        <Link
+                          key={cat.slug}
+                          href={`/categoria/${cat.slug}`}
+                          onClick={closeMenu}
+                          className="block py-2 px-2 rounded hover:bg-[#0b3a0b] transition-colors"
+                        >
+                          {cat.name}
+                        </Link>
+                      ))
+                    ) : (
+                      <p className="py-2 text-gray-300 italic">Sin categorías</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -286,7 +285,7 @@ export default function Navbar() {
               <Link
                 href="/contact"
                 onClick={closeMenu}
-                className="block py-2.5 px-4 rounded-lg hover:bg-red-600 transition-colors font-medium"
+                className="block py-2.5 px-4 rounded-lg hover:bg-[#0b3a0b] transition-colors font-medium"
               >
                 Contacto
               </Link>
@@ -296,7 +295,7 @@ export default function Navbar() {
                   <Link
                     href="/profile"
                     onClick={closeMenu}
-                    className="flex items-center py-2.5 px-4 rounded-lg hover:bg-red-600 transition-colors"
+                    className="flex items-center py-2.5 px-4 rounded-lg hover:bg-[#0b3a0b] transition-colors"
                   >
                     <FontAwesomeIcon icon={faUser} className="mr-3" /> Perfil
                   </Link>
@@ -305,14 +304,14 @@ export default function Navbar() {
                       <Link
                         href="/admin"
                         onClick={closeMenu}
-                        className="flex items-center py-2.5 px-4 rounded-lg hover:bg-red-600 transition-colors"
+                        className="flex items-center py-2.5 px-4 rounded-lg hover:bg-[#0b3a0b] transition-colors"
                       >
                         <FontAwesomeIcon icon={faUser} className="mr-3" /> Panel Admin
                       </Link>
                       <Link
                         href="/admin/categorias"
                         onClick={closeMenu}
-                        className="flex items-center py-2.5 px-4 rounded-lg hover:bg-red-600 transition-colors"
+                        className="flex items-center py-2.5 px-4 rounded-lg hover:bg-[#0b3a0b] transition-colors"
                       >
                         <FontAwesomeIcon icon={faBoxes} className="mr-3" /> Subir Productos
                       </Link>
@@ -323,7 +322,7 @@ export default function Navbar() {
                       closeMenu();
                       handleLogout();
                     }}
-                    className="w-full text-left py-2.5 px-4 rounded-lg hover:bg-red-600 transition-colors"
+                    className="w-full text-left py-2.5 px-4 rounded-lg hover:bg-[#0b3a0b] transition-colors"
                   >
                     Cerrar sesión
                   </button>
@@ -333,16 +332,15 @@ export default function Navbar() {
                   <Link
                     href="/login"
                     onClick={closeMenu}
-                    className="block py-2.5 px-4 rounded-lg bg-white text-red-700 font-medium text-center"
+                    className="block py-2.5 px-4 rounded-lg bg-white text-[#145214] font-medium text-center"
                   >
                     Iniciar sesión
                   </Link>
-              
                 </div>
               )}
 
               {session && (
-                <div className="mt-4 pt-3 border-t border-red-500 text-sm opacity-90 px-4">
+                <div className="mt-4 pt-3 border-t border-[#0b3a0b] text-sm opacity-90 px-4">
                   <p>{role === 'admin' ? 'Administrador' : 'Cliente'}</p>
                   <p className="truncate">{name || email}</p>
                 </div>
