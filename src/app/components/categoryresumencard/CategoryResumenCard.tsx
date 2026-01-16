@@ -10,7 +10,8 @@ const CategoryResumenCard = ({
   desde: number;
 }) => (
   <a
-    href={`/categoria/${categoria}`}
+    href={`/categoria/${categoria.toLowerCase()}`}
+
     className="group block dark:bg-gray-800 rounded-xl shadow-md overflow-hidden transition-all hover:shadow-xl hover:-translate-y-1"
   >
     <div className="h-40 bg-gradient-to-br from-amber-600 to-red-600 flex items-center justify-center">
