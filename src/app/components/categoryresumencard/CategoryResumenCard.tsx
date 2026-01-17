@@ -1,5 +1,16 @@
 import { formatARS } from "@/app/lib/formatcurrenci";
 
+
+// Función para convertir texto en slug amigable para URLs
+const slugify = (str: string): string =>
+  str
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')        // elimina caracteres especiales (manteniendo letras, números, espacios y guiones)
+    .replace(/[\s_-]+/g, '-')        // convierte espacios y secuencias de guiones/espacios en un solo guion
+    .replace(/^-+|-+$/g, '');    
+
+
 const CategoryResumenCard = ({
   categoria,
   total,
@@ -10,7 +21,7 @@ const CategoryResumenCard = ({
   desde: number;
 }) => (
   <a
-    href={`/categoria/${categoria.toLowerCase()}`}
+    href={`/categoria/${slugify(categoria)}`}
 
     className="group block dark:bg-gray-800 rounded-xl shadow-md overflow-hidden transition-all hover:shadow-xl hover:-translate-y-1"
   >
