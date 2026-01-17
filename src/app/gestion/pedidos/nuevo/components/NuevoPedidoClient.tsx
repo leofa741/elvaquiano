@@ -10,7 +10,6 @@ import Swal from 'sweetalert2';
 import ProductoLinea from './ProductoLinea';
 import { formatARS } from '@/app/lib/formatcurrenci';
 
-
 // Tipos
 interface ClienteOption {
   _id: string;
@@ -33,16 +32,14 @@ interface ProductoEnPedido {
   producto: ProductoOption;
   deposito: string;
   cantidad: number;
-  tipoPrecio: 'mayorista' | 'oferta' ;
+  tipoPrecio: 'mayorista' | 'oferta';
 }
 
-// ✅ Recibimos searchParams como Promise
 export default function NuevoPedidoClient({
   searchParams,
 }: {
   searchParams: Promise<{ clienteId?: string }>;
 }) {
-  // ✅ Usamos `use()` para leer la Promise (solo funciona dentro de <Suspense>)
   const { clienteId: clienteIdFromUrl = '' } = use(searchParams);
 
   const isAuthorized = useAdminAuthorization();
@@ -66,14 +63,13 @@ export default function NuevoPedidoClient({
       try {
         const [resClientes, resProductos] = await Promise.all([
           fetch('/api/gestion/clientes'),
-          fetch('/api/gestion/productos')
+          fetch('/api/gestion/productos?all=true')
         ]);
 
         const dataClientes = await resClientes.json();
         const dataProductos = await resProductos.json();
 
         setClientes(dataClientes.filter((c: any) => c.activo));
-
         setProductos(
           dataProductos.products?.filter((p: any) =>
             p.stock?.some((s: any) => s.cantidad > 0)
@@ -113,20 +109,42 @@ export default function NuevoPedidoClient({
 
   if (!isAuthorized) return null;
 
-  // Filtros y handlers
   const productosFiltrados = productos.filter(p =>
     p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase())
   );
 
+  // ✨ NUEVA LÓGICA: Agregar o incrementar
   const handleAgregarProducto = (producto: ProductoOption) => {
     if (!producto.stock.length) {
       Swal.fire('Sin stock', `El producto "${producto.nombre}" no tiene stock disponible.`, 'warning');
       return;
     }
-    setProductosEnPedido(prev => [
-      ...prev,
-      { producto, deposito: producto.stock[0].deposito, cantidad: 1, tipoPrecio: 'mayorista' }
-    ]);
+
+    setProductosEnPedido(prev => {
+      const existe = prev.findIndex(item => item.producto._id === producto._id);
+      
+      if (existe !== -1) {
+        // Si ya existe, incrementamos la cantidad
+        const nuevo = [...prev];
+        nuevo[existe] = {
+          ...nuevo[existe],
+          cantidad: nuevo[existe].cantidad + 1
+        };
+        return nuevo;
+      } else {
+        // Si no existe, lo agregamos al inicio
+        return [
+          {
+            producto,
+            deposito: producto.stock[0].deposito,
+            cantidad: 1,
+            tipoPrecio: 'mayorista'
+          },
+          ...prev
+        ];
+      }
+    });
+
     setBusquedaProducto('');
   };
 
@@ -148,9 +166,18 @@ export default function NuevoPedidoClient({
   }, 0);
 
   const validate = () => {
-    if (!clienteId) { Swal.fire('Atención', 'Debe seleccionar un cliente.', 'warning'); return false; }
-    if (!deposito) { Swal.fire('Atención', 'Debe seleccionar un depósito de origen.', 'warning'); return false; }
-    if (!productosEnPedido.length) { Swal.fire('Atención', 'Debe agregar al menos un producto.', 'warning'); return false; }
+    if (!clienteId) {
+      Swal.fire('Atención', 'Debe seleccionar un cliente.', 'warning');
+      return false;
+    }
+    if (!deposito) {
+      Swal.fire('Atención', 'Debe seleccionar un depósito de origen.', 'warning');
+      return false;
+    }
+    if (!productosEnPedido.length) {
+      Swal.fire('Atención', 'Debe agregar al menos un producto.', 'warning');
+      return false;
+    }
     return true;
   };
 
@@ -278,7 +305,7 @@ export default function NuevoPedidoClient({
                   >
                     <div className="font-medium text-white">{producto.nombre}</div>
                     <div className="text-sm text-gray-300">
-                      {producto.unidad} • Min: ${producto.precioOferta ? formatARS(producto.precioOferta) : 'N/A'} • May: ${formatARS(producto.precioMayorista)}
+                      {producto.unidad} • Min: {producto.precioOferta ? formatARS(producto.precioOferta) : 'N/A'} • May: {formatARS(producto.precioMayorista)}
                     </div>
                     <div className="text-xs text-gray-400 mt-1">
                       Stock: {producto.stock.map(s => `${s.deposito} (${s.cantidad})`).join(', ')}
@@ -295,7 +322,7 @@ export default function NuevoPedidoClient({
               <h3 className="text-lg font-medium text-amber-400">Productos seleccionados</h3>
               {productosEnPedido.map((item, index) => (
                 <ProductoLinea
-                  key={index}
+                  key={`${item.producto._id}-${index}`}
                   producto={item.producto}
                   deposito={item.deposito}
                   cantidad={item.cantidad}
@@ -323,7 +350,7 @@ export default function NuevoPedidoClient({
           <div className="border-t border-gray-700 pt-4">
             <div className="flex justify-between items-center text-lg">
               <span className="text-gray-300">Total:</span>
-              <span className="text-white font-bold">${total.toFixed(2)}</span>
+              <span className="text-white font-bold">{formatARS(total)}</span>
             </div>
           </div>
 

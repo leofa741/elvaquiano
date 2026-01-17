@@ -10,8 +10,6 @@ import Swal from 'sweetalert2';
 import ProductoLinea from '../../pedidos/nuevo/components/ProductoLinea';
 import { formatARS } from '@/app/lib/formatcurrenci';
 
-
-
 // Tipos
 interface ClienteOption {
   _id: string;
@@ -26,16 +24,15 @@ interface ProductoOption {
   unidad: string;
   precioOferta: number;
   precioMayorista: number;
-
   stock: Array<{ deposito: string; cantidad: number }>;
 }
+
 interface ProductoEnPresupuesto {
   producto: ProductoOption;
   deposito: string;
   cantidad: number;
   tipoPrecio: 'mayorista' | 'oferta';
 }
-
 
 export default function NuevoPresupuestoPage() {
   const isAuthorized = useAdminAuthorization();
@@ -58,55 +55,63 @@ export default function NuevoPresupuestoPage() {
       try {
         const [resClientes, resProductos] = await Promise.all([
           fetch('/api/gestion/clientes'),
-          fetch('/api/gestion/productos?all=true') // 👈 ¡Así de simple!
+          fetch('/api/gestion/productos?all=true')
         ]);
 
         const dataClientes = await resClientes.json();
         const dataProductos = await resProductos.json();
-        // 👇 LOG 1: Ver la respuesta completa de productos
-        //console.log('🔍 Respuesta completa de /api/gestion/productos:', dataProductos);
 
-        // Clientes OK (sí devuelve array)
         setClientes(dataClientes.filter((c: any) => c.activo));
-
-        // Productos viene dentro de dataProductos.products
         setProductos(
-          dataProductos.products.filter((p: any) =>
+          dataProductos.products?.filter((p: any) =>
             p.stock?.some((s: any) => s.cantidad > 0)
-          )
+          ) || []
         );
-
       } catch (err) {
         Swal.fire('Error', 'No se pudieron cargar clientes o productos', 'error');
       }
     };
-
 
     loadData();
   }, [isAuthorized]);
 
   if (!isAuthorized) return null;
 
-  // Handlers (mismos que en pedidos)
   const productosFiltrados = productos.filter(p =>
     p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase())
-
   );
 
+  // ✨ NUEVA LÓGICA: Evita duplicados + agrega al inicio
   const handleAgregarProducto = (producto: ProductoOption) => {
     if (producto.stock.length === 0) {
       Swal.fire('Sin stock', `El producto "${producto.nombre}" no tiene stock disponible.`, 'warning');
       return;
     }
-    setProductosEnPresupuesto(prev => [
-      {
-        producto,
-        deposito: producto.stock[0].deposito,
-        cantidad: 1,
-        tipoPrecio: 'mayorista'
-      },
-      ...prev
-    ]);
+
+    setProductosEnPresupuesto(prev => {
+      const existeIndex = prev.findIndex(item => item.producto._id === producto._id);
+
+      if (existeIndex !== -1) {
+        // Ya existe: incrementar cantidad
+        const nuevo = [...prev];
+        nuevo[existeIndex] = {
+          ...nuevo[existeIndex],
+          cantidad: nuevo[existeIndex].cantidad + 1
+        };
+        return nuevo;
+      } else {
+        // No existe: agregar al inicio
+        return [
+          {
+            producto,
+            deposito: producto.stock[0].deposito,
+            cantidad: 1,
+            tipoPrecio: 'mayorista'
+          },
+          ...prev
+        ];
+      }
+    });
 
     setBusquedaProducto('');
   };
@@ -152,7 +157,7 @@ export default function NuevoPresupuestoPage() {
 
     try {
       const productosParaGuardar = productosEnPresupuesto.map(p => {
-        const unidadesFisicas = p.cantidad; // ✅ NUEVA LÍNEA
+        const unidadesFisicas = p.cantidad;
 
         return {
           producto: p.producto._id,
@@ -160,7 +165,7 @@ export default function NuevoPresupuestoPage() {
           unidad: p.producto.unidad,
           deposito: p.deposito,
           cantidad: p.cantidad,
-          unidadesFisicas, // ✅ NUEVA LÍNEA
+          unidadesFisicas,
           tipoPrecio: p.tipoPrecio,
           origen: origen,
           precioAplicado: p.tipoPrecio === 'mayorista' ? p.producto.precioMayorista : p.producto.precioOferta,
@@ -253,7 +258,6 @@ export default function NuevoPresupuestoPage() {
             </select>
           </div>
 
-
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Agregar productos
@@ -279,8 +283,7 @@ export default function NuevoPresupuestoPage() {
                   >
                     <div className="font-medium text-white">{producto.nombre}</div>
                     <div className="text-sm text-gray-300">
-                      {producto.unidad} • ${formatARS(producto.precioOferta)} (oferta) • ${formatARS(producto.precioMayorista)} (mayorista)
-
+                      {producto.unidad} • {formatARS(producto.precioOferta)} (oferta) • {formatARS(producto.precioMayorista)} (mayorista)
                     </div>
                   </div>
                 ))}
@@ -293,7 +296,7 @@ export default function NuevoPresupuestoPage() {
               <h3 className="text-lg font-medium text-amber-400">Productos seleccionados</h3>
               {productosEnPresupuesto.map((item, index) => (
                 <ProductoLinea
-                  key={index}
+                  key={`${item.producto._id}-${index}`}
                   producto={item.producto}
                   deposito={item.deposito}
                   cantidad={item.cantidad}
@@ -308,8 +311,7 @@ export default function NuevoPresupuestoPage() {
           <div className="border-t border-gray-700 pt-4">
             <div className="flex justify-between items-center text-lg">
               <span className="text-gray-300">Total:</span>
-              <span className="text-white font-bold">{formatARS(total)}
-              </span>
+              <span className="text-white font-bold">{formatARS(total)}</span>
             </div>
           </div>
 
