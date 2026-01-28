@@ -5,7 +5,7 @@ import { formatARS } from "@/app/lib/formatcurrenci";
 const slugify = (str: string): string =>
   str
     .normalize("NFD")                    // separa letras de acentos
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")  // elimina acentos
     .toLowerCase()
     .trim()
     .replace(/[^\w\s-]/g, '')        // elimina caracteres especiales (manteniendo letras, números, espacios y guiones)
