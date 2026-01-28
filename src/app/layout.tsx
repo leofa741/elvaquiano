@@ -12,8 +12,6 @@ import { Analytics } from "@vercel/analytics/react"
 import Loader from "./components/loading/Loader";
 
 
-
-
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
