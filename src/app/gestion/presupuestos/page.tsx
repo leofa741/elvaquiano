@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import { FaFileInvoice, FaPlus, FaEye } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 
@@ -27,48 +26,65 @@ const ESTADO_LABEL: Record<string, string> = {
 
 export default function PresupuestosPage() {
   const auth = useAdminAuthorization();
-  const router = useRouter();
 
-  const [loading, setLoading] = useState(false);
   const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Cargar datos solo cuando autorizado
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+  /* ===============================
+     FETCH CENTRALIZADO
+  =============================== */
+  const fetchPresupuestos = useCallback(async () => {
+    if (auth !== true) return;
+
+    try {
+      setLoading(true);
+
+      const res = await fetch(
+        `/api/gestion/presupuestos?page=${page}&limit=10`,
+        { cache: 'no-store' }
+      );
+
+      if (!res.ok) throw new Error('Error al cargar presupuestos');
+
+      const { data, totalPages } = await res.json();
+
+      setPresupuestos(data);
+      setTotalPages(totalPages);
+    } catch (err: any) {
+      console.error(err);
+      Swal.fire(
+        'Error',
+        err.message || 'No se pudieron cargar los presupuestos',
+        'error'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [auth, page]);
+
+  /* ===============================
+     CARGA INICIAL + POLLING
+  =============================== */
   useEffect(() => {
     if (auth !== true) return;
 
-    setLoading(true);
-    const fetchPresupuestos = async () => {
-      try {
-        const res = await fetch(`/api/gestion/presupuestos?page=${page}&limit=10`, {
-          cache: 'no-store',
-        });
-
-        if (!res.ok) throw new Error('Error al cargar');
-
-        const { data, totalPages: total } = await res.json();
-        setPresupuestos(data);
-        setTotalPages(total);
-      } catch (err: any) {
-        Swal.fire(
-          'Error',
-          err.message || 'No se pudieron cargar los presupuestos',
-          'error'
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    // carga inicial
     fetchPresupuestos();
-  }, [auth, page]);
 
+    // 🔁 polling cada 15 segundos
+    const interval = setInterval(() => {
+      fetchPresupuestos();
+    }, 60_000); //
 
+    return () => clearInterval(interval);
+  }, [auth, fetchPresupuestos]);
 
-
-  // Mientras valida la sesión
+  /* ===============================
+     ESTADOS DE AUTORIZACIÓN
+  =============================== */
   if (auth === null) {
     return (
       <div className="p-6 text-center text-gray-400 min-h-screen flex items-center justify-center">
@@ -77,14 +93,14 @@ export default function PresupuestosPage() {
     );
   }
 
-  // Si no autorizado, no renderizar (aunque ya redirige)
-  if (auth === false) {
-    return null;
-  }
+  if (auth === false) return null;
 
-  // ✅ Solo llega aquí si auth === true
+  /* ===============================
+     RENDER
+  =============================== */
   return (
     <div className="p-4 sm:p-6 md:p-8 min-h-screen">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
@@ -95,7 +111,10 @@ export default function PresupuestosPage() {
             Crear, imprimir y convertir cotizaciones en pedidos.
           </p>
           <p className="text-gray-400 mt-1">
-            volver a la sección de <a href="/gestion" className="text-amber-400 underline">Gestión</a>.
+            Volver a{' '}
+            <Link href="/gestion" className="text-amber-400 underline">
+              Gestión
+            </Link>
           </p>
         </div>
 
@@ -108,6 +127,7 @@ export default function PresupuestosPage() {
         </Link>
       </div>
 
+      {/* Listado */}
       <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
         {loading ? (
           <div className="p-6 text-center text-gray-300">
@@ -115,13 +135,7 @@ export default function PresupuestosPage() {
           </div>
         ) : presupuestos.length === 0 ? (
           <div className="p-6 text-center text-gray-400">
-            No hay presupuestos registrados.{' '}
-            <Link
-              href="/gestion/presupuestos/nuevo"
-              className="text-amber-400 hover:underline"
-            >
-              Crear uno nuevo
-            </Link>
+            No hay presupuestos registrados.
           </div>
         ) : (
           <div className="divide-y divide-gray-700">
@@ -138,19 +152,20 @@ export default function PresupuestosPage() {
                     </div>
                   </div>
 
-
-
                   <div className="flex items-center gap-3">
-                    {p.origen === 'online' && (
-                      <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded">
+                    {/* Origen */}
+                    {(p.origen ?? 'mostrador') === 'online' && (
+                      <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">
                         Online
                       </span>
                     )}
 
+                    {/* Estado */}
                     <span className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded">
                       {ESTADO_LABEL[p.estado] || p.estado}
                     </span>
 
+                    {/* Ver */}
                     <Link
                       href={`/gestion/presupuestos/imprimir/${p._id}`}
                       className="text-amber-400 hover:text-amber-300 text-sm flex items-center gap-1"
@@ -166,6 +181,7 @@ export default function PresupuestosPage() {
         )}
       </div>
 
+      {/* Paginación */}
       {totalPages > 1 && (
         <div className="flex justify-center gap-2 p-4">
           <button
@@ -175,9 +191,11 @@ export default function PresupuestosPage() {
           >
             ← Anterior
           </button>
+
           <span className="px-3 py-1 text-gray-300">
             Página {page} de {totalPages}
           </span>
+
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
@@ -187,7 +205,6 @@ export default function PresupuestosPage() {
           </button>
         </div>
       )}
-
     </div>
   );
 }
