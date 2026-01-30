@@ -44,7 +44,7 @@ export default function PresupuestosPage() {
     if (typeof window === 'undefined') return;
 
     audioRef.current = new Audio('/sounds/new-notification-08-352461.mp3');
-    audioRef.current.volume = 0.6;
+    audioRef.current.volume = 0.8;
 
     const unlock = () => {
       audioRef.current
@@ -232,7 +232,7 @@ export default function PresupuestosPage() {
                     <div className="flex gap-3 items-center">
                       {esNuevo && (
                         <span className="bg-amber-500 text-black text-xs px-2 py-0.5 rounded font-semibold">
-                          🆕
+                          🆕 Nuevo
                         </span>
                       )}
 
