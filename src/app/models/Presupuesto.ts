@@ -66,6 +66,10 @@ const PresupuestoSchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: 'Pedido'
   },
+  vistoPorAdmin: {
+    type: Boolean,
+    default: false
+  },
   activo: { type: Boolean, default: true }
 }, {
   timestamps: true

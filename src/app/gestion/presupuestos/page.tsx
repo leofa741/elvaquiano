@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import { FaFileInvoice, FaPlus, FaEye } from 'react-icons/fa';
@@ -13,8 +13,8 @@ interface Presupuesto {
   total: number;
   estado: string;
   createdAt: string;
-  pedidoAsociado?: string;
   origen?: string;
+  vistoPorAdmin: boolean;
 }
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -34,51 +34,35 @@ export default function PresupuestosPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const [vistos, setVistos] = useState<Set<string>>(new Set());
-  const [nuevos, setNuevos] = useState<Set<string>>(new Set());
-
-  const [ultimoConteo, setUltimoConteo] = useState(0);
-  const [audioUnlocked, setAudioUnlocked] = useState(false);
-
-  const audioRef = useState<HTMLAudioElement | null>(
-    typeof window !== 'undefined'
-      ? new Audio('/sounds/new-notification-08-352461.mp3')
-      : null
-  )[0];
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const prevNuevosRef = useRef<number>(0);
 
   /* ===============================
-     DESBLOQUEAR AUDIO (1 CLICK)
+     INIT AUDIO (1 CLICK UNLOCK)
   =============================== */
   useEffect(() => {
-    if (!audioRef) return;
+    if (typeof window === 'undefined') return;
 
-    const unlockAudio = () => {
-      audioRef.volume = 0.6;
-      audioRef
-        .play()
+    audioRef.current = new Audio('/sounds/new-notification-08-352461.mp3');
+    audioRef.current.volume = 0.6;
+
+    const unlock = () => {
+      audioRef.current
+        ?.play()
         .then(() => {
-          audioRef.pause();
-          audioRef.currentTime = 0;
-          setAudioUnlocked(true);
+          audioRef.current?.pause();
+          audioRef.current!.currentTime = 0;
         })
         .catch(() => {});
-      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('click', unlock);
     };
 
-    window.addEventListener('click', unlockAudio);
-    return () => window.removeEventListener('click', unlockAudio);
-  }, [audioRef]);
-
-  /* ===============================
-     CARGA INICIAL DE VISTOS
-  =============================== */
-  useEffect(() => {
-    const saved = localStorage.getItem('presupuestos_vistos');
-    if (saved) setVistos(new Set(JSON.parse(saved)));
+    window.addEventListener('click', unlock);
+    return () => window.removeEventListener('click', unlock);
   }, []);
 
   /* ===============================
-     FETCH CENTRALIZADO
+     FETCH
   =============================== */
   const fetchPresupuestos = useCallback(async () => {
     if (auth !== true) return;
@@ -98,44 +82,24 @@ export default function PresupuestosPage() {
       setPresupuestos(data);
       setTotalPages(totalPages);
 
-      const nuevosIds = data
-        .map((p: Presupuesto) => p._id)
-        .filter((id: string) => !vistos.has(id));
+      const nuevosActuales = data.filter(
+        (p: Presupuesto) => !p.vistoPorAdmin
+      ).length;
 
-      if (audioUnlocked && nuevosIds.length > ultimoConteo && ultimoConteo !== 0) {
-        audioRef!.currentTime = 0;
-        audioRef!.play().catch(() => {});
+      if (
+        prevNuevosRef.current !== 0 &&
+        nuevosActuales > prevNuevosRef.current
+      ) {
+        audioRef.current?.play().catch(() => {});
       }
 
-      setUltimoConteo(nuevosIds.length);
-      setNuevos(new Set(nuevosIds));
+      prevNuevosRef.current = nuevosActuales;
     } catch (err: any) {
       Swal.fire('Error', err.message || 'No se pudieron cargar', 'error');
     } finally {
       setLoading(false);
     }
-  }, [auth, page, vistos, ultimoConteo, audioUnlocked, audioRef]);
-
-  /* ===============================
-     MARCAR COMO VISTO
-  =============================== */
-  const marcarComoVisto = (id: string) => {
-    setVistos(prev => {
-      const updated = new Set(prev);
-      updated.add(id);
-      localStorage.setItem(
-        'presupuestos_vistos',
-        JSON.stringify(Array.from(updated))
-      );
-      return updated;
-    });
-
-    setNuevos(prev => {
-      const updated = new Set(prev);
-      updated.delete(id);
-      return updated;
-    });
-  };
+  }, [auth, page]);
 
   /* ===============================
      REFRESH SOLO CON FOCO
@@ -167,7 +131,24 @@ export default function PresupuestosPage() {
   }, [auth, fetchPresupuestos]);
 
   /* ===============================
-     ESTADOS DE AUTORIZACIÓN
+     MARCAR COMO VISTO (DB)
+  =============================== */
+  const marcarComoVisto = async (id: string) => {
+    try {
+      await fetch(`/api/gestion/presupuestos/${id}/visto`, {
+        method: 'PATCH',
+      });
+
+      setPresupuestos(prev =>
+        prev.map(p =>
+          p._id === id ? { ...p, vistoPorAdmin: true } : p
+        )
+      );
+    } catch {}
+  };
+
+  /* ===============================
+     AUTH STATES
   =============================== */
   if (auth === null)
     return (
@@ -178,28 +159,30 @@ export default function PresupuestosPage() {
 
   if (auth === false) return null;
 
+  const nuevos = presupuestos.filter(p => !p.vistoPorAdmin);
+
   /* ===============================
      RENDER
   =============================== */
   return (
     <div className="p-4 sm:p-6 md:p-8 min-h-screen">
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="flex justify-between items-center mb-6">
         <div>
           <AnimatePresence>
-            {nuevos.size > 0 && (
+            {nuevos.length > 0 && (
               <motion.div
-                initial={{ opacity: 0, y: -8 }}
+                initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 className="mb-2 inline-flex bg-amber-500 text-black px-3 py-1 rounded-full text-sm font-semibold"
               >
-                🆕 {nuevos.size} nuevo{nuevos.size > 1 ? 's' : ''}
+                🆕 {nuevos.length} nuevo{nuevos.length > 1 ? 's' : ''}
               </motion.div>
             )}
           </AnimatePresence>
 
-          <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-3xl font-bold text-white flex items-center gap-2">
             <FaFileInvoice className="text-amber-400" />
             Gestión de Presupuestos
           </h1>
@@ -209,8 +192,7 @@ export default function PresupuestosPage() {
           href="/gestion/presupuestos/nuevo"
           className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
         >
-          <FaPlus />
-          Nuevo Presupuesto
+          <FaPlus /> Nuevo
         </Link>
       </div>
 
@@ -223,14 +205,13 @@ export default function PresupuestosPage() {
         ) : (
           <div className="divide-y divide-gray-700">
             {presupuestos.map(p => {
-              const esNuevo = nuevos.has(p._id);
+              const esNuevo = !p.vistoPorAdmin;
 
               return (
                 <motion.div
                   key={p._id}
                   initial={esNuevo ? { opacity: 0, scale: 0.97 } : false}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.25 }}
                   className={`p-4 ${
                     esNuevo
                       ? 'bg-amber-900/20 border-l-4 border-amber-400'
