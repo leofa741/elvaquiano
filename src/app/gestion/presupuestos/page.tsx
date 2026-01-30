@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import { FaFileInvoice, FaPlus, FaEye } from 'react-icons/fa';
 import Swal from 'sweetalert2';
+import { motion, AnimatePresence } from 'framer-motion';
+
 
 interface Presupuesto {
   _id: string;
@@ -33,6 +35,27 @@ export default function PresupuestosPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+  const [vistos, setVistos] = useState<Set<string>>(new Set());
+  const [nuevos, setNuevos] = useState<Set<string>>(new Set());
+
+  const [ultimoConteo, setUltimoConteo] = useState(0);
+  const audioRef = useState<HTMLAudioElement | null>(
+    typeof Audio !== 'undefined'
+      ? new Audio('/sounds/new-notification-08-352461.mp3')
+      : null
+  )[0];
+
+
+  /* ===============================
+     CARGA INICIAL DE VISTOS
+  =============================== */
+  useEffect(() => {
+    const saved = localStorage.getItem('presupuestos_vistos');
+    if (saved) {
+      setVistos(new Set(JSON.parse(saved)));
+    }
+  }, []);
+
   /* ===============================
      FETCH CENTRALIZADO
   =============================== */
@@ -53,8 +76,20 @@ export default function PresupuestosPage() {
 
       setPresupuestos(data);
       setTotalPages(totalPages);
+
+      // 🆕 detectar nuevos
+      const nuevosIds = data
+        .map((p: Presupuesto) => p._id)
+        .filter((id: string) => !vistos.has(id));
+
+      if (nuevosIds.length > ultimoConteo && ultimoConteo !== 0) {
+        audioRef?.play().catch(() => { });
+      }
+
+      setUltimoConteo(nuevosIds.length);
+      setNuevos(new Set(nuevosIds));
+
     } catch (err: any) {
-      console.error(err);
       Swal.fire(
         'Error',
         err.message || 'No se pudieron cargar los presupuestos',
@@ -63,7 +98,28 @@ export default function PresupuestosPage() {
     } finally {
       setLoading(false);
     }
-  }, [auth, page]);
+  }, [auth, page, vistos]);
+
+  /* ===============================
+     MARCAR COMO VISTO
+  =============================== */
+  const marcarComoVisto = (id: string) => {
+    setVistos(prev => {
+      const updated = new Set(prev);
+      updated.add(id);
+      localStorage.setItem(
+        'presupuestos_vistos',
+        JSON.stringify(Array.from(updated))
+      );
+      return updated;
+    });
+
+    setNuevos(prev => {
+      const updated = new Set(prev);
+      updated.delete(id);
+      return updated;
+    });
+  };
 
   /* ===============================
      SOLO REFRESCA SI EL ADMIN MIRA
@@ -74,7 +130,7 @@ export default function PresupuestosPage() {
     let interval: NodeJS.Timeout | null = null;
 
     const start = () => {
-      fetchPresupuestos(); // 🔥 inmediato al entrar o volver
+      fetchPresupuestos();
       interval = setInterval(fetchPresupuestos, 120_000); // ⏱ 2 minutos
     };
 
@@ -85,10 +141,7 @@ export default function PresupuestosPage() {
       }
     };
 
-    // Primera carga
     start();
-
-    // Eventos de foco
     window.addEventListener('focus', start);
     window.addEventListener('blur', stop);
 
@@ -120,6 +173,19 @@ export default function PresupuestosPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
+          <AnimatePresence>
+            {nuevos.size > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="mt-2 inline-flex items-center gap-2 bg-amber-500 text-black px-3 py-1 rounded-full text-sm font-semibold"
+              >
+                🆕 {nuevos.size} nuevo{nuevos.size > 1 ? 's' : ''}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
             <FaFileInvoice className="text-amber-400" />
             Gestión de Presupuestos
@@ -156,44 +222,58 @@ export default function PresupuestosPage() {
           </div>
         ) : (
           <div className="divide-y divide-gray-700">
-            {presupuestos.map((p) => (
-              <div key={p._id} className="p-4 hover:bg-gray-750 transition">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                  <div>
-                    <div className="font-medium text-white">
-                      {p.cliente.razonSocial}
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      ${p.total.toFixed(2)} •{' '}
-                      {new Date(p.createdAt).toLocaleDateString('es-AR')}
-                    </div>
-                  </div>
+            {presupuestos.map((p) => {
+              const esNuevo = nuevos.has(p._id);
 
-                  <div className="flex items-center gap-3">
-                    {/* Origen (default seguro) */}
-                    {(p.origen ?? 'mostrador') === 'online' && (
-                      <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">
-                        Online
+              return (
+                <div
+                  key={p._id}
+                  className={`p-4 transition ${esNuevo
+                    ? 'bg-amber-900/20 border-l-4 border-amber-400'
+                    : 'hover:bg-gray-750'
+                    }`}
+                >
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <div>
+                      <div className="font-medium text-white">
+                        {p.cliente.razonSocial}
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        ${p.total.toFixed(2)} •{' '}
+                        {new Date(p.createdAt).toLocaleDateString('es-AR')}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {esNuevo && (
+                        <span className="text-xs bg-amber-500 text-black px-2 py-0.5 rounded font-semibold">
+                          🆕 Nuevo
+                        </span>
+                      )}
+
+                      {(p.origen ?? 'mostrador') === 'online' && (
+                        <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">
+                          Online
+                        </span>
+                      )}
+
+                      <span className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded">
+                        {ESTADO_LABEL[p.estado] || p.estado}
                       </span>
-                    )}
 
-                    {/* Estado */}
-                    <span className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded">
-                      {ESTADO_LABEL[p.estado] || p.estado}
-                    </span>
-
-                    {/* Ver */}
-                    <Link
-                      href={`/gestion/presupuestos/imprimir/${p._id}`}
-                      className="text-amber-400 hover:text-amber-300 text-sm flex items-center gap-1"
-                    >
-                      <FaEye />
-                      Ver
-                    </Link>
+                      <Link
+                        href={`/gestion/presupuestos/imprimir/${p._id}`}
+                        onClick={() => marcarComoVisto(p._id)}
+                        className="text-amber-400 hover:text-amber-300 text-sm flex items-center gap-1"
+                      >
+                        <FaEye />
+                        Ver
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -202,7 +282,7 @@ export default function PresupuestosPage() {
       {totalPages > 1 && (
         <div className="flex justify-center gap-2 p-4">
           <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
             className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
           >
@@ -214,7 +294,7 @@ export default function PresupuestosPage() {
           </span>
 
           <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
             className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
           >
