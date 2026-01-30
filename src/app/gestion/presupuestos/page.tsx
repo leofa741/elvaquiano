@@ -66,20 +66,37 @@ export default function PresupuestosPage() {
   }, [auth, page]);
 
   /* ===============================
-     CARGA INICIAL + POLLING
+     SOLO REFRESCA SI EL ADMIN MIRA
   =============================== */
   useEffect(() => {
     if (auth !== true) return;
 
-    // carga inicial
-    fetchPresupuestos();
+    let interval: NodeJS.Timeout | null = null;
 
-    // 🔁 polling cada 15 segundos
-    const interval = setInterval(() => {
-      fetchPresupuestos();
-    }, 60_000); //
+    const start = () => {
+      fetchPresupuestos(); // 🔥 inmediato al entrar o volver
+      interval = setInterval(fetchPresupuestos, 120_000); // ⏱ 2 minutos
+    };
 
-    return () => clearInterval(interval);
+    const stop = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    // Primera carga
+    start();
+
+    // Eventos de foco
+    window.addEventListener('focus', start);
+    window.addEventListener('blur', stop);
+
+    return () => {
+      stop();
+      window.removeEventListener('focus', start);
+      window.removeEventListener('blur', stop);
+    };
   }, [auth, fetchPresupuestos]);
 
   /* ===============================
@@ -153,7 +170,7 @@ export default function PresupuestosPage() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    {/* Origen */}
+                    {/* Origen (default seguro) */}
                     {(p.origen ?? 'mostrador') === 'online' && (
                       <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">
                         Online
