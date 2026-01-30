@@ -14,6 +14,7 @@ interface Presupuesto {
   estado: string;
   createdAt: string;
   pedidoAsociado?: string;
+  origen?: string;
 }
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -137,7 +138,15 @@ export default function PresupuestosPage() {
                     </div>
                   </div>
 
+
+
                   <div className="flex items-center gap-3">
+                    {p.origen === 'online' && (
+                      <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded">
+                        Online
+                      </span>
+                    )}
+
                     <span className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded">
                       {ESTADO_LABEL[p.estado] || p.estado}
                     </span>
@@ -178,8 +187,6 @@ export default function PresupuestosPage() {
           </button>
         </div>
       )}
-
-
 
     </div>
   );

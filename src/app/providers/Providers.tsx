@@ -14,8 +14,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     <CartProvider>
 
-      
-  <CartDrawer />
+
+      <CartDrawer />
       <SessionProvider>
 
         <AuthProvider>

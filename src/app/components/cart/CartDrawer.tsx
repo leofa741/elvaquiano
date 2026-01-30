@@ -4,6 +4,7 @@ import { useCart } from '@/app/context/CartContext';
 import { formatARS } from '@/app/lib/formatcurrenci';
 import { sendWhatsApp } from '@/app/lib/whatsApp';
 import { motion, AnimatePresence } from 'framer-motion';
+import Swal from 'sweetalert2';
 
 
 export default function CartDrawer() {
@@ -19,28 +20,68 @@ export default function CartDrawer() {
     return acc + price * p.qty;
   }, 0);
 
-  const confirmOrder = async () => {
-    try {
-      const res = await fetch('/api/gestion/pedidos/confirmar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cart }),
-      });
 
-      const data = await res.json();
 
-      if (!res.ok) {
-        alert(data.error || 'Error al confirmar el pedido');
+const confirmOrder = async () => {
+  const { value: form } = await Swal.fire({
+    title: 'Confirmar pedido',
+    html: `
+      <input id="razonSocial" class="swal2-input" placeholder="Razón Social">
+      <input id="telefono" class="swal2-input" placeholder="WhatsApp">
+    `,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: 'Confirmar',
+    preConfirm: () => {
+      const razonSocial = (document.getElementById('razonSocial') as HTMLInputElement).value;
+      const telefono = (document.getElementById('telefono') as HTMLInputElement).value;
+
+      if (!razonSocial || !telefono) {
+        Swal.showValidationMessage('Completá razón social y WhatsApp');
         return;
       }
 
-      // ✅ Stock confirmado → recién ahora WhatsApp
-      sendWhatsApp(cart);
+      return { razonSocial, telefono };
+    },
+  });
 
-    } catch (error) {
-      alert('Error de conexión con el servidor');
+  if (!form) return;
+
+  try {
+    const res = await fetch('/api/gestion/presupuestos/online', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cliente: form,
+        cart,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      Swal.fire('Error', data.error || 'No se pudo crear el presupuesto', 'error');
+      return;
     }
-  };
+
+    // ✅ Presupuesto creado → WhatsApp
+    sendWhatsApp({
+      presupuestoId: data._id,
+      razonSocial: form.razonSocial,
+      total: data.total,
+    } as any);
+
+    Swal.fire(
+      'Pedido enviado',
+      'Tu pedido fue recibido, te contactamos a la brevedad.',
+      'success'
+    );
+
+  } catch (err) {
+    Swal.fire('Error', 'Error de conexión con el servidor', 'error');
+  }
+};
+
 
 
   return (
@@ -98,7 +139,7 @@ export default function CartDrawer() {
                   onClick={() => incrementQty(p._id)}
                   disabled={p.qty >= p.stockTotal}
                   className={`w-6 h-6 rounded-full
-    ${p.qty >= p.stockTotal
+                      ${p.qty >= p.stockTotal
                       ? 'bg-gray-400 cursor-not-allowed'
                       : 'bg-[#1A5A7A] hover:bg-[#2A6A8A]'
                     }`}
@@ -106,6 +147,7 @@ export default function CartDrawer() {
                 >
                   +
                 </button>
+                
 
                 <span className="text-xs text-[#A0D2E7] ml-2">
                   · {formatARS(
