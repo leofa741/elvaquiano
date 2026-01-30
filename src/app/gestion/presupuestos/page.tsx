@@ -7,7 +7,6 @@ import { FaFileInvoice, FaPlus, FaEye } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import { motion, AnimatePresence } from 'framer-motion';
 
-
 interface Presupuesto {
   _id: string;
   cliente: { razonSocial: string };
@@ -39,21 +38,43 @@ export default function PresupuestosPage() {
   const [nuevos, setNuevos] = useState<Set<string>>(new Set());
 
   const [ultimoConteo, setUltimoConteo] = useState(0);
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
+
   const audioRef = useState<HTMLAudioElement | null>(
-    typeof Audio !== 'undefined'
+    typeof window !== 'undefined'
       ? new Audio('/sounds/new-notification-08-352461.mp3')
       : null
   )[0];
 
+  /* ===============================
+     DESBLOQUEAR AUDIO (1 CLICK)
+  =============================== */
+  useEffect(() => {
+    if (!audioRef) return;
+
+    const unlockAudio = () => {
+      audioRef.volume = 0.6;
+      audioRef
+        .play()
+        .then(() => {
+          audioRef.pause();
+          audioRef.currentTime = 0;
+          setAudioUnlocked(true);
+        })
+        .catch(() => {});
+      window.removeEventListener('click', unlockAudio);
+    };
+
+    window.addEventListener('click', unlockAudio);
+    return () => window.removeEventListener('click', unlockAudio);
+  }, [audioRef]);
 
   /* ===============================
      CARGA INICIAL DE VISTOS
   =============================== */
   useEffect(() => {
     const saved = localStorage.getItem('presupuestos_vistos');
-    if (saved) {
-      setVistos(new Set(JSON.parse(saved)));
-    }
+    if (saved) setVistos(new Set(JSON.parse(saved)));
   }, []);
 
   /* ===============================
@@ -77,28 +98,23 @@ export default function PresupuestosPage() {
       setPresupuestos(data);
       setTotalPages(totalPages);
 
-      // 🆕 detectar nuevos
       const nuevosIds = data
         .map((p: Presupuesto) => p._id)
         .filter((id: string) => !vistos.has(id));
 
-      if (nuevosIds.length > ultimoConteo && ultimoConteo !== 0) {
-        audioRef?.play().catch(() => { });
+      if (audioUnlocked && nuevosIds.length > ultimoConteo && ultimoConteo !== 0) {
+        audioRef!.currentTime = 0;
+        audioRef!.play().catch(() => {});
       }
 
       setUltimoConteo(nuevosIds.length);
       setNuevos(new Set(nuevosIds));
-
     } catch (err: any) {
-      Swal.fire(
-        'Error',
-        err.message || 'No se pudieron cargar los presupuestos',
-        'error'
-      );
+      Swal.fire('Error', err.message || 'No se pudieron cargar', 'error');
     } finally {
       setLoading(false);
     }
-  }, [auth, page, vistos]);
+  }, [auth, page, vistos, ultimoConteo, audioUnlocked, audioRef]);
 
   /* ===============================
      MARCAR COMO VISTO
@@ -122,7 +138,7 @@ export default function PresupuestosPage() {
   };
 
   /* ===============================
-     SOLO REFRESCA SI EL ADMIN MIRA
+     REFRESH SOLO CON FOCO
   =============================== */
   useEffect(() => {
     if (auth !== true) return;
@@ -131,14 +147,12 @@ export default function PresupuestosPage() {
 
     const start = () => {
       fetchPresupuestos();
-      interval = setInterval(fetchPresupuestos, 120_000); // ⏱ 2 minutos
+      interval = setInterval(fetchPresupuestos, 120_000);
     };
 
     const stop = () => {
-      if (interval) {
-        clearInterval(interval);
-        interval = null;
-      }
+      if (interval) clearInterval(interval);
+      interval = null;
     };
 
     start();
@@ -155,13 +169,12 @@ export default function PresupuestosPage() {
   /* ===============================
      ESTADOS DE AUTORIZACIÓN
   =============================== */
-  if (auth === null) {
+  if (auth === null)
     return (
       <div className="p-6 text-center text-gray-400 min-h-screen flex items-center justify-center">
         Verificando acceso...
       </div>
     );
-  }
 
   if (auth === false) return null;
 
@@ -170,16 +183,16 @@ export default function PresupuestosPage() {
   =============================== */
   return (
     <div className="p-4 sm:p-6 md:p-8 min-h-screen">
-      {/* Header */}
+      {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <AnimatePresence>
             {nuevos.size > 0 && (
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
+                initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="mt-2 inline-flex items-center gap-2 bg-amber-500 text-black px-3 py-1 rounded-full text-sm font-semibold"
+                className="mb-2 inline-flex bg-amber-500 text-black px-3 py-1 rounded-full text-sm font-semibold"
               >
                 🆕 {nuevos.size} nuevo{nuevos.size > 1 ? 's' : ''}
               </motion.div>
@@ -190,52 +203,43 @@ export default function PresupuestosPage() {
             <FaFileInvoice className="text-amber-400" />
             Gestión de Presupuestos
           </h1>
-          <p className="text-gray-400 mt-1">
-            Crear, imprimir y convertir cotizaciones en pedidos.
-          </p>
-          <p className="text-gray-400 mt-1">
-            Volver a{' '}
-            <Link href="/gestion" className="text-amber-400 underline">
-              Gestión
-            </Link>
-          </p>
         </div>
 
         <Link
           href="/gestion/presupuestos/nuevo"
-          className="bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-4 rounded-lg transition flex items-center gap-2"
+          className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
         >
           <FaPlus />
           Nuevo Presupuesto
         </Link>
       </div>
 
-      {/* Listado */}
+      {/* LISTADO */}
       <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
         {loading ? (
           <div className="p-6 text-center text-gray-300">
             Cargando presupuestos...
           </div>
-        ) : presupuestos.length === 0 ? (
-          <div className="p-6 text-center text-gray-400">
-            No hay presupuestos registrados.
-          </div>
         ) : (
           <div className="divide-y divide-gray-700">
-            {presupuestos.map((p) => {
+            {presupuestos.map(p => {
               const esNuevo = nuevos.has(p._id);
 
               return (
-                <div
+                <motion.div
                   key={p._id}
-                  className={`p-4 transition ${esNuevo
-                    ? 'bg-amber-900/20 border-l-4 border-amber-400'
-                    : 'hover:bg-gray-750'
-                    }`}
+                  initial={esNuevo ? { opacity: 0, scale: 0.97 } : false}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.25 }}
+                  className={`p-4 ${
+                    esNuevo
+                      ? 'bg-amber-900/20 border-l-4 border-amber-400'
+                      : 'hover:bg-gray-750'
+                  }`}
                 >
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <div className="flex justify-between items-center">
                     <div>
-                      <div className="font-medium text-white">
+                      <div className="text-white font-medium">
                         {p.cliente.razonSocial}
                       </div>
                       <div className="text-sm text-gray-400">
@@ -244,20 +248,20 @@ export default function PresupuestosPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex gap-3 items-center">
                       {esNuevo && (
-                        <span className="text-xs bg-amber-500 text-black px-2 py-0.5 rounded font-semibold">
-                          🆕 Nuevo
+                        <span className="bg-amber-500 text-black text-xs px-2 py-0.5 rounded font-semibold">
+                          🆕
                         </span>
                       )}
 
                       {(p.origen ?? 'mostrador') === 'online' && (
-                        <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">
+                        <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded">
                           Online
                         </span>
                       )}
 
-                      <span className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded">
+                      <span className="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded">
                         {ESTADO_LABEL[p.estado] || p.estado}
                       </span>
 
@@ -266,42 +270,16 @@ export default function PresupuestosPage() {
                         onClick={() => marcarComoVisto(p._id)}
                         className="text-amber-400 hover:text-amber-300 text-sm flex items-center gap-1"
                       >
-                        <FaEye />
-                        Ver
+                        <FaEye /> Ver
                       </Link>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
         )}
       </div>
-
-      {/* Paginación */}
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-2 p-4">
-          <button
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
-          >
-            ← Anterior
-          </button>
-
-          <span className="px-3 py-1 text-gray-300">
-            Página {page} de {totalPages}
-          </span>
-
-          <button
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-            className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
-          >
-            Siguiente →
-          </button>
-        </div>
-      )}
     </div>
   );
 }
