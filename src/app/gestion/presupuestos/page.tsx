@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface Presupuesto {
   _id: string;
-  cliente: { razonSocial: string };
+  cliente: { razonSocial: string , telefono: string};
   total: number;
   estado: string;
   createdAt: string;
@@ -78,6 +78,8 @@ export default function PresupuestosPage() {
       if (!res.ok) throw new Error('Error al cargar presupuestos');
 
       const { data, totalPages } = await res.json();
+
+      //console.log('Presupuestos fetched:', data);
 
       setPresupuestos(data);
       setTotalPages(totalPages);
@@ -223,6 +225,8 @@ export default function PresupuestosPage() {
                       <div className="text-white font-medium">
                         {p.cliente.razonSocial}
                       </div>
+                      <span className="text-sm text-gray-400">presupesto # : {p._id}</span> <br />
+                      <span className="text-sm text-gray-400">telefono : {p.cliente.telefono} </span>   
                       <div className="text-sm text-gray-400">
                         ${p.total.toFixed(2)} •{' '}
                         {new Date(p.createdAt).toLocaleDateString('es-AR')}

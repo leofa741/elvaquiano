@@ -22,65 +22,68 @@ export default function CartDrawer() {
 
 
 
-const confirmOrder = async () => {
-  const { value: form } = await Swal.fire({
-    title: 'Confirmar pedido',
-    html: `
+  const confirmOrder = async () => {
+    const { value: form } = await Swal.fire({
+      title: 'Confirmar pedido',
+      html: `
       <input id="razonSocial" class="swal2-input" placeholder="Razón Social">
       <input id="telefono" class="swal2-input" placeholder="WhatsApp">
     `,
-    focusConfirm: false,
-    showCancelButton: true,
-    confirmButtonText: 'Confirmar',
-    preConfirm: () => {
-      const razonSocial = (document.getElementById('razonSocial') as HTMLInputElement).value;
-      const telefono = (document.getElementById('telefono') as HTMLInputElement).value;
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar',
+      preConfirm: () => {
+        const razonSocial = (document.getElementById('razonSocial') as HTMLInputElement).value;
+        const telefono = (document.getElementById('telefono') as HTMLInputElement).value;
 
-      if (!razonSocial || !telefono) {
-        Swal.showValidationMessage('Completá razón social y WhatsApp');
+        if (!razonSocial || !telefono) {
+          Swal.showValidationMessage('Completá razón social y WhatsApp');
+          return;
+        }
+
+        return { razonSocial, telefono };
+      },
+    });
+
+    if (!form) return;
+
+    try {
+      const res = await fetch('/api/gestion/presupuestos/online', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente: form,
+          cart,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        Swal.fire('Error', data.error || 'No se pudo crear el presupuesto', 'error');
         return;
       }
 
-      return { razonSocial, telefono };
-    },
-  });
-
-  if (!form) return;
-
-  try {
-    const res = await fetch('/api/gestion/presupuestos/online', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cliente: form,
+      // ✅ Presupuesto creado → WhatsApp
+      sendWhatsApp({
         cart,
-      }),
-    });
+        telefono: form.telefono,
+        razonSocial: form.razonSocial,
+        presupuestoId: data._id,
+        totalPresupuesto: data.total,
+      });
 
-    const data = await res.json();
 
-    if (!res.ok) {
-      Swal.fire('Error', data.error || 'No se pudo crear el presupuesto', 'error');
-      return;
+      Swal.fire(
+        'Pedido enviado',
+        'Tu pedido fue recibido, te contactamos a la brevedad.',
+        'success'
+      );
+
+    } catch (err) {
+      Swal.fire('Error', 'Error de conexión con el servidor', 'error');
     }
-
-    // ✅ Presupuesto creado → WhatsApp
-    sendWhatsApp({
-      presupuestoId: data._id,
-      razonSocial: form.razonSocial,
-      total: data.total,
-    } as any);
-
-    Swal.fire(
-      'Pedido enviado',
-      'Tu pedido fue recibido, te contactamos a la brevedad.',
-      'success'
-    );
-
-  } catch (err) {
-    Swal.fire('Error', 'Error de conexión con el servidor', 'error');
-  }
-};
+  };
 
 
 
@@ -147,7 +150,7 @@ const confirmOrder = async () => {
                 >
                   +
                 </button>
-                
+
 
                 <span className="text-xs text-[#A0D2E7] ml-2">
                   · {formatARS(

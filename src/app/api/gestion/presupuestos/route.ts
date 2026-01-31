@@ -15,9 +15,6 @@ connectDB();
 // POST: Crear presupuesto
 export async function POST(request: NextRequest) {
 
-
-
-
   try {
     const body = await request.json();
   
@@ -60,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     const total = await Presupuesto.countDocuments(); // total de registros
     const presupuestos = await Presupuesto.find()
-      .populate('cliente', 'razonSocial pedidoAsociado')
+      .populate('cliente', 'razonSocial telefono pedidoAsociado')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
