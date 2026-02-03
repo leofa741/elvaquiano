@@ -51,7 +51,7 @@ export function sendWhatsApp({
     ? `549${telefono.replace(/\D/g, '')}`
     : '5492224492051'; // fallback admin
 
-  const url = `https://wa.me/${phone}a?text=${encodeURIComponent(message)}`;
+  const url = `https://wa.me/2224492051?text=${encodeURIComponent(message)}`;
 
   window.open(url, '_blank');
 }
