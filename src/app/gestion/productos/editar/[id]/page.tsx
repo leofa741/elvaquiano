@@ -95,7 +95,7 @@ export default function EditProductPage() {
     unidad: 'kg' as Unidad, // ✅ Ahora acepta todas las opciones válidas
     cantidadUnidad: 1,
     precioLista: '' as number | '',
-    precioMayorista: '' as number | '', 
+    precioMayorista: '' as number | '',
     precioOferta: '' as number | '',
     imagen: '' as string | null,
   });
@@ -156,7 +156,7 @@ export default function EditProductPage() {
     };
 
     validateAccess();
-  }, [status, session, router]);  
+  }, [status, session, router]);
 
 
 
@@ -192,7 +192,7 @@ export default function EditProductPage() {
   // 📥 Cargar producto
   useEffect(() => {
     if (!isAuthorized) return;
-      setLoading(true);
+    setLoading(true);
     if (!id) {
       toast.error('ID de producto no válido');
       router.push('/gestion/productos');
@@ -200,7 +200,7 @@ export default function EditProductPage() {
     }
 
     const loadProduct = async () => {
-      
+
       try {
         const res = await fetch(`/api/gestion/productos/${id}`);
         if (!res.ok) {
@@ -218,7 +218,7 @@ export default function EditProductPage() {
           unidad: data.unidad || 'kg',
           cantidadUnidad: data.cantidadUnidad || 1,
           precioLista: data.precioLista ?? 0,
-          precioMayorista: data.precioMayorista ?? 0,        
+          precioMayorista: data.precioMayorista ?? 0,
           precioOferta: data.precioOferta ?? 0,
           imagen: data.imagen || null,
         });
@@ -231,7 +231,7 @@ export default function EditProductPage() {
 
         setDisplayPrecios({
           precioLista: formatArgentineFinal(data.precioLista ?? null),
-          precioMayorista: formatArgentineFinal(data.precioMayorista ?? null),        
+          precioMayorista: formatArgentineFinal(data.precioMayorista ?? null),
           precioOferta: formatArgentineFinal(data.precioOferta ?? null),
         });
 
@@ -416,9 +416,9 @@ export default function EditProductPage() {
 
     const pl = form.precioLista;
     const pm = form.precioMayorista;
-   
 
-    if (typeof pl !== 'number' || pl <= 0) {
+    // ✅ precioLista es opcional - si no existe, usamos 0.00
+    if (pl !== '' && (typeof pl !== 'number' || pl <= 0)) {
       toast.error('El precio de lista debe ser mayor a 0.');
       return false;
     }
@@ -426,14 +426,10 @@ export default function EditProductPage() {
       toast.error('El precio mayorista debe ser mayor a 0.');
       return false;
     }
-   
 
-    if (pl > pm) {
-      toast.error('El precio mayorista no puede ser menor que el precio de lista.');
-      return false;
-    }
 
-   
+
+
 
     for (const s of stock) {
       if (!s.deposito.trim()) {
@@ -536,8 +532,8 @@ export default function EditProductPage() {
         categoria: form.categoria.trim(),
         unidad: form.unidad,
         cantidadUnidad: form.cantidadUnidad,
-        precioLista: form.precioLista as number,
-        precioMayorista: form.precioMayorista as number,      
+        precioLista: typeof form.precioLista === 'number' ? form.precioLista : 0.00, // ✅ por defecto 0.00
+        precioMayorista: form.precioMayorista as number,
         precioOferta: typeof form.precioOferta === 'number' ? form.precioOferta : null,
         stock: updatedStock,
         lotes: lotesFiltrados,
@@ -708,7 +704,7 @@ export default function EditProductPage() {
                 onChange={(e) => handlePriceChange('precioLista', e.target.value)}
                 onBlur={() => handlePriceBlur('precioLista')}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                required
+
               />
               <p className="text-xs text-gray-400 mt-1">
                 Precio al que se adquiere el producto.

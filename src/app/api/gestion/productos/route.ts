@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    
+
     // ✅ NUEVO: verificar si se pide "todos"
     const all = searchParams.get('all') === 'true';
 
@@ -77,13 +77,17 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
 
     // ✅ Validaciones de precios
-    if (typeof data.precioLista !== 'number' || data.precioLista <= 0) {
-      return NextResponse.json({ error: 'Precio de lista inválido (debe ser número > 0)' }, { status: 400 });
+    // precioLista es opcional - solo validar si existe
+    if (data.precioLista != null) {
+      if (typeof data.precioLista !== 'number' || data.precioLista < 0) {
+        return NextResponse.json({ error: 'Precio de lista inválido (debe ser número ≥ 0 o null)' }, { status: 400 });
+      }
     }
+
     if (typeof data.precioMayorista !== 'number' || data.precioMayorista <= 0) {
       return NextResponse.json({ error: 'Precio mayorista inválido (debe ser número > 0)' }, { status: 400 });
     }
-  
+
 
     // ✅ Precio de oferta es opcional
     if (data.precioOferta != null) {
@@ -130,7 +134,7 @@ export async function POST(req: NextRequest) {
       unidad: data.unidad || 'kg',
       cantidadUnidad: Number(data.cantidadUnidad) || 1,
       precioLista: data.precioLista,
-      precioMayorista: data.precioMayorista,    
+      precioMayorista: data.precioMayorista,
       precioOferta: data.precioOferta ?? null,
       stock: data.stock,
       lotes: data.lotes || [],

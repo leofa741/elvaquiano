@@ -355,22 +355,25 @@ export default function NuevoProductoPage() {
         const pl = form.precioLista;
         const pm = form.precioMayorista;
 
-
-        if (typeof pl !== 'number' || pl <= 0) {
+        // ✅ precioLista es opcional - si no existe, usamos 0.00
+        if (pl !== '' && (typeof pl !== 'number' || pl <= 0)) {
             toast.error('El precio de lista debe ser mayor a 0.');
             return false;
         }
+
+
         if (typeof pm !== 'number' || pm <= 0) {
             toast.error('El precio mayorista debe ser mayor a 0.');
             return false;
         }
 
-
-        if (pl > pm) {
-            toast.error('El precio mayorista no puede ser menor que el precio de lista (costo).');
+        const po = form.precioOferta;
+        if (po !== '' && (typeof po !== 'number' || po < 0)) {
+            toast.error('El precio de oferta debe ser mayor o igual a 0.'); 
             return false;
         }
 
+        
 
 
         for (const s of stock) {
@@ -460,7 +463,7 @@ export default function NuevoProductoPage() {
                 categoria: form.categoria.trim(),
                 unidad: form.unidad,
                 cantidadUnidad: form.cantidadUnidad,
-                precioLista: form.precioLista as number,
+                precioLista: typeof form.precioLista === 'number' ? form.precioLista : 0.00, // ✅ por defecto 0.00
                 precioMayorista: form.precioMayorista as number,
                 precioOferta: typeof form.precioOferta === 'number' && form.precioOferta > 0
                     ? form.precioOferta
@@ -638,7 +641,7 @@ export default function NuevoProductoPage() {
                                 onChange={(e) => handlePriceChange('precioLista', e.target.value)}
                                 onBlur={() => handlePriceBlur('precioLista')}
                                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                                required
+                                
                             />
                         </div>
 

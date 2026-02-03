@@ -24,7 +24,7 @@ const productSchema = new Schema({
     required: true,
   },
   cantidadUnidad: { type: Number, required: true, min: 0.001 }, // Ej: 0.5 kg en un pack de 500g
-  precioLista: { type: Number, required: true, min: 0 },
+  precioLista: { type: Number, required: false, min: 0 },
   precioMayorista: { type: Number, required: true, min: 0 },  
   precioOferta: { type: Number, required: false, min: 0 },
   stock: [stockSchema],

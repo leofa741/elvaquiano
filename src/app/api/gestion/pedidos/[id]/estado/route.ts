@@ -92,6 +92,9 @@ async function procesarStockFisico(
    PATCH ESTADO PEDIDO
 ===================================== */
 export async function PATCH(request: NextRequest, { params }: any)  {
+
+
+
   try {
     const { estado } = await request.json();
     const { id } = params;

@@ -116,9 +116,15 @@ export async function PUT(
     const precioMayorista = body.precioMayorista;
     const precioOferta = body.precioOferta;
 
-    if (typeof precioLista !== 'number' || precioLista <= 0) {
-      return NextResponse.json({ error: 'Precio de lista inválido (debe ser número > 0)' }, { status: 400 });
+    // ✅ Validaciones de precios
+    // precioLista es opcional - solo validar si existe
+
+    if (precioLista != null) {
+      if (typeof precioLista !== 'number' || precioLista < 0) {
+        return NextResponse.json({ error: 'Precio de lista inválido (debe ser número ≥ 0 o null)' }, { status: 400 });
+      }
     }
+
     if (typeof precioMayorista !== 'number' || precioMayorista <= 0) {
       return NextResponse.json({ error: 'Precio mayorista inválido (debe ser número > 0)' }, { status: 400 });
     }
