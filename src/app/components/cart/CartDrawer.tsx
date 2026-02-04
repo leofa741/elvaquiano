@@ -3,9 +3,9 @@
 import { useCart } from '@/app/context/CartContext';
 import { formatARS } from '@/app/lib/formatcurrenci';
 import { sendWhatsApp } from '@/app/lib/whatsApp';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import Swal from 'sweetalert2';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function CartDrawer() {
   const { cart, removeFromCart, incrementQty, decrementQty } = useCart();
@@ -22,6 +22,15 @@ export default function CartDrawer() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Memorizar funciones para evitar re-renders innecesarios
+  const handleIncrement = useCallback((id: string) => {
+    incrementQty(id);
+  }, [incrementQty]);
+
+  const handleDecrement = useCallback((id: string) => {
+    decrementQty(id);
+  }, [decrementQty]);
 
   if (!cart.length) return null;
 
@@ -157,17 +166,13 @@ export default function CartDrawer() {
         )}
       </div>
 
-      {/* Items */}
+      {/* Items - Usamos LayoutGroup para transiciones suaves sin re-renderizar */}
       <div className="px-3 max-h-[40vh] overflow-y-auto">
-        <AnimatePresence>
+        <LayoutGroup>
           {cart.map((p: any) => (
             <motion.div
               key={p._id}
               layout
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.2 }}
               className="flex items-start justify-between py-3 px-2 border-b border-[#1A5A7A]/30 last:border-0"
             >
               <div className="flex-1 min-w-0">
@@ -182,34 +187,42 @@ export default function CartDrawer() {
               </div>
 
               <div className="flex items-center gap-1.5 ml-2">
-                <button
-                  onClick={() => decrementQty(p._id)}
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => handleDecrement(p._id)}
                   className="w-6 h-6 rounded-full bg-[#1A5A7A] text-white hover:bg-[#2A6A8A] text-sm flex items-center justify-center"
                   aria-label="Disminuir"
                 >
                   −
-                </button>
+                </motion.button>
 
-                <span className="text-xs text-[#A0D2E7] min-w-[18px] text-center font-medium">
+                <motion.span
+                  key={p.qty}
+                  initial={{ scale: 1 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  className="text-xs text-[#A0D2E7] min-w-[18px] text-center font-medium"
+                >
                   {p.qty}
-                </span>
+                </motion.span>
 
-                <button
-                  onClick={() => incrementQty(p._id)}
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => handleIncrement(p._id)}
                   disabled={p.qty >= p.stockTotal}
                   className={`w-6 h-6 rounded-full text-sm flex items-center justify-center
                       ${p.qty >= p.stockTotal
-                      ? 'bg-gray-400 cursor-not-allowed'
+                      ? 'bg-gray-400 cursor-not-allowed opacity-60'
                       : 'bg-[#1A5A7A] hover:bg-[#2A6A8A]'
                     }`}
                   aria-label="Aumentar"
                 >
                   +
-                </button>
+                </motion.button>
               </div>
             </motion.div>
           ))}
-        </AnimatePresence>
+        </LayoutGroup>
       </div>
 
       {/* Total + CTA */}
@@ -239,14 +252,19 @@ export default function CartDrawer() {
     </motion.div>
   );
 
-  // Overlay para móviles
+  // Overlay para móviles - evita cerrar al hacer click en los botones de cantidad
   const MobileOverlay = () => (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 0.5 }}
       exit={{ opacity: 0 }}
-      onClick={() => setIsOpen(false)}
-      className="fixed inset-0 z-40 bg-black"
+      onClick={(e) => {
+        // Solo cerrar si se hace click directamente en el overlay, no en hijos
+        if (e.target === e.currentTarget) {
+          setIsOpen(false);
+        }
+      }}
+      className="fixed inset-0 z-40 bg-black cursor-pointer"
     />
   );
 
@@ -256,11 +274,11 @@ export default function CartDrawer() {
       {isMobile ? (
         <>
           <MobileCartButton />
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {isOpen && (
               <>
-                <MobileOverlay />
-                <CartContent />
+                <MobileOverlay key="overlay" />
+                <CartContent key="cart" />
               </>
             )}
           </AnimatePresence>
