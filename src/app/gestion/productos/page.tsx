@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -12,7 +11,6 @@ import StockValueSummary from './StockValueSummary';
 import { formatARS } from '@/app/lib/formatcurrenci';
 import { Pencil, Trash2, Truck } from 'lucide-react';
 
-
 interface Proveedor {
   _id: string;
   nombre: string;
@@ -20,7 +18,6 @@ interface Proveedor {
   telefono?: string;
   email?: string;
 }
-
 
 interface Product {
   _id: string;
@@ -48,9 +45,6 @@ interface ProductResponse {
   totalPages: number;
 }
 
-
-
-
 export default function ProductosPage() {
   return (
     <Suspense fallback={<div className="text-gray-400">Cargando...</div>}>
@@ -68,10 +62,74 @@ function PageContent() {
 
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [products, setProducts] = useState<Product[]>([]); // productos de la página actual
-  const [allProducts, setAllProducts] = useState<Product[]>([]); // todos los productos
-  const [isAllProductsLoaded, setIsAllProductsLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  /* =========================
+     BÚSQUEDA CON DEBOUNCE (API)
+  ========================= */
   const [internalSearch, setInternalSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchHint, setSearchHint] = useState<string | null>(null);
+
+  // Determinar qué productos mostrar
+  const productsToShow = internalSearch.trim() ? searchResults : products;
+
+  // Estados para UI condicional
+  const shouldShowEmptyState =
+    !loading &&
+    !searching &&
+    internalSearch.trim().length >= 2 &&
+    productsToShow.length === 0;
+
+  const shouldShowTable =
+    !loading &&
+    (internalSearch.trim().length < 2 || productsToShow.length > 0);
+
+  /* =========================
+     EFFECT: BÚSQUEDA CON DEBOUNCE
+  ========================= */
+  useEffect(() => {
+    // Limpiar resultados si no hay búsqueda
+    if (!internalSearch.trim()) {
+      setSearchResults([]);
+      setSearchHint(null);
+      return;
+    }
+
+    // Solo buscar si hay al menos 2 caracteres
+    if (internalSearch.trim().length < 2) {
+      setSearchResults([]);
+      setSearchHint('Escribe al menos 2 caracteres para buscar...');
+      return;
+    }
+
+    // Debounce de 350ms
+    const handler = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(
+          `/api/gestion/productos/search?q=${encodeURIComponent(internalSearch.trim())}`
+        );
+
+        if (!res.ok) {
+          throw new Error('Error en la búsqueda');
+        }
+
+        const data = await res.json();
+        setSearchResults(data.products || []);
+        setSearchHint(data.hint || null);
+      } catch (err) {
+        console.error('Error al buscar productos:', err);
+        setSearchResults([]);
+        setSearchHint('Error al realizar la búsqueda. Intenta nuevamente.');
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(handler);
+  }, [internalSearch]);
 
   const [pagination, setPagination] = useState({
     total: 0,
@@ -80,20 +138,15 @@ function PageContent() {
   });
 
   const limit = 20;
-
   const [selectedProductForProveedor, setSelectedProductForProveedor] = useState<Product | null>(null);
   const [showProveedorModal, setShowProveedorModal] = useState(false);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [loadingProveedores, setLoadingProveedores] = useState(false);
-
-
   const [selectedProveedorId, setSelectedProveedorId] = useState<string | null>(null);
   const [nuevoProveedorNombre, setNuevoProveedorNombre] = useState('');
   const [nuevoProveedorTelefono, setNuevoProveedorTelefono] = useState('');
   const [nuevoProveedorEmail, setNuevoProveedorEmail] = useState('');
-
   const [isEditingProveedor, setIsEditingProveedor] = useState(false);
-
 
   const resetProveedorForm = () => {
     setNuevoProveedorNombre('');
@@ -101,10 +154,6 @@ function PageContent() {
     setNuevoProveedorEmail('');
     setSelectedProveedorId(null);
   };
-
-
-
-
 
   // 🔒 Validación de acceso
   useEffect(() => {
@@ -114,14 +163,12 @@ function PageContent() {
         router.push('/');
         return;
       }
-
       const token = session?.user?.token || localStorage.getItem('token');
       if (!token) {
         toast.error('Acceso denegado');
         router.push('/');
         return;
       }
-
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         if (!['admin', 'superadmin'].includes(payload.role)) {
@@ -135,11 +182,8 @@ function PageContent() {
         router.push('/');
       }
     };
-
     validateAccess();
   }, [status, session, router]);
-
-
 
   // 📥 Cargar productos PAGINADOS (para la tabla principal)
   const loadPaginatedProducts = async () => {
@@ -165,52 +209,26 @@ function PageContent() {
     }
   };
 
-
-
-  // 📥 Cargar TODOS los productos (para la búsqueda)
-  const loadAllProducts = async () => {
-    if (!isAuthorized || isAllProductsLoaded) return;
-    try {
-      // Ajustá el límite según tu volumen de productos (1000 suele ser suficiente)
-      const res = await fetch('/api/gestion/productos?limit=1000');
-      if (res.ok) {
-        const data = await res.json();
-        setAllProducts(data.products);
-        setIsAllProductsLoaded(true);
-      }
-    } catch (err) {
-      console.error('Error al cargar todos los productos:', err);
-    }
-  };
-
   useEffect(() => {
     loadPaginatedProducts();
   }, [currentPage, isAuthorized]);
 
-  useEffect(() => {
-    loadAllProducts();
-  }, [isAuthorized]);
-
-
-
   // ✨✨✨ SSE: Escuchar eventos de producto en tiempo real ✨✨✨
   useEffect(() => {
-
     const eventSource = new EventSource('/api/gestion/productos/events');
-
     eventSource.onmessage = (event) => {
       if (!event.data || event.data === 'ping') return;
-
       try {
         const parsed = JSON.parse(event.data);
-
         // ➤ Producto creado
         if (parsed.type === 'producto_creado') {
           setProducts(prev => [...prev, parsed.data]);
-          setAllProducts(prev => [...prev, parsed.data]);
+          // Si hay búsqueda activa, actualizar también los resultados
+          if (internalSearch.trim()) {
+            setSearchResults(prev => [...prev, parsed.data]);
+          }
           toast.success('Producto creado correctamente');
         }
-
         // ➤ Producto actualizado
         if (
           parsed.type === 'producto_actualizado' ||
@@ -218,38 +236,37 @@ function PageContent() {
           parsed.type === 'stock_reservado'
         ) {
           const updatedProduct = parsed.data.producto || parsed.data;
-
           setProducts(prev =>
             prev.map(p => p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p)
           );
-
-          setAllProducts(prev =>
-            prev.map(p => p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p)
-          );
+          // Actualizar resultados de búsqueda si existen
+          if (internalSearch.trim()) {
+            setSearchResults(prev =>
+              prev.map(p => p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p)
+            );
+          }
         }
-
-
         // ➤ Producto eliminado
         if (parsed.type === 'producto_eliminado') {
           const productId = parsed.data._id;
           setProducts(prev => prev.filter(p => p._id !== productId));
-          setAllProducts(prev => prev.filter(p => p._id !== productId));
+          // Eliminar de resultados de búsqueda si existen
+          if (internalSearch.trim()) {
+            setSearchResults(prev => prev.filter(p => p._id !== productId));
+          }
           toast.info('Producto eliminado', { autoClose: 3000 });
           window.dispatchEvent(new CustomEvent('stockSummaryReload'));
         }
-
       } catch (err) {
         console.error('Error al procesar evento SSE:', event.data, err);
       }
     };
-
     eventSource.onerror = () => {
       console.warn('Conexión SSE perdida');
       eventSource.close();
     };
-
     return () => eventSource.close();
-  }, []);
+  }, [internalSearch]);
 
   if (!isAuthorized) return null;
 
@@ -258,32 +275,6 @@ function PageContent() {
     params.set('page', page.toString());
     return `${pathname}?${params.toString()}`;
   };
-
-
-
-  // ✅ Filtrar en TODOS los productos si hay búsqueda, sino usar los de la página
-  const filteredProducts = internalSearch
-    ? allProducts.filter((p) => {
-      const text =
-        p.nombre +
-        ' ' +
-        p.categoria +
-        ' ' +
-        p.unidad +
-        ' ' +
-        p.cantidadUnidad +
-        ' ' +
-        p.precioLista +
-        ' ' +
-        p.precioMayorista +
-        ' ' +
-        p.precioOferta +
-        ' ' +
-        JSON.stringify(p.stock) +
-        JSON.stringify(p.lotes);
-      return text.toLowerCase().includes(internalSearch.toLowerCase());
-    })
-    : products;
 
   const deleteProduct = async (id: string) => {
     Swal.fire({
@@ -303,7 +294,9 @@ function PageContent() {
         if (res.ok) {
           toast.success('Producto eliminado');
           setProducts(prev => prev.filter(p => p._id !== id));
-          setAllProducts(prev => prev.filter(p => p._id !== id));
+          if (internalSearch.trim()) {
+            setSearchResults(prev => prev.filter(p => p._id !== id));
+          }
         } else {
           toast.error('Error al eliminar');
         }
@@ -342,20 +335,14 @@ function PageContent() {
   const getStockDisponible = (product: any) =>
     getStockTotal(product) - getStockReservado(product);
 
-
   const loadProveedores = async () => {
     setLoadingProveedores(true);
     try {
       const res = await fetch('/api/gestion/proveedores?limit=100');
-
-
-
       if (!res.ok) {
         throw new Error('Error HTTP');
       }
-
       const data = await res.json();
-
       if (Array.isArray(data.proveedores)) {
         setProveedores(data.proveedores);
       } else {
@@ -392,38 +379,56 @@ function PageContent() {
           </Link>
         </div>
 
-        {loading && !internalSearch ? (
-          <div className="text-gray-400">Cargando productos...</div>
-        ) : filteredProducts.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <FaBox className="text-4xl mb-3 mx-auto text-amber-900/30" />
-            <p>{internalSearch ? 'No se encontraron productos.' : 'No hay productos registrados.'}</p>
-            {!internalSearch && (
-              <Link href="/gestion/productos/nuevo" className="text-amber-500 hover:underline mt-2 inline-block">
-                Crear tu primer producto
-              </Link>
+        {/* ✅ BUSCADOR CON DEBOUNCE */}
+        <div className="mb-4">
+          <input
+            type="text"
+            value={internalSearch}
+            onChange={(e) => setInternalSearch(e.target.value)}
+            placeholder="Buscar en todos los productos (uso interno)..."
+            className="w-full p-3 rounded-lg bg-gray-900 border border-gray-700 text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-amber-500"
+          />
+        </div>
+
+        {/* ✅ FEEDBACK DE BÚSQUEDA */}
+        {internalSearch.trim() && (
+          <div className="mb-4 text-sm">
+            {searching && (
+              <div className="text-gray-400 flex items-center gap-2">
+                <span className="animate-spin">⏳</span>
+                <span>Buscando...</span>
+              </div>
+            )}
+            {!searching && searchHint && (
+              <span className="text-gray-500 italic">{searchHint}</span>
+            )}
+            {!searching && !searchHint && productsToShow.length === 0 && (
+              <span className="text-amber-400">
+                No se encontraron productos para "{internalSearch}"
+              </span>
+            )}
+            {!searching && productsToShow.length > 0 && (
+              <span className="text-amber-400">
+                Mostrando {productsToShow.length} resultado{productsToShow.length !== 1 ? 's' : ''} para "{internalSearch}"
+              </span>
             )}
           </div>
-        ) : (
-          <>
-            {/* ✅ Leyenda con total de productos */}
-            <div className="mb-4 text-sm text-gray-400">
-              Total de productos registrados: <span className="font-semibold text-white">{pagination.total}</span>
-            </div>
-            <div className="mb-4">
-              <input
-                type="text"
-                value={internalSearch}
-                onChange={(e) => setInternalSearch(e.target.value)}
-                placeholder="Buscar en todos los productos (uso interno)..."
-                className="w-full p-3 rounded-lg bg-gray-900 border border-gray-700 text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-amber-500"
-              />
-            </div>
+        )}
 
-            {/* ✅ Mensaje cuando hay búsqueda activa */}
-            {internalSearch && filteredProducts.length > 0 && (
-              <div className="mb-4 text-sm text-amber-400">
-                Mostrando {filteredProducts.length} resultado{filteredProducts.length !== 1 ? 's' : ''} para "{internalSearch}" en todos los productos.
+        {/* ✅ RENDER CONDICIONAL */}
+        {loading && !internalSearch.trim() ? (
+          <div className="text-gray-400">Cargando productos...</div>
+        ) : shouldShowEmptyState ? (
+          <div className="text-center py-12 text-gray-500">
+            <FaBox className="text-4xl mb-3 mx-auto text-amber-900/30" />
+            <p>No se encontraron productos para "{internalSearch}"</p>
+          </div>
+        ) : shouldShowTable ? (
+          <>
+            {/* ✅ Leyenda con total de productos (solo cuando no hay búsqueda) */}
+            {!internalSearch.trim() && (
+              <div className="mb-4 text-sm text-gray-400">
+                Total de productos registrados: <span className="font-semibold text-white">{pagination.total}</span>
               </div>
             )}
 
@@ -446,9 +451,8 @@ function PageContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
-                    {filteredProducts.map((product) => {
+                    {productsToShow.map((product) => {
                       const stockTotal = getStockTotal(product);
-
                       return (
                         <tr key={product._id} className="hover:bg-gray-750 transition">
                           <td className="py-3 px-4">
@@ -469,7 +473,6 @@ function PageContent() {
                           </td>
                           <td className="py-3 px-4 text-gray-300">{product.categoria}</td>
                           <td className="py-3 px-4 text-gray-300">{product.unidad}</td>
-
                           <td className="py-3 px-4">
                             <div className="text-amber-400 font-medium">
                               ${product.precioLista.toLocaleString('es-AR')}
@@ -490,7 +493,6 @@ function PageContent() {
                               <div className="mt-1 text-xs space-y-1">
                                 <div className="text-gray-300">
                                   Ingreso total: <span className="font-medium">{(formatARS(product.precioMayorista * stockTotal))}
-
                                   </span>
                                 </div>
                                 <div className="text-green-400">
@@ -501,7 +503,6 @@ function PageContent() {
                               <div className="text-xs text-gray-600 italic mt-1">Sin stock</div>
                             )}
                           </td>
-
                           <td className="py-3 px-4">
                             {/* Precio de venta / Oferta */}
                             <div className="flex items-baseline gap-1">
@@ -519,13 +520,11 @@ function PageContent() {
                               )}
                               <span className="text-xs text-gray-500 ml-1">c/u</span>
                             </div>
-
                             {/* Cálculos (siempre usan precioOferta, que es numérico) */}
                             {stockTotal > 0 ? (
                               <div className="mt-2 text-xs space-y-1">
                                 <div className="text-gray-300">
                                   Ingreso total: <span className="font-medium text-amber-300">{(formatARS(product.precioOferta * stockTotal))}
-
                                   </span>
                                 </div>
                                 <div className="text-green-400">
@@ -536,7 +535,6 @@ function PageContent() {
                               <div className="text-xs text-gray-600 italic mt-2">Sin stock</div>
                             )}
                           </td>
-
                           <td className="py-3 px-4">
                             {/* STOCK TOTAL (lo que ya tenías) */}
                             <div
@@ -546,24 +544,20 @@ function PageContent() {
                                 }`}
                             >
                               Total: {stockTotal}
-
                               {stockTotal <= (product.stockMinimoAlerta ?? 0) && (
                                 <span className="ml-1 text-xs text-red-400">⚠️ Bajo stock</span>
                               )}
                             </div>
-
                             {/* STOCK RESERVADO */}
                             {product.stockReservado > 0 && (
                               <div className="text-xs text-amber-400 mt-0.5">
                                 Reservado: {product.stockReservado}
                               </div>
                             )}
-
                             {/* STOCK DISPONIBLE */}
                             <div className="text-sm font-semibold text-green-400">
                               Disponible: {getStockDisponible(product)}
                             </div>
-
                             {/* ALERTA MÍNIMA (no se toca nada) */}
                             <div className="mt-1 flex items-center gap-1">
                               <label
@@ -572,7 +566,6 @@ function PageContent() {
                               >
                                 Alerta:
                               </label>
-
                               <input
                                 id={`alerta-${product._id}`}
                                 type="number"
@@ -582,7 +575,6 @@ function PageContent() {
                                   const rawValue = e.target.value;
                                   const newAlertValue =
                                     rawValue === '' ? undefined : Number(rawValue);
-
                                   const res = await fetch(
                                     `/api/gestion/productos/${product._id}`,
                                     {
@@ -591,7 +583,6 @@ function PageContent() {
                                       body: JSON.stringify({ stockMinimoAlerta: newAlertValue }),
                                     }
                                   );
-
                                   if (res.ok) {
                                     const updatedProduct = await res.json();
                                     setProducts((prev) =>
@@ -599,11 +590,13 @@ function PageContent() {
                                         p._id === product._id ? updatedProduct : p
                                       )
                                     );
-                                    setAllProducts((prev) =>
-                                      prev.map((p) =>
-                                        p._id === product._id ? updatedProduct : p
-                                      )
-                                    );
+                                    if (internalSearch.trim()) {
+                                      setSearchResults((prev) =>
+                                        prev.map((p) =>
+                                          p._id === product._id ? updatedProduct : p
+                                        )
+                                      );
+                                    }
                                   } else {
                                     toast.error('Error al guardar umbral');
                                   }
@@ -613,9 +606,6 @@ function PageContent() {
                               />
                             </div>
                           </td>
-
-
-
                           <td className="py-3 px-4">
                             {product.activo ? (
                               <span className="text-green-500 font-semibold">Sí</span>
@@ -635,7 +625,9 @@ function PageContent() {
                                   if (res.ok) {
                                     const updated = await res.json();
                                     setProducts(prev => prev.map(p => p._id === product._id ? updated : p));
-                                    setAllProducts(prev => prev.map(p => p._id === product._id ? updated : p));
+                                    if (internalSearch.trim()) {
+                                      setSearchResults(prev => prev.map(p => p._id === product._id ? updated : p));
+                                    }
                                   } else {
                                     toast.error('Error al actualizar');
                                   }
@@ -671,8 +663,6 @@ function PageContent() {
                                 Editar
                               </span>
                             </div>
-
-
                             <div className="relative group">
                               <button
                                 onClick={() => deleteProduct(product._id)}
@@ -686,7 +676,6 @@ function PageContent() {
                                 Borrar
                               </span>
                             </div>
-
                             <div className="relative group">
                               <button
                                 onClick={() => {
@@ -694,7 +683,6 @@ function PageContent() {
                                     typeof product.proveedor === 'string'
                                       ? product.proveedor
                                       : product.proveedor?._id || null;
-
                                   setSelectedProductForProveedor(product);
                                   setSelectedProveedorId(currentProveedorId);
                                   setNuevoProveedorNombre('');
@@ -721,62 +709,62 @@ function PageContent() {
             </div>
 
             <br />
-
             {/* ✅ Tabla de lotes: siempre usa la lista PAGINADA (products) */}
-            <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-900 text-gray-300">
-                    <tr>
-                      <th className="text-left py-3 px-4">Lotes</th>
-                      <th className="text-left py-3 px-4">Depósito</th>
-                      <th className="text-left py-3 px-4">Cantidad</th>
-                      <th className="text-left py-3 px-4">Vencimiento</th>
-                      <th className="text-left py-3 px-4">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700">
-                    {products.flatMap((product) =>
-                      product.lotes.map((lote, index) => (
-                        <tr key={`${product._id}-lote-${index}`} className="hover:bg-gray-750 transition">
-                          <td className="py-3 px-4 text-white">{product.nombre}</td>
-                          <td className="py-3 px-4 text-gray-300">{lote.deposito}</td>
-                          <td className="py-3 px-4 text-white">{lote.cantidad}</td>
-                          <td className="py-3 px-4 text-gray-300">
-                            {new Date(lote.vencimiento).toLocaleDateString('es-AR')}
-                          </td>
-                          <td className="py-3 px-4">
-                            <button
-                              onClick={async () => {
-                                const updatedLotes = product.lotes.filter((_, i) => i !== index);
-                                const res = await fetch(`/api/gestion/productos/${product._id}`, {
-                                  method: 'PUT',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ lotes: updatedLotes }),
-                                });
-                                if (res.ok) {
-                                  const updated = await res.json();
-                                  setProducts(prev => prev.map(p => p._id === product._id ? updated : p));
-                                  setAllProducts(prev => prev.map(p => p._id === product._id ? updated : p));
-                                } else {
-                                  toast.error('Error al eliminar lote');
-                                }
-                              }}
-                              className="text-red-400 hover:underline"
-                            >
-                              Borrar Lote
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+            {!internalSearch.trim() && (
+              <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-900 text-gray-300">
+                      <tr>
+                        <th className="text-left py-3 px-4">Lotes</th>
+                        <th className="text-left py-3 px-4">Depósito</th>
+                        <th className="text-left py-3 px-4">Cantidad</th>
+                        <th className="text-left py-3 px-4">Vencimiento</th>
+                        <th className="text-left py-3 px-4">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700">
+                      {products.flatMap((product) =>
+                        product.lotes.map((lote, index) => (
+                          <tr key={`${product._id}-lote-${index}`} className="hover:bg-gray-750 transition">
+                            <td className="py-3 px-4 text-white">{product.nombre}</td>
+                            <td className="py-3 px-4 text-gray-300">{lote.deposito}</td>
+                            <td className="py-3 px-4 text-white">{lote.cantidad}</td>
+                            <td className="py-3 px-4 text-gray-300">
+                              {new Date(lote.vencimiento).toLocaleDateString('es-AR')}
+                            </td>
+                            <td className="py-3 px-4">
+                              <button
+                                onClick={async () => {
+                                  const updatedLotes = product.lotes.filter((_, i) => i !== index);
+                                  const res = await fetch(`/api/gestion/productos/${product._id}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ lotes: updatedLotes }),
+                                  });
+                                  if (res.ok) {
+                                    const updated = await res.json();
+                                    setProducts(prev => prev.map(p => p._id === product._id ? updated : p));
+                                  } else {
+                                    toast.error('Error al eliminar lote');
+                                  }
+                                }}
+                                className="text-red-400 hover:underline"
+                              >
+                                Borrar Lote
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ✅ Paginación SOLO si no hay búsqueda activa */}
-            {!internalSearch && pagination.totalPages > 1 && (
+            {!internalSearch.trim() && pagination.totalPages > 1 && (
               <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
                 <div className="text-sm text-gray-500">
                   Mostrando {(currentPage - 1) * limit + 1}–
@@ -803,16 +791,14 @@ function PageContent() {
             <br />
             <StockValueSummary />
           </>
-        )}
+        ) : null}
       </div>
-
 
       {/* 👇 MODAL DE PROVEEDOR */}
       {showProveedorModal && selectedProductForProveedor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700 text-white">
             <h3 className="text-xl font-bold mb-4">Asignar proveedor a: {selectedProductForProveedor.nombre}</h3>
-
             {loadingProveedores ? (
               <p className="text-gray-400">Cargando proveedores...</p>
             ) : (
@@ -822,12 +808,10 @@ function PageContent() {
                   <label className="block text-sm text-gray-300 mb-1">Proveedor existente</label>
                   <select
                     value={selectedProveedorId || ''}
-
                     onChange={(e) => {
                       const proveedorId = e.target.value || null;
                       setSelectedProveedorId(proveedorId);
                       setIsEditingProveedor(false);
-
                       if (proveedorId) {
                         const prov = proveedores.find((p) => p._id === proveedorId);
                         if (prov) {
@@ -840,7 +824,6 @@ function PageContent() {
                         resetProveedorForm();
                       }
                     }}
-
                     className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white"
                   >
                     <option value="">— Seleccionar —</option>
@@ -849,10 +832,8 @@ function PageContent() {
                         {prov.nombre}
                       </option>
                     ))}
-
                   </select>
                 </div>
-
                 {/* O crear nuevo */}
                 <div className="mb-4">
                   <label className="block text-sm text-gray-300 mb-1">
@@ -869,7 +850,6 @@ function PageContent() {
                     }}
                     className="w-full p-2 mb-2 bg-gray-700 border border-gray-600 rounded text-white"
                   />
-
                   {/* Teléfono */}
                   <input
                     type="text"
@@ -878,7 +858,6 @@ function PageContent() {
                     onChange={(e) => setNuevoProveedorTelefono(e.target.value)}
                     className="w-full p-2 mb-2 bg-gray-700 border border-gray-600 rounded text-white"
                   />
-
                   {/* Email */}
                   <input
                     type="email"
@@ -887,9 +866,7 @@ function PageContent() {
                     onChange={(e) => setNuevoProveedorEmail(e.target.value)}
                     className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white"
                   />
-
                 </div>
-
                 {/* Botones */}
                 <div className="flex gap-3 justify-end mt-4">
                   <button
@@ -901,8 +878,6 @@ function PageContent() {
                   >
                     Cancelar
                   </button>
-
-
                   <button
                     onClick={async () => {
                       let proveedorIdToAssign = selectedProveedorId;
@@ -921,21 +896,17 @@ function PageContent() {
                               }),
                             }
                           );
-
                           if (!res.ok) {
                             toast.error('Error al actualizar proveedor');
                             return;
                           }
-
                           const proveedorActualizado = await res.json();
-
                           // Actualizar lista local
                           setProveedores((prev) =>
                             prev.map((p) =>
                               p._id === proveedorActualizado._id ? proveedorActualizado : p
                             )
                           );
-
                           // asegurar que se use este proveedor
                           proveedorIdToAssign = proveedorActualizado._id;
                         } catch (err) {
@@ -943,11 +914,8 @@ function PageContent() {
                           return;
                         }
                       }
-
-
                       // Si escribió un nuevo proveedor
                       if (nuevoProveedorNombre.trim() && !selectedProveedorId) {
-
                         try {
                           const res = await fetch('/api/gestion/proveedores', {
                             method: 'POST',
@@ -957,7 +925,6 @@ function PageContent() {
                               telefono: nuevoProveedorTelefono.trim() || undefined,
                               email: nuevoProveedorEmail.trim() || undefined,
                             }),
-
                           });
                           if (res.ok) {
                             const nuevoProv = await res.json();
@@ -973,7 +940,6 @@ function PageContent() {
                           return;
                         }
                       }
-
                       // Asignar proveedor al producto
                       try {
                         const res = await fetch(`/api/gestion/productos/${selectedProductForProveedor._id}`, {
@@ -981,18 +947,17 @@ function PageContent() {
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ proveedor: proveedorIdToAssign }),
                         });
-
                         if (res.ok) {
                           const updatedProduct = await res.json();
-
                           // Actualizar en la UI localmente (SSE también lo capturará)
                           setProducts((prev) =>
                             prev.map((p) => (p._id === updatedProduct._id ? updatedProduct : p))
                           );
-                          setAllProducts((prev) =>
-                            prev.map((p) => (p._id === updatedProduct._id ? updatedProduct : p))
-                          );
-
+                          if (internalSearch.trim()) {
+                            setSearchResults((prev) =>
+                              prev.map((p) => (p._id === updatedProduct._id ? updatedProduct : p))
+                            );
+                          }
                           toast.success('Proveedor asignado correctamente');
                           setShowProveedorModal(false);
                         } else {
@@ -1006,7 +971,6 @@ function PageContent() {
                   >
                     Guardar
                   </button>
-
                 </div>
               </>
             )}
