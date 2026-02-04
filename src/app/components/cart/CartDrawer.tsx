@@ -8,7 +8,7 @@ import Swal from 'sweetalert2';
 import { useState, useEffect, useCallback } from 'react';
 
 export default function CartDrawer() {
-  const { cart, removeFromCart, incrementQty, decrementQty } = useCart();
+  const { cart, removeFromCart, incrementQty, decrementQty, clearCart } = useCart();
   const [isMobile, setIsMobile] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -32,6 +32,31 @@ export default function CartDrawer() {
     decrementQty(id);
   }, [decrementQty]);
 
+  // Vaciar carrito con confirmación
+  const handleClearCart = () => {
+    Swal.fire({
+      title: '¿Vaciar carrito?',
+      text: 'Se eliminarán todos los productos seleccionados',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, vaciar',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+      customClass: {
+        confirmButton: 'bg-[#0D4A6B] text-white',
+        cancelButton: 'bg-gray-300 text-gray-700'
+      }
+    }).then((result) => {
+      if (result.isConfirmed) {
+        clearCart();
+        if (isMobile) {
+          setIsOpen(false);
+        }
+        Swal.fire('Carrito vaciado', 'Los productos han sido eliminados', 'success');
+      }
+    });
+  };
+
   if (!cart.length) return null;
 
   const total = cart.reduce((acc: any, p: any) => {
@@ -51,6 +76,8 @@ export default function CartDrawer() {
       focusConfirm: false,
       showCancelButton: true,
       confirmButtonText: 'Confirmar',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
       preConfirm: () => {
         const razonSocial = (document.getElementById('razonSocial') as HTMLInputElement).value;
         const telefono = (document.getElementById('telefono') as HTMLInputElement).value;
@@ -91,13 +118,16 @@ export default function CartDrawer() {
         totalPresupuesto: data.total,
       });
 
+      // ✅ Vaciar carrito automáticamente después de confirmar
+      clearCart();
+
       Swal.fire(
         'Pedido enviado',
         'Tu pedido fue recibido, te contactamos a la brevedad.',
         'success'
       );
 
-      // Cerrar carrito después de confirmar en móvil
+      // Cerrar carrito después de confirmar
       if (isMobile) {
         setIsOpen(false);
       }
@@ -152,9 +182,23 @@ export default function CartDrawer() {
 
       {/* Header con botón de cerrar en móvil */}
       <div className="px-5 pt-3 pb-3 border-b border-[#1A5A7A] flex items-center justify-between">
-        <h3 className="font-semibold text-base tracking-tight">
-          🛒 Tu selección ({cart.length})
-        </h3>
+        <div>
+          <h3 className="font-semibold text-base tracking-tight">
+            🛒 Tu selección ({cart.length})
+          </h3>
+          {cart.length > 1 && (
+            <button
+              onClick={handleClearCart}
+              className="text-xs text-[#A0D2E7] hover:text-white transition-colors mt-1 flex items-center gap-1"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Vaciar todo
+            </button>
+          )}
+        </div>
+        
         {isMobile && (
           <button
             onClick={() => setIsOpen(false)}
@@ -241,12 +285,22 @@ export default function CartDrawer() {
         </motion.button>
 
         {isMobile && (
-          <button
-            onClick={() => setIsOpen(false)}
-            className="w-full mt-2.5 text-[#A0D2E7] text-sm hover:text-white transition-colors py-2"
-          >
-            ← cerrar y seguir eligiendo
-          </button>
+          <div className="flex gap-2 mt-2.5">
+            <button
+              onClick={() => setIsOpen(false)}
+              className="flex-1 text-[#A0D2E7] text-sm hover:text-white transition-colors py-2 border border-[#1A5A7A] rounded-lg"
+            >
+              ← Seguir eligiendo
+            </button>
+            {cart.length > 1 && (
+              <button
+                onClick={handleClearCart}
+                className="flex-1 text-[#FF6B6B] text-sm hover:text-[#FF5252] transition-colors py-2 border border-[#1A5A7A] rounded-lg"
+              >
+                🗑️ Vaciar
+              </button>
+            )}
+          </div>
         )}
       </div>
     </motion.div>

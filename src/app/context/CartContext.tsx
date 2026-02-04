@@ -63,6 +63,12 @@ export function CartProvider({ children }: any) {
     setCart(prev => prev.filter(p => p._id !== id));
   };
 
+  // Agrega esta función al contexto
+const clearCart = () => {
+  setCart([]);
+};
+
+
   return (
     <CartContext.Provider
       value={{
@@ -71,6 +77,7 @@ export function CartProvider({ children }: any) {
         incrementQty,
         decrementQty,
         removeFromCart,
+        clearCart, // <-- Asegúrate de incluir clearCart en el valor del contexto
       }}
     >
       {children}
