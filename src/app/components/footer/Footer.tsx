@@ -2,10 +2,58 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { useState } from 'react';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
   const companyName = 'Distribuidora El Vaquiano';
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  // Compartir usando Web Share API nativa
+  const handleShareNative = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Distribuidora El Vaquiano',
+          text: 'Productos mayoristas de primera calidad. Embutidos, lácteos, panadería y más.',
+          url: window.location.href,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          // Si falla, mostrar modal alternativo
+          setShowShareModal(true);
+        }
+      }
+    } else {
+      // Si no soporta Web Share API, mostrar modal
+      setShowShareModal(true);
+    }
+  };
+
+  // Compartir en WhatsApp
+  const shareWhatsApp = () => {
+    const text = encodeURIComponent('Te comparto esta distribuidora mayorista: Distribuidora El Vaquiano - Productos de primera calidad');
+    const url = encodeURIComponent(window.location.href);
+    window.open(`https://api.whatsapp.com/send?text=${text}%20${url}`, '_blank');
+    setShowShareModal(false);
+  };
+
+  // Compartir en Instagram (solo link en bio)
+  const shareInstagram = () => {
+    window.open('https://www.instagram.com/el_vaquiano', '_blank');
+    setShowShareModal(false);
+  };
+
+  // Copiar link al portapapeles
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      alert('¡Link copiado al portapapeles!');
+      setShowShareModal(false);
+    } catch (err) {
+      console.error('Error al copiar:', err);
+    }
+  };
 
   return (
     <footer className="relative bg-[#0b1f0b] text-white pt-14 pb-8">
@@ -78,11 +126,23 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Contacto */}
+          {/* Contacto + Compartir */}
           <div>
             <h3 className="text-lg font-semibold mb-4 text-[#39FF14]">
               Contacto
             </h3>
+
+            {/* Botón Compartir */}
+            <button
+              onClick={handleShareNative}
+              className="w-full mb-4 py-2.5 px-4 bg-[#39FF14] text-black font-semibold rounded-lg hover:bg-[#28cc10] transition flex items-center justify-center gap-2 shadow-lg"
+              aria-label="Compartir página"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              Compartir
+            </button>
 
             {/* Redes */}
             <div className="flex items-center gap-3 mb-5">
@@ -132,6 +192,68 @@ const Footer = () => {
           </p>
         </div>
       </div>
+
+      {/* Modal de compartir alternativo */}
+      {showShareModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowShareModal(false)}
+        >
+          <div 
+            className="bg-[#0b1f0b] rounded-2xl w-11/12 max-w-md p-6 border-2 border-[#39FF14]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-semibold text-[#39FF14]">Compartir</h3>
+              <button
+                onClick={() => setShowShareModal(false)}
+                className="text-white/80 hover:text-white text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={shareWhatsApp}
+                className="w-full flex items-center gap-3 p-4 bg-[#25D366] text-white rounded-lg hover:bg-[#128C7E] transition"
+              >
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20.52 3.48A11.88 11.88 0 0012 0C5.37 0 0 5.37 0 12a11.93 11.93 0 001.63 6L0 24l6.2-1.63A11.93 11.93 0 0012 24c6.63 0 12-5.37 12-12 0-3.19-1.24-6.19-3.48-8.52z" />
+                </svg>
+                <span className="font-medium">WhatsApp</span>
+              </button>
+
+              <button
+                onClick={shareInstagram}
+                className="w-full flex items-center gap-3 p-4 bg-gradient-to-r from-[#f09433] via-[#e6683c] to-[#dc2743] text-white rounded-lg hover:opacity-90 transition"
+              >
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M7.75 2h8.5A5.75 5.75 0 0122 7.75v8.5A5.75 5.75 0 0116.25 22h-8.5A5.75 5.75 0 012 16.25v-8.5A5.75 5.75 0 017.75 2zm4.25 5.5a4.75 4.75 0 100 9.5 4.75 4.75 0 000-9.5zm0 7.8a3.05 3.05 0 110-6.1 3.05 3.05 0 010 6.1zm5.2-7.95a1.15 1.15 0 11-2.3 0 1.15 1.15 0 012.3 0z" />
+                </svg>
+                <span className="font-medium">Instagram</span>
+              </button>
+
+              <button
+                onClick={copyLink}
+                className="w-full flex items-center gap-3 p-4 bg-[#39FF14] text-black rounded-lg hover:bg-[#28cc10] transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span className="font-medium">Copiar enlace</span>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowShareModal(false)}
+              className="w-full mt-6 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </footer>
   );
 };
