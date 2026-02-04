@@ -124,22 +124,32 @@ export default function CartDrawer() {
   // Carrito completo
   const CartContent = () => (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: '100%' }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
+      exit={{ opacity: 0, y: '100%' }}
+      transition={{ type: 'spring', damping: 25, stiffness: 300 }}
       className={`fixed ${
-        isMobile ? 'inset-0 bottom-0 rounded-t-2xl' : 'bottom-6 right-6 w-80'
-      } z-50 ${isMobile ? 'max-h-[85vh]' : ''} bg-[#0D4A6B] text-white border border-[#1A5A7A] shadow-2xl overflow-hidden`}
+        isMobile 
+          ? 'left-1/2 -translate-x-1/2 bottom-0 w-[92%] max-w-md rounded-t-3xl rounded-b-none' 
+          : 'bottom-6 right-6 w-80'
+      } z-50 ${isMobile ? 'max-h-[75vh]' : ''} bg-[#0D4A6B] text-white border border-[#1A5A7A] shadow-2xl overflow-hidden`}
     >
+      {/* Handle para arrastrar en móviles */}
+      {isMobile && (
+        <div className="w-full flex justify-center py-3 border-b border-[#1A5A7A]">
+          <div className="w-12 h-1 bg-[#1A5A7A] rounded-full"></div>
+        </div>
+      )}
+
       {/* Header con botón de cerrar en móvil */}
-      <div className="px-5 pt-5 pb-3 border-b border-[#1A5A7A] flex items-center justify-between">
+      <div className="px-5 pt-3 pb-3 border-b border-[#1A5A7A] flex items-center justify-between">
         <h3 className="font-semibold text-base tracking-tight">
           🛒 Tu selección ({cart.length})
         </h3>
         {isMobile && (
           <button
             onClick={() => setIsOpen(false)}
-            className="text-[#A0D2E7] hover:text-white transition-colors"
+            className="text-[#A0D2E7] hover:text-white transition-colors text-lg"
             aria-label="Cerrar carrito"
           >
             ✕
@@ -148,20 +158,21 @@ export default function CartDrawer() {
       </div>
 
       {/* Items */}
-      <div className="px-2 max-h-60 overflow-y-auto">
+      <div className="px-3 max-h-[40vh] overflow-y-auto">
         <AnimatePresence>
           {cart.map((p: any) => (
             <motion.div
               key={p._id}
               layout
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex items-start justify-between py-3 px-3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-start justify-between py-3 px-2 border-b border-[#1A5A7A]/30 last:border-0"
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{p.nombre}</p>
-                <p className="text-xs text-[#A0D2E7] mt-1">
+                <p className="text-xs text-[#A0D2E7] mt-0.5">
                   x{p.qty} · {formatARS(
                     p.precioOferta && p.precioOferta < p.precioMayorista
                       ? p.precioOferta
@@ -170,23 +181,23 @@ export default function CartDrawer() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-1.5 ml-2">
                 <button
                   onClick={() => decrementQty(p._id)}
-                  className="w-6 h-6 rounded-full bg-[#1A5A7A] text-white hover:bg-[#2A6A8A]"
+                  className="w-6 h-6 rounded-full bg-[#1A5A7A] text-white hover:bg-[#2A6A8A] text-sm flex items-center justify-center"
                   aria-label="Disminuir"
                 >
                   −
                 </button>
 
-                <span className="text-xs text-[#A0D2E7] min-w-[16px] text-center">
+                <span className="text-xs text-[#A0D2E7] min-w-[18px] text-center font-medium">
                   {p.qty}
                 </span>
 
                 <button
                   onClick={() => incrementQty(p._id)}
                   disabled={p.qty >= p.stockTotal}
-                  className={`w-6 h-6 rounded-full
+                  className={`w-6 h-6 rounded-full text-sm flex items-center justify-center
                       ${p.qty >= p.stockTotal
                       ? 'bg-gray-400 cursor-not-allowed'
                       : 'bg-[#1A5A7A] hover:bg-[#2A6A8A]'
@@ -195,14 +206,6 @@ export default function CartDrawer() {
                 >
                   +
                 </button>
-
-                <span className="text-xs text-[#A0D2E7] ml-2">
-                  · {formatARS(
-                    p.precioOferta && p.precioOferta < p.precioMayorista
-                      ? p.precioOferta
-                      : p.precioMayorista
-                  )}
-                </span>
               </div>
             </motion.div>
           ))}
@@ -210,16 +213,16 @@ export default function CartDrawer() {
       </div>
 
       {/* Total + CTA */}
-      <div className="px-5 py-4 bg-[#0B3A52] border-t border-[#1A5A7A]">
+      <div className="px-5 py-3 bg-[#0B3A52] border-t border-[#1A5A7A]">
         <div className="flex justify-between font-semibold text-sm mb-3">
           <span>Total</span>
-          <span className="text-[#FFB81C]">{formatARS(total)}</span>
+          <span className="text-[#FFB81C] text-lg">{formatARS(total)}</span>
         </div>
 
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={confirmOrder}
-          className="w-full bg-[#FFB81C] hover:bg-[#E5A50D] text-[#0D4A6B] py-2.5 rounded-lg text-sm font-bold transition-colors duration-200 shadow-lg"
+          className="w-full bg-[#FFB81C] hover:bg-[#E5A50D] text-[#0D4A6B] py-3 rounded-lg text-sm font-bold transition-colors duration-200 shadow-lg"
         >
           Confirmar pedido vía WhatsApp
         </motion.button>
@@ -227,23 +230,39 @@ export default function CartDrawer() {
         {isMobile && (
           <button
             onClick={() => setIsOpen(false)}
-            className="w-full mt-2 text-[#A0D2E7] text-sm hover:text-white transition-colors"
+            className="w-full mt-2.5 text-[#A0D2E7] text-sm hover:text-white transition-colors py-2"
           >
-            ← cerrar y Seguir eligiendo
+            ← cerrar y seguir eligiendo
           </button>
         )}
       </div>
     </motion.div>
   );
 
+  // Overlay para móviles
+  const MobileOverlay = () => (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 0.5 }}
+      exit={{ opacity: 0 }}
+      onClick={() => setIsOpen(false)}
+      className="fixed inset-0 z-40 bg-black"
+    />
+  );
+
   return (
     <>
-      {/* En móvil: botón flotante + carrito modal */}
+      {/* En móvil: botón flotante + carrito modal con overlay */}
       {isMobile ? (
         <>
           <MobileCartButton />
           <AnimatePresence>
-            {isOpen && <CartContent />}
+            {isOpen && (
+              <>
+                <MobileOverlay />
+                <CartContent />
+              </>
+            )}
           </AnimatePresence>
         </>
       ) : (
