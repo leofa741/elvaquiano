@@ -8,9 +8,29 @@ import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClie
 
 connectDB();
 
+// ✅ Helper para validar cantidad decimal
+function validarCantidad(cantidad: number): { valido: boolean; error?: string } {
+  if (typeof cantidad !== 'number' || isNaN(cantidad)) {
+    return { valido: false, error: 'Cantidad debe ser un número' };
+  }
+  
+  if (cantidad <= 0) {
+    return { valido: false, error: 'Cantidad debe ser mayor a 0' };
+  }
+  
+  // ✅ Validar máximo 3 decimales (precisión de gramos/mililitros)
+  const decimales = cantidad.toString().split('.')[1]?.length || 0;
+  if (decimales > 3) {
+    return { valido: false, error: 'Cantidad no puede tener más de 3 decimales (máximo 1 gramo de precisión)' };
+  }
+  
+  return { valido: true };
+}
+
 export async function DELETE(request: NextRequest, { params }: any) {
     try {
-        const { id, productoIndex } = params;
+        // ✅ FIX: Await params
+        const { id, productoIndex } = await params;
         const index = parseInt(productoIndex, 10);
 
         if (isNaN(index)) {
@@ -82,11 +102,14 @@ export async function DELETE(request: NextRequest, { params }: any) {
 
 export async function POST(request: NextRequest, { params }: any) {
     try {
-        const { id } = params;
+        // ✅ FIX: Await params
+        const { id } = await params;
         const { productoId, cantidad } = await request.json();
 
-        if (!productoId || cantidad <= 0 || !Number.isInteger(cantidad)) {
-            return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+        // ✅ FIX: Validar cantidad con decimales
+        const validacion = validarCantidad(cantidad);
+        if (!productoId || !validacion.valido) {
+            return NextResponse.json({ error: validacion.error || 'Datos inválidos' }, { status: 400 });
         }
 
         const pedido = await Pedido.findById(id).populate('productos.producto');
@@ -121,25 +144,29 @@ export async function POST(request: NextRequest, { params }: any) {
         const precioAplicado = precioOfertaValida ? productoDB.precioOferta : productoDB.precioMayorista;
         const tipoPrecio = precioOfertaValida ? 'oferta' : 'mayorista';
 
+        // ✅ Redondear cantidad a 3 decimales para evitar errores de precisión
+        const cantidadRedondeada = parseFloat(cantidad.toFixed(3));
+        const subtotal = parseFloat((cantidadRedondeada * precioAplicado).toFixed(2));
+
         const nuevoItem = {
             producto: productoDB._id,
             nombre: productoDB.nombre,
             unidad: productoDB.unidad,
-            cantidad,
+            cantidad: cantidadRedondeada,
             tipoPrecio,
             precioAplicado,
-            subtotal: cantidad * precioAplicado,
+            subtotal,
             deposito: pedido.deposito,
         };
 
         // Agregar al pedido
         pedido.productos.push(nuevoItem as any);
-        pedido.total += nuevoItem.subtotal;
+        pedido.total = parseFloat((pedido.total + subtotal).toFixed(2));
 
         // Si está en "preparacion", descontar stock
         if (pedido.estado === 'preparacion') {
             const stock = productoDB.stock.find((s: any) => s.deposito === pedido.deposito)!;
-            stock.cantidad -= cantidad;
+            stock.cantidad -= cantidadRedondeada;
             await productoDB.save();
 
             notifyProducts({

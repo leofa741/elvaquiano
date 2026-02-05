@@ -17,7 +17,8 @@ export async function GET(
   { params }: { params: any }
 ) {
   try {
-    const { id } = params;
+    // ✅ FIX: Await params antes de usarlo
+    const { id } = await params;
 
     if (!id || id.length !== 24) {
       return NextResponse.json({ error: 'ID de pedido inválido' }, { status: 400 });

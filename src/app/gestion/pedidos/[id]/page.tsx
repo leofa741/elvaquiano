@@ -16,6 +16,7 @@ import {
   FaFileInvoice,
   FaSearch,
   FaTimes,
+  FaWeightHanging,
 } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import { formatARS } from '@/app/lib/formatcurrenci';
@@ -34,8 +35,8 @@ interface Cliente {
 interface Producto {
   _id: string;
   nombre: string;
-  unidad: string;
-  cantidad: number;
+  unidad: string; // 'kg', 'litro', 'unidad', etc.
+  cantidad: number; // ✅ Ahora acepta decimales
   tipoPrecio: 'mayorista' | 'oferta';
   precioAplicado: number;
   subtotal: number;
@@ -70,6 +71,30 @@ const ESTADO_LABEL: Record<string, string> = {
 
 const ESTADO_OPCIONES = ['pendiente', 'preparacion', 'enviado', 'entregado', 'cancelado'] as const;
 
+// ✅ Formatear cantidad según la unidad
+const formatCantidad = (cantidad: number, unidad: string): string => {
+  if (unidad === 'kg' || unidad === 'litro') {
+    // Para kg y litros: mostrar 3 decimales (gramos/mililitros)
+    return cantidad.toFixed(3).replace('.', ',');
+  }
+  // Para unidades enteras: redondear
+  return Math.round(cantidad).toString();
+};
+
+// ✅ Obtener texto de unidad según cantidad y tipo
+const getUnidadTexto = (cantidad: number, unidad: string): string => {
+  if (unidad === 'kg') {
+    return 'kg';
+  } else if (unidad === 'litro') {
+    return cantidad === 1 ? 'litro' : 'litros';
+  } else if (unidad === 'unidad') {
+    return cantidad === 1 ? 'unidad' : 'unidades';
+  } else {
+    // caja, pack, etc.
+    return unidad;
+  }
+};
+
 export default function DetallePedidoPage() {
   const isAuthorized = useAdminAuthorization();
   const { id } = useParams() as { id?: string };
@@ -83,7 +108,7 @@ export default function DetallePedidoPage() {
   const [mostrarAgregar, setMostrarAgregar] = useState(false);
   const [productoSeleccionado, setProductoSeleccionado] = useState<string>('');
   const [cantidadNuevo, setCantidadNuevo] = useState<number>(1);
-  const [busquedaProducto, setBusquedaProducto] = useState<string>(''); // ✅ Nuevo estado
+  const [busquedaProducto, setBusquedaProducto] = useState<string>('');
 
   // Fetch saldo
   const fetchSaldo = async () => {
@@ -140,6 +165,13 @@ export default function DetallePedidoPage() {
     p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase().trim())
   );
 
+  // ✅ Obtener unidad del producto seleccionado para ajustar el step
+  const unidadSeleccionada = productoSeleccionado 
+    ? productosDisponibles.find(p => p._id === productoSeleccionado)?.unidad 
+    : null;
+  
+  const stepCantidad = unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1;
+
   const handleCambiarEstado = async (nuevoEstado: string) => {
     const result = await Swal.fire({
       title: '¿Cambiar estado?',
@@ -179,16 +211,19 @@ export default function DetallePedidoPage() {
   };
 
   const guardarCantidad = async (idx: number) => {
-    if (cantidadTemporal <= 0) {
+    if (cantidadTemporal <= 0 || isNaN(cantidadTemporal)) {
       Swal.fire('Error', 'La cantidad debe ser mayor a 0', 'error');
       return;
     }
+
+    // ✅ Validación: máximo 3 decimales para evitar errores de precisión
+    const cantidadValidada = parseFloat(cantidadTemporal.toFixed(3));
 
     try {
       const res = await fetch(`/api/gestion/pedidos/${id}/producto/${idx}/cantidad`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nuevaCantidad: cantidadTemporal }),
+        body: JSON.stringify({ nuevaCantidad: cantidadValidada }),
       });
 
       if (res.ok) {
@@ -241,16 +276,19 @@ export default function DetallePedidoPage() {
 
   // ✅ Agregar nuevo producto
   const handleAgregarProducto = async () => {
-    if (!productoSeleccionado || cantidadNuevo <= 0) {
+    if (!productoSeleccionado || cantidadNuevo <= 0 || isNaN(cantidadNuevo)) {
       Swal.fire('Error', 'Selecciona un producto y una cantidad válida', 'error');
       return;
     }
+
+    // ✅ Validación: máximo 3 decimales
+    const cantidadValidada = parseFloat(cantidadNuevo.toFixed(3));
 
     try {
       const res = await fetch(`/api/gestion/pedidos/${id}/producto`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productoId: productoSeleccionado, cantidad: cantidadNuevo }),
+        body: JSON.stringify({ productoId: productoSeleccionado, cantidad: cantidadValidada }),
       });
 
       if (res.ok) {
@@ -260,7 +298,7 @@ export default function DetallePedidoPage() {
         setMostrarAgregar(false);
         setProductoSeleccionado('');
         setCantidadNuevo(1);
-        setBusquedaProducto(''); // ✅ Limpiar búsqueda
+        setBusquedaProducto('');
         Swal.fire('¡Agregado!', 'El producto fue añadido al pedido.', 'success');
       } else {
         const error = await res.json();
@@ -357,7 +395,7 @@ export default function DetallePedidoPage() {
                       type="text"
                       value={busquedaProducto}
                       onChange={(e) => setBusquedaProducto(e.target.value)}
-                      placeholder="Escribe para buscar... (ej: arroz, leche, queso)"
+                      placeholder="Escribe para buscar... (ej: arroz, leche, queso, paleta)"
                       className="w-full pl-10 pr-10 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
                       autoFocus
                     />
@@ -391,9 +429,18 @@ export default function DetallePedidoPage() {
                     </label>
                     <select
                       value={productoSeleccionado}
-                      onChange={(e) => setProductoSeleccionado(e.target.value)}
+                      onChange={(e) => {
+                        setProductoSeleccionado(e.target.value);
+                        // Resetear cantidad al cambiar de producto
+                        const prod = productosDisponibles.find(p => p._id === e.target.value);
+                        if (prod && (prod.unidad === 'kg' || prod.unidad === 'litro')) {
+                          setCantidadNuevo(0.000); // Empezar en 0 para peso
+                        } else {
+                          setCantidadNuevo(1);
+                        }
+                      }}
                       className="w-full bg-gray-700 text-white rounded px-3 py-2 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      size={Math.min(5, productosFiltrados.length)} // ✅ Mostrar varios items
+                      size={Math.min(5, productosFiltrados.length)}
                     >
                       <option value="">Seleccionar producto...</option>
                       {productosFiltrados.map((p) => (
@@ -405,30 +452,51 @@ export default function DetallePedidoPage() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Cantidad
+                    <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1">
+                      <FaWeightHanging className="text-amber-400" />
+                      Cantidad ({unidadSeleccionada || 'unidad'})
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => setCantidadNuevo(Math.max(1, cantidadNuevo - 1))}
-                        className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition"
+                        onClick={() => {
+                          const nuevaCantidad = Math.max(0.001, parseFloat((cantidadNuevo - (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3)));
+                          setCantidadNuevo(nuevaCantidad);
+                        }}
+                        className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg"
+                        title={unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 'Restar 100g' : 'Restar 1 unidad'}
                       >
                         –
                       </button>
                       <input
                         type="number"
-                        min="1"
+                        step={unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? "0.001" : "1"}
+                        min="0.001"
                         value={cantidadNuevo}
-                        onChange={(e) => setCantidadNuevo(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value);
+                          if (!isNaN(value) && value > 0) {
+                            setCantidadNuevo(value);
+                          }
+                        }}
+                        className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 py-1.5 text-lg font-mono"
+                        placeholder={unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? "0,000" : "1"}
                       />
                       <button
-                        onClick={() => setCantidadNuevo(cantidadNuevo + 1)}
-                        className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition"
+                        onClick={() => {
+                          const nuevaCantidad = parseFloat((cantidadNuevo + (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3));
+                          setCantidadNuevo(nuevaCantidad);
+                        }}
+                        className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg"
+                        title={unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 'Sumar 100g' : 'Sumar 1 unidad'}
                       >
                         +
                       </button>
                     </div>
+                    {unidadSeleccionada === 'kg' && (
+                      <p className="text-xs text-gray-400 mt-1 italic">
+                        💡 Ej: 1,300 = 1 kg 300 gramos | 0,750 = 750 gramos
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -439,7 +507,7 @@ export default function DetallePedidoPage() {
                       setMostrarAgregar(false);
                       setProductoSeleccionado('');
                       setCantidadNuevo(1);
-                      setBusquedaProducto(''); // ✅ Limpiar búsqueda
+                      setBusquedaProducto('');
                     }}
                     className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded hover:bg-gray-600 transition"
                   >
@@ -447,9 +515,9 @@ export default function DetallePedidoPage() {
                   </button>
                   <button
                     onClick={handleAgregarProducto}
-                    disabled={!productoSeleccionado || cantidadNuevo <= 0}
+                    disabled={!productoSeleccionado || cantidadNuevo <= 0 || isNaN(cantidadNuevo)}
                     className={`px-4 py-2 rounded transition ${
-                      productoSeleccionado && cantidadNuevo > 0
+                      productoSeleccionado && cantidadNuevo > 0 && !isNaN(cantidadNuevo)
                         ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                         : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                     }`}
@@ -480,52 +548,65 @@ export default function DetallePedidoPage() {
 
                 <div className="flex items-center gap-3">
                   {editandoProducto === idx ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => setCantidadTemporal(Math.max(1, cantidadTemporal - 1))}
-                        className="w-8 h-8 rounded-full bg-gray-700 text-white flex items-center justify-center"
+                        onClick={() => {
+                          const nuevaCantidad = Math.max(0.001, parseFloat((cantidadTemporal - (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3)));
+                          setCantidadTemporal(nuevaCantidad);
+                        }}
+                        className="w-8 h-8 rounded-full bg-gray-700 text-white flex items-center justify-center text-lg"
+                        title={p.unidad === 'kg' || p.unidad === 'litro' ? 'Restar 100g' : 'Restar 1 unidad'}
                       >
                         –
                       </button>
                       <input
                         type="number"
-                        min="1"
+                        step={p.unidad === 'kg' || p.unidad === 'litro' ? "0.001" : "1"}
+                        min="0.001"
                         value={cantidadTemporal}
-                        onChange={(e) => setCantidadTemporal(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="w-16 text-center bg-gray-700 text-white rounded border border-gray-600"
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value);
+                          if (!isNaN(value) && value > 0) {
+                            setCantidadTemporal(value);
+                          }
+                        }}
+                        className="w-28 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-lg font-mono"
+                        autoFocus
                       />
                       <button
-                        onClick={() => setCantidadTemporal(cantidadTemporal + 1)}
-                        className="w-8 h-8 rounded-full bg-gray-700 text-white flex items-center justify-center"
+                        onClick={() => {
+                          const nuevaCantidad = parseFloat((cantidadTemporal + (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3));
+                          setCantidadTemporal(nuevaCantidad);
+                        }}
+                        className="w-8 h-8 rounded-full bg-gray-700 text-white flex items-center justify-center text-lg"
+                        title={p.unidad === 'kg' || p.unidad === 'litro' ? 'Sumar 100g' : 'Sumar 1 unidad'}
                       >
                         +
                       </button>
                       <button
                         onClick={() => guardarCantidad(idx)}
-                        className="text-green-500 hover:text-green-400 text-sm"
+                        className="text-green-500 hover:text-green-400 text-sm font-medium"
                       >
-                        Guardar
+                        ✓ Guardar
                       </button>
                       <button
                         onClick={() => setEditandoProducto(null)}
                         className="text-gray-500 hover:text-gray-400 text-sm"
                       >
-                        Cancelar
+                        ✕
                       </button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        {/* ✅ Línea 1: "5 unidades de Harina" */}
-                        <div className="text-white">
-                          {p.cantidad} {p.cantidad === 1 ? 'unidad' : 'unidades'} de {p.nombre}
+                      <div className="text-right min-w-[180px]">
+                        {/* ✅ Formato inteligente según unidad */}
+                        <div className="text-white font-medium">
+                          {formatCantidad(p.cantidad, p.unidad)} {getUnidadTexto(p.cantidad, p.unidad)} de {p.nombre}
                         </div>
-                        {/* ✅ Línea 2: "(5 kg)" */}
                         <div className="text-xs text-gray-400">
-                          ({p.cantidad} {p.unidad})
+                          ({formatCantidad(p.cantidad, p.unidad)} {p.unidad})
                         </div>
-                        {/* Total */}
-                        <div className="text-white font-medium">{formatARS(p.subtotal)}</div>
+                        <div className="text-white font-bold">{formatARS(p.subtotal)}</div>
                       </div>
 
                       {['preparacion', 'enviado', 'entregado'].includes(pedido.estado) && (
@@ -535,14 +616,14 @@ export default function DetallePedidoPage() {
                             className="text-amber-500 hover:text-amber-400"
                             title="Editar cantidad"
                           >
-                            <FaEdit size={14} />
+                            <FaEdit size={16} />
                           </button>
                           <button
                             onClick={() => eliminarProducto(idx, p.nombre)}
                             className="text-red-500 hover:text-red-400"
                             title="Eliminar producto"
                           >
-                            <FaTrash size={14} />
+                            <FaTrash size={16} />
                           </button>
                         </div>
                       )}
@@ -633,7 +714,6 @@ export default function DetallePedidoPage() {
                   if (res.ok) {
                     const data = await res.json();
                     Swal.fire('¡Éxito!', 'Presupuesto regenerado con éxito.', 'success');
-                    // Opcional: redirigir al nuevo presupuesto
                     router.push(`/gestion/presupuestos/imprimir/${data._id}`);
                   } else {
                     const error = await res.json();

@@ -8,15 +8,36 @@ import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClie
 
 connectDB();
 
+// ✅ Helper para validar cantidad decimal
+function validarCantidad(cantidad: number): { valido: boolean; error?: string } {
+  if (typeof cantidad !== 'number' || isNaN(cantidad)) {
+    return { valido: false, error: 'Cantidad debe ser un número' };
+  }
+  
+  if (cantidad <= 0) {
+    return { valido: false, error: 'Cantidad debe ser mayor a 0' };
+  }
+  
+  // ✅ Validar máximo 3 decimales (precisión de gramos/mililitros)
+  const decimales = cantidad.toString().split('.')[1]?.length || 0;
+  if (decimales > 3) {
+    return { valido: false, error: 'Cantidad no puede tener más de 3 decimales' };
+  }
+  
+  return { valido: true };
+}
 
 export async function PATCH(request: NextRequest, { params }: any) {
   try {
-    const { id, productoIndex } = params;
+    // ✅ FIX: Await params antes de usarlo
+    const { id, productoIndex } = await params;
     const { nuevaCantidad } = await request.json();
     const index = parseInt(productoIndex, 10);
 
-    if (isNaN(index) || nuevaCantidad <= 0 || !Number.isInteger(nuevaCantidad)) {
-      return NextResponse.json({ error: 'Cantidadd inválida' }, { status: 400 });
+    // ✅ FIX: Validar cantidad con decimales
+    const validacion = validarCantidad(nuevaCantidad);
+    if (!validacion.valido) {
+      return NextResponse.json({ error: validacion.error || 'Cantidad inválida' }, { status: 400 });
     }
 
     const pedido = await Pedido.findById(id).populate('productos.producto');
@@ -69,12 +90,14 @@ export async function PATCH(request: NextRequest, { params }: any) {
       }
     }
 
-    // Actualizar cantidad y subtotal
-    item.cantidad = nuevaCantidad;
-    item.subtotal = nuevaCantidad * item.precioAplicado;
+    // ✅ Actualizar cantidad y subtotal (acepta decimales)
+    item.cantidad = parseFloat(nuevaCantidad.toFixed(3)); // Redondear a 3 decimales
+    item.subtotal = parseFloat((nuevaCantidad * item.precioAplicado).toFixed(2));
 
     // Recalcular total
-    pedido.total = pedido.productos.reduce((sum: any, p: { subtotal: any; }) => sum + p.subtotal, 0);
+    pedido.total = parseFloat(
+      pedido.productos.reduce((sum: any, p: { subtotal: any; }) => sum + p.subtotal, 0).toFixed(2)
+    );
 
     await pedido.save();
 
