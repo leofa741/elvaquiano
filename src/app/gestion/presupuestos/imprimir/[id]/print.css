@@ -16,17 +16,16 @@
   }
 
   /* Ticket centrado */
-  
   .ticket {
     position: absolute;
     top: 0;
     left: 50%;
     transform: translateX(-50%);
     width: 80mm;
-    padding: 6mm;
+    padding: 4mm 3mm; /* ✅ Reducido padding */
     font-family: monospace;
-    font-size: 14px;
-    line-height: 1.8;
+    font-size: 12px; /* ✅ Fuente más pequeña */
+    line-height: 1.3; /* ✅ Menos espacio entre líneas */
     background: white;
     color: black;
   }
@@ -38,18 +37,103 @@
   hr {
     border: none;
     border-top: 1px dashed #000;
-    margin: 6px 0;
+    margin: 3px 0; /* ✅ Menos margen */
   }
+
   .ticket-logo {
     text-align: center;
-    margin-bottom: 4px;
+    margin-bottom: 2px; /* ✅ Menos margen */
   }
 
   .ticket-logo img {
-    width: 35mm;        /* ideal para 80mm */
+    width: 30mm; /* ✅ Logo más pequeño */
     max-width: 100%;
     height: auto;
     display: inline-block;
   }
 
+  /* ✅ Reducir espacio entre productos */
+  .space-y-2 {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    gap: 0.15rem !important; /* ✅ Mucho menos espacio */
+  }
+
+  /* ✅ Eliminar márgenes extra de cada producto */
+  .space-y-2 > div {
+    margin: 0 !important;
+    padding: 0.15rem 0 !important; /* ✅ Padding mínimo */
+  }
+
+  /* ✅ Reducir tamaño de texto en productos */
+  .space-y-2 .font-medium.text-sm {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    line-height: 1.2 !important;
+    margin-bottom: 0.05rem !important;
+  }
+
+  .space-y-2 .text-xs.text-gray-600 {
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+    margin-bottom: 0.05rem !important;
+  }
+
+  .space-y-2 .text-right.font-medium {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    margin-top: 0.1rem !important;
+  }
+
+  /* ✅ Reducir espaciado del total */
+  .flex.justify-between.font-bold.text-base {
+    font-size: 13px !important;
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+  }
+
+  /* ✅ Reducir margen del hr antes del total */
+  hr.my-2 {
+    margin: 2px 0 !important;
+  }
+
+  /* ✅ Texto más pequeño en el footer */
+  .text-center.mt-3.text-xs.text-gray-500 {
+    font-size: 9px !important;
+    margin-top: 1px !important;
+    line-height: 1.1 !important;
+  }
+
+  /* ✅ Encabezado más compacto */
+  .ticket h2 {
+    font-size: 14px !important;
+    margin: 2px 0 !important;
+  }
+
+  .ticket .text-sm {
+    font-size: 11px !important;
+    margin: 1px 0 !important;
+  }
+
+  .ticket .text-xs.mt-1 {
+    font-size: 9px !important;
+    margin-top: 1px !important;
+    margin-bottom: 2px !important;
+  }
+
+  /* ✅ Cliente más compacto */
+  .ticket > .font-medium {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    margin: 2px 0 !important;
+  }
+
+  /* ✅ Notas más compactas */
+  .text-center.text-xs.text-gray-500.italic.mt-2.mb-1 {
+    font-size: 9px !important;
+    margin-top: 1px !important;
+    margin-bottom: 1px !important;
+    line-height: 1.1 !important;
+  }
 }

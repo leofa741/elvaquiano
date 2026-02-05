@@ -58,7 +58,6 @@ export async function DELETE(request: NextRequest, { params }: any) {
         pedido.productos.splice(index, 1);
 
         // Recalcular total
-
         pedido.total = pedido.productos.reduce((sum: any, p: { subtotal: any; }) => sum + p.subtotal, 0);
 
         // Si no quedan productos, cancelar el pedido
@@ -80,12 +79,6 @@ export async function DELETE(request: NextRequest, { params }: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
-
-
-
-
-
-
 
 export async function POST(request: NextRequest, { params }: any) {
     try {
@@ -122,21 +115,21 @@ export async function POST(request: NextRequest, { params }: any) {
             }
         }
 
-        // Buscar precio aplicado
-        const precioAplicado =
-            pedido.cliente?.tipoCliente === 'mayorista' && productoDB.precioMayorista
-                ? productoDB.precioMayorista
-                : productoDB.precioMinorista || productoDB.precioLista;
+        // ✅ CORRECCIÓN: Siempre usar precioMayorista o precioOferta
+        // precioMinorista ya no existe en el schema
+        const precioOfertaValida = productoDB.precioOferta && productoDB.precioOferta < productoDB.precioMayorista;
+        const precioAplicado = precioOfertaValida ? productoDB.precioOferta : productoDB.precioMayorista;
+        const tipoPrecio = precioOfertaValida ? 'oferta' : 'mayorista';
 
         const nuevoItem = {
             producto: productoDB._id,
             nombre: productoDB.nombre,
             unidad: productoDB.unidad,
             cantidad,
-            tipoPrecio: pedido.cliente?.tipoCliente === 'mayorista' ? 'mayorista' : 'minorista',
+            tipoPrecio,
             precioAplicado,
             subtotal: cantidad * precioAplicado,
-             deposito: pedido.deposito, // ✅ ¡ESTA LÍNEA ES LA CLAVE!
+            deposito: pedido.deposito,
         };
 
         // Agregar al pedido
@@ -149,7 +142,6 @@ export async function POST(request: NextRequest, { params }: any) {
             stock.cantidad -= cantidad;
             await productoDB.save();
 
-
             notifyProducts({
                 type: 'stock_modificado',
                 data: {
@@ -158,8 +150,6 @@ export async function POST(request: NextRequest, { params }: any) {
                     pedidoId: pedido._id,
                 },
             });
-
-
         }
 
         await pedido.save();
@@ -171,7 +161,7 @@ export async function POST(request: NextRequest, { params }: any) {
                 motivo: 'producto_agregado_a_pedido',
                 pedidoId: pedido._id,
             },
-        }); 
+        });
 
         notifyPedidoClients({
             type: 'pedido_actualizado',

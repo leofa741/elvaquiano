@@ -14,6 +14,8 @@ import {
   FaTrash,
   FaPlus,
   FaFileInvoice,
+  FaSearch,
+  FaTimes,
 } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import { formatARS } from '@/app/lib/formatcurrenci';
@@ -81,6 +83,7 @@ export default function DetallePedidoPage() {
   const [mostrarAgregar, setMostrarAgregar] = useState(false);
   const [productoSeleccionado, setProductoSeleccionado] = useState<string>('');
   const [cantidadNuevo, setCantidadNuevo] = useState<number>(1);
+  const [busquedaProducto, setBusquedaProducto] = useState<string>(''); // ✅ Nuevo estado
 
   // Fetch saldo
   const fetchSaldo = async () => {
@@ -131,6 +134,11 @@ export default function DetallePedidoPage() {
   if (!isAuthorized) return null;
   if (loading) return <div className="p-8 text-center text-gray-400">Cargando pedido...</div>;
   if (!pedido) return null;
+
+  // ✅ Filtrar productos según la búsqueda
+  const productosFiltrados = productosDisponibles.filter(p => 
+    p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase().trim())
+  );
 
   const handleCambiarEstado = async (nuevoEstado: string) => {
     const result = await Swal.fire({
@@ -252,6 +260,7 @@ export default function DetallePedidoPage() {
         setMostrarAgregar(false);
         setProductoSeleccionado('');
         setCantidadNuevo(1);
+        setBusquedaProducto(''); // ✅ Limpiar búsqueda
         Swal.fire('¡Agregado!', 'El producto fue añadido al pedido.', 'success');
       } else {
         const error = await res.json();
@@ -274,7 +283,6 @@ export default function DetallePedidoPage() {
           <FaWarehouse />
           Ir al dashboard de Cuentas Corrientes
         </Link>
-
       </div>
 
       <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 max-w-4xl mx-auto">
@@ -337,45 +345,118 @@ export default function DetallePedidoPage() {
             </button>
 
             {mostrarAgregar && (
-              <div className="mt-3 p-3 bg-gray-750 rounded flex flex-col sm:flex-row gap-3 items-start sm:items-end">
-                <select
-                  value={productoSeleccionado}
-                  onChange={(e) => setProductoSeleccionado(e.target.value)}
-                  className="bg-gray-700 text-white rounded px-2 py-1 border border-gray-600"
-                >
-                  <option value="">Seleccionar producto</option>
-                  {productosDisponibles.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.nombre} ({p.unidad})
-                    </option>
-                  ))}
-                </select>
-                <div className="flex items-center gap-2">
-                  <label className="text-gray-300 text-sm">Cantidad:</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={cantidadNuevo}
-                    onChange={(e) => setCantidadNuevo(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-16 text-center bg-gray-700 text-white rounded border border-gray-600"
-                  />
+              <div className="mt-3 p-4 bg-gray-750 rounded-lg border border-gray-600">
+                {/* ✅ Buscador de productos */}
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Buscar producto
+                  </label>
+                  <div className="relative">
+                    <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={busquedaProducto}
+                      onChange={(e) => setBusquedaProducto(e.target.value)}
+                      placeholder="Escribe para buscar... (ej: arroz, leche, queso)"
+                      className="w-full pl-10 pr-10 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      autoFocus
+                    />
+                    {busquedaProducto && (
+                      <button
+                        onClick={() => setBusquedaProducto('')}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                        title="Limpiar búsqueda"
+                      >
+                        <FaTimes size={16} />
+                      </button>
+                    )}
+                  </div>
+                  {busquedaProducto && productosFiltrados.length === 0 && (
+                    <p className="text-xs text-gray-400 mt-1 italic">
+                      No se encontraron productos con "{busquedaProducto}"
+                    </p>
+                  )}
+                  {busquedaProducto && productosFiltrados.length > 0 && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      {productosFiltrados.length} {productosFiltrados.length === 1 ? 'resultado' : 'resultados'} encontrado{productosFiltrados.length === 1 ? '' : 's'}
+                    </p>
+                  )}
                 </div>
-                <button
-                  onClick={handleAgregarProducto}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm"
-                >
-                  Agregar
-                </button>
-                <button
-                  onClick={() => {
-                    setMostrarAgregar(false);
-                    setProductoSeleccionado('');
-                    setCantidadNuevo(1);
-                  }}
-                  className="text-gray-400 hover:text-gray-300 text-sm"
-                >
-                  Cancelar
-                </button>
+
+                {/* ✅ Select de productos filtrados */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Producto
+                    </label>
+                    <select
+                      value={productoSeleccionado}
+                      onChange={(e) => setProductoSeleccionado(e.target.value)}
+                      className="w-full bg-gray-700 text-white rounded px-3 py-2 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      size={Math.min(5, productosFiltrados.length)} // ✅ Mostrar varios items
+                    >
+                      <option value="">Seleccionar producto...</option>
+                      {productosFiltrados.map((p) => (
+                        <option key={p._id} value={p._id}>
+                          {p.nombre} ({p.unidad}) - {formatARS(p.precio.oferta && p.precio.oferta < p.precio.mayorista ? p.precio.oferta : p.precio.mayorista)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Cantidad
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCantidadNuevo(Math.max(1, cantidadNuevo - 1))}
+                        className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition"
+                      >
+                        –
+                      </button>
+                      <input
+                        type="number"
+                        min="1"
+                        value={cantidadNuevo}
+                        onChange={(e) => setCantidadNuevo(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                      <button
+                        onClick={() => setCantidadNuevo(cantidadNuevo + 1)}
+                        className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ✅ Botones de acción */}
+                <div className="flex gap-2 justify-end pt-3 border-t border-gray-600">
+                  <button
+                    onClick={() => {
+                      setMostrarAgregar(false);
+                      setProductoSeleccionado('');
+                      setCantidadNuevo(1);
+                      setBusquedaProducto(''); // ✅ Limpiar búsqueda
+                    }}
+                    className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded hover:bg-gray-600 transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleAgregarProducto}
+                    disabled={!productoSeleccionado || cantidadNuevo <= 0}
+                    className={`px-4 py-2 rounded transition ${
+                      productoSeleccionado && cantidadNuevo > 0
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <FaPlus className="inline mr-1" /> Agregar al pedido
+                  </button>
+                </div>
               </div>
             )}
           </div>

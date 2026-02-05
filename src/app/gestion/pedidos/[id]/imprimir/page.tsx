@@ -123,9 +123,11 @@ export default function ImprimirPedidoPage() {
                 </span>
             </p>
 
-            <div className="ticket bg-white text-black p-4 rounded shadow max-w-[300px]">
+            <div className="ticket bg-white text-black p-3 rounded shadow max-w-[300px]"> {/* ✅ Padding reducido */}
                 {/* Encabezado */}
-                <div className="text-center mb-2">
+                <div className="text-center mb-1"> {/* ✅ Margen reducido */
+
+}
 
                     {/* LOGO */}
                     <div className="ticket-logo">
@@ -134,9 +136,9 @@ export default function ImprimirPedidoPage() {
                             alt="Distribuidora El Vaquiano"
                         />
                     </div>
-                    <h2 className="font-bold text-lg">PEDIDO</h2>
-                    <div className="text-sm">#{pedido._id.slice(-6).toUpperCase()}</div>
-                    <div className="text-xs text-gray-600">
+                    <h2 className="font-bold text-base">PEDIDO</h2> {/* ✅ Tamaño reducido */}
+                    <div className="text-xs">#{pedido._id.slice(-6).toUpperCase()}</div>
+                    <div className="text-[10px] text-gray-600 mt-0.5"> {/* ✅ Más compacto */}
                         {new Date(pedido.createdAt).toLocaleString('es-AR')}
                     </div>
                 </div>
@@ -144,56 +146,62 @@ export default function ImprimirPedidoPage() {
                 <hr />
 
                 {/* Cliente */}
-                <div className="font-medium">{getClienteNombre(pedido.cliente)}</div>
+                <div className="font-semibold text-sm">{getClienteNombre(pedido.cliente)}</div> {/* ✅ Más compacto */
+
+}
 
                 <hr />
 
                 {/* Productos */}
-                <div className="mt-2 space-y-1">
+                <div className="mt-1 space-y-1"> {/* ✅ Margen y gap reducidos */}
                     {pedido.productos.map((p, i) => (
-                        <div key={i} className="text-sm">
+                        <div key={i} className="py-0.5"> {/* ✅ Padding vertical mínimo */}
                             {/* ✅ Línea 1: "5 unidades de leche descremada" */}
-                            <div>
+                            <div className="text-[11px] leading-tight"> {/* ✅ Más compacto */}
                                 {p.cantidad} {p.cantidad === 1 ? 'unidad' : 'unidades'} de {p.nombre}
                             </div>
                             {/* ✅ Línea 2: "(5 litros)" */}
-                            <div className="text-xs text-gray-600">
+                            <div className="text-[10px] text-gray-600 leading-tight">
                                 ({p.cantidad} {p.unidad})
                             </div>
                             {/* Subtotal a la derecha */}
-                            <div className="text-right font-medium">
+                            <div className="text-right font-bold text-[11px] leading-tight mt-0.5">
                                 {formatARS(p.subtotal)}
                             </div>
                         </div>
                     ))}
                 </div>
 
-                <hr className="my-2" />
+                <hr className="my-1" /> {/* ✅ Margen reducido */
+
+}
 
                 {/* Total */}
-                <div className="flex justify-between font-bold">
+                <div className="flex justify-between font-bold text-sm"> {/* ✅ Más compacto */}
                     <span>TOTAL</span>
                     <span>{formatARS(pedido.total)}</span>
                 </div>
 
-                <hr className="my-2" />
+                <hr className="my-1" /> {/* ✅ Margen reducido */
+
+}
 
                 {/* Estado de pago */}
-                <div className="text-center text-xs">
-                    <div className="font-medium">
+                <div className="text-center text-[10px] leading-tight"> {/* ✅ Más compacto */}
+                    <div className="font-bold">
                         {pedido.estadoPago === 'pagado' ? '✅ PAGADO' :
                             pedido.estadoPago === 'parcial' ? '🟡 PAGO PARCIAL' : '🔴 PAGO PENDIENTE'}
                     </div>
 
                     {/* Mensaje adicional si es cuenta corriente */}
                     {pedido.cliente && typeof pedido.cliente !== 'string' && (
-                        <div className="mt-1">
+                        <div className="mt-0.5">
                             Forma de pago: {getFormaPagoLabel(pedido.cliente?.formaPago || 'efectivo')}
                         </div>
                     )}
                 </div>
 
-                <div className="text-center mt-3 text-xs text-gray-500">
+                <div className="text-center mt-1 text-[10px] text-gray-500 leading-tight"> {/* ✅ Más compacto */}
                     Este documento no es comprobante fiscal
                 </div>
 
