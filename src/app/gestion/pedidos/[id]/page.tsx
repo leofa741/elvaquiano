@@ -452,7 +452,7 @@ export default function DetallePedidoPage() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1">
+                    <label className="text-sm font-medium text-gray-300 mb-1 flex items-center gap-1">
                       <FaWeightHanging className="text-amber-400" />
                       Cantidad ({unidadSeleccionada || 'unidad'})
                     </label>
