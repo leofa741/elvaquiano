@@ -1,23 +1,30 @@
-// lib/mongoose.ts
+// src/app/lib/mongoose.ts
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
 
+const MONGODB_URI = process.env.MONGODB_CNN!;
 
-dotenv.config();
+if (!MONGODB_URI) {
+  throw new Error('La variable MONGODB_CNN no está definida');
+}
 
-const connectDB = async () => {
-    try {
-     
-        if (!process.env.MONGODB_CNN) {
-          throw new Error('La variable de entorno MONGODB_CNN no está definida');
-        }
-        await mongoose.connect(process.env.MONGODB_CNN);
-        console.log('MongoDB conectado');
-      } catch (error) {
-        console.error('Error al conectar MongoDB:', error);
-        process.exit(1);
-      }
-      
-};
+// Cache global (clave para Vercel)
+let cached = (global as any).mongoose;
 
-export default connectDB;
+if (!cached) {
+  cached = (global as any).mongoose = { conn: null, promise: null };
+}
+
+export default async function connectDB() {
+  if (cached.conn) {
+    return cached.conn;
+  }
+
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(MONGODB_URI, {
+      bufferCommands: false,
+    });
+  }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
+}
