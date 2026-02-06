@@ -148,19 +148,19 @@ return (
         {presupuesto.productos.map((p, i) => (
           <div key={i} className="py-0.5"> {/* ✅ Padding vertical mínimo */}
             {/* ✅ Siempre usamos p.cantidad como número de unidades físicas */}
-            <div className="font-medium text-[11px] leading-tight"> {/* ✅ Más compacto */}
-              {p.cantidad} {p.cantidad === 1 ? 'unidad' : 'unidades'} de {p.nombre}
+            <div className="font-medium text-[13px] leading-tight"> {/* ✅ Más compacto */}
+            {p.cantidad === 1 ? 
+              `${p.nombre}` : 
+              `${p.cantidad} ${p.nombre}s`}
             </div>
 
             {/* ✅ Y mostramos la medida comercial: "3 litros" */}
             <div className="text-[10px] text-gray-600 leading-tight">
-              ({p.cantidad} {p.unidad})
+              ({p.cantidad} {p.unidad})  x {formatARS(p.precioAplicado)}
             </div>
 
-            <div className="text-[10px] text-gray-600 leading-tight">
-              ({p.tipoPrecio}) x ${formatARS(p.precioAplicado)}
-            </div>
-            <div className="text-right font-bold text-[11px] leading-tight mt-0.5">
+          
+            <div className="text-right font-bold text-[11px] leading-tight mt-0.2">
               {formatARS(p.cantidad * p.precioAplicado)}
             </div>
           </div>

@@ -157,16 +157,18 @@ export default function ImprimirPedidoPage() {
                     {pedido.productos.map((p, i) => (
                         <div key={i} className="py-0.5"> {/* ✅ Padding vertical mínimo */}
                             {/* ✅ Línea 1: "5 unidades de leche descremada" */}
-                            <div className="text-[11px] leading-tight"> {/* ✅ Más compacto */}
-                                {p.cantidad} {p.cantidad === 1 ? 'unidad' : 'unidades'} de {p.nombre}
+                            <div className="text-[13px] leading-tight"> {/* ✅ Más compacto */}
+                               {p.cantidad === 1 ? 
+                                 `${p.nombre}` : 
+                                 `${p.cantidad} ${p.nombre}s`}
                             </div>
                             {/* ✅ Línea 2: "(5 litros)" */}
                             <div className="text-[10px] text-gray-600 leading-tight">
-                                ({p.cantidad} {p.unidad})
+                                ({p.cantidad} {p.unidad}) x {formatARS(p.precioAplicado)}
                             </div>
                             {/* Subtotal a la derecha */}
-                            <div className="text-right font-bold text-[11px] leading-tight mt-0.5">
-                                {formatARS(p.subtotal)}
+                            <div className="text-right font-bold text-[11px] leading-tight mt-0.1">
+                               {formatARS(p.cantidad * p.precioAplicado)}
                             </div>
                         </div>
                     ))}
