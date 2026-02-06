@@ -708,6 +708,10 @@ function PageContent() {
                                   <rect x="3" y="16" width="18" height="4" rx="1" />
                                 </svg>
 
+                                <span className="ml-1 text-xs">
+                                  Resetear Stock
+                                </span>
+
 
                               </button>
                               <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
