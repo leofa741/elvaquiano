@@ -1,8 +1,10 @@
 // app/page.tsx
+
 import Banner from "./components/baner/Banner";
 import { Metadata } from "next";
 import Image from "next/image";
 import CategoryResumenCard from "./components/categoryresumencard/CategoryResumenCard";
+import ValentineBanner from "./components/bennersanvalentin/ValentineBanner";
 
 export const metadata: Metadata = {
   title: "Distribuidora El Vaquiano - Venta Mayorista y Minorista",
@@ -56,6 +58,13 @@ export default async function Home() {
       </div>
 
 
+        <ValentineBanner
+          logoSrc="/img/logo-sanvalentin-removebg-preview.png"
+          title="Un gesto que perdura"
+          subtitle="Celebra el amor con los Precios que hacen latir tu negocio este el 14 de febrero."
+          ctaText="Descubre la colección"
+        
+        />
 
       {/* Sección: Valor principal + CTAs */}
       <section className="py-16  dark:bg-gray-900">
@@ -91,6 +100,15 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+
+
+  
+      
+
+
+
+
 
       {/* Beneficios clave */}
       <section className="py-16 dark:bg-gray-950">
