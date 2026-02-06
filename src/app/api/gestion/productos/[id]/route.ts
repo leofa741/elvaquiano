@@ -103,7 +103,24 @@ export async function PUT(
         updateData.stockMinimoAlerta = num;
       }
     }
-    // 👆 `proveedor` ya se manejó arriba, fuera del if, así aplica en ambos modos
+
+    // ✅ PERMITIR reset de stock (cantidad = 0)
+    if ('stock' in body) {
+      if (!Array.isArray(body.stock)) {
+        return NextResponse.json({ error: 'Stock debe ser un arreglo' }, { status: 400 });
+      }
+
+      updateData.stock = body.stock.map((s: any) => ({
+        deposito: s.deposito,
+        cantidad: Number(s.cantidad) || 0
+      }));
+    }
+
+    if ('stockReservado' in body) {
+      updateData.stockReservado = Number(body.stockReservado) || 0;
+    }
+
+
   } else {
     // ✅ Actualización completa
     const { nombre, categoria, unidad, cantidadUnidad, stock, lotes } = body;

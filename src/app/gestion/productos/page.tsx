@@ -276,6 +276,11 @@ function PageContent() {
     return `${pathname}?${params.toString()}`;
   };
 
+  /* =========================
+     Delete 
+  ========================= */
+
+
   const deleteProduct = async (id: string) => {
     Swal.fire({
       title: '¿Estás seguro?',
@@ -304,6 +309,10 @@ function PageContent() {
     });
   };
 
+  /* =========================
+   Formatear cantidad unidad
+========================= */
+
   function formatCantidadUnidad(cantidad: number, unidad: string): string {
     if (unidad === 'kg') {
       if (cantidad >= 1) return `${cantidad} kg`;
@@ -328,6 +337,10 @@ function PageContent() {
     }
     return product.stock || 0;
   };
+
+  /* =========================
+   Llevar stock a cero
+========================= */
 
   const getStockReservado = (product: any) =>
     product.stockReservado || 0;
@@ -356,6 +369,73 @@ function PageContent() {
     } finally {
       setLoadingProveedores(false);
     }
+  };
+
+
+  // ===============================
+
+
+  const resetStockToZero = async (product: Product) => {
+    Swal.fire({
+      title: '¿Resetear stock a cero?',
+      html: `<p class="text-left">Se pondrá en <strong>0</strong> el stock del producto <strong>"${product.nombre}"</strong> <br /> <br /> <strong>luego para incorporar stock nuevo ir a editar y agregar cantidad</strong></p>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, resetear a cero',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          // ✅ Estructura CORRECTA para resetear stock
+          const updatePayload = {
+            stock: product.stock.map((s: any) => ({
+              deposito: s.deposito,
+              cantidad: 0  // ← CERO aquí
+            })),
+            lotes: [],              // ← Limpiar lotes
+            stockReservado: 0       // ← Resetear reservas
+          };
+
+          console.log('Payload enviado:', updatePayload); // 🔍 Debug
+
+          const res = await fetch(`/api/gestion/productos/${product._id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatePayload),
+          });
+
+          if (res.ok) {
+            const updatedProduct = await res.json();
+
+            // Actualizar UI localmente
+            setProducts(prev =>
+              prev.map(p => p._id === product._id ? updatedProduct : p)
+            );
+
+            if (internalSearch.trim()) {
+              setSearchResults(prev =>
+                prev.map(p => p._id === product._id ? updatedProduct : p)
+              );
+            }
+
+            // Recargar resumen de stock
+            window.dispatchEvent(new CustomEvent('stockSummaryReload'));
+
+            toast.success(`Stock de "${product.nombre}" reseteado a cero`);
+          } else {
+            const errorData = await res.json().catch(() => null);
+            console.error('Error API:', errorData || res.statusText);
+            toast.error(`Error al resetear stock: ${errorData?.message || 'Respuesta inválida del servidor'}`);
+          }
+        } catch (err) {
+          console.error('Error al resetear stock:', err);
+          toast.error('Error de conexión con el servidor');
+        }
+      }
+    });
   };
 
   return (
@@ -535,6 +615,7 @@ function PageContent() {
                               <div className="text-xs text-gray-600 italic mt-2">Sin stock</div>
                             )}
                           </td>
+
                           <td className="py-3 px-4">
                             {/* STOCK TOTAL (lo que ya tenías) */}
                             <div
@@ -605,6 +686,34 @@ function PageContent() {
                                 placeholder="0"
                               />
                             </div>
+
+                            {/* 👇 NUEVO BOTÓN: Resetear Stock */}
+                            <div className="relative group">
+                              <button
+                                onClick={() => resetStockToZero(product)}
+                                className="text-purple-500 hover:text-purple-700 transition-colors focus:outline-none"
+                                aria-label="Resetear stock a cero"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="20"
+                                  height="20"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                >
+                                  <path d="M21 16v-4a2 2 0 0 0-2-2H7" />
+                                  <path d="M3 12l4-4 4 4" />
+                                  <rect x="3" y="16" width="18" height="4" rx="1" />
+                                </svg>
+
+
+                              </button>
+                              <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                Resetear Stock
+                              </span>
+                            </div>
                           </td>
                           <td className="py-3 px-4">
                             {product.activo ? (
@@ -636,6 +745,8 @@ function PageContent() {
                               <span className="text-white">Activo</span>
                             </label>
                           </td>
+
+
                           <td className="py-3 px-4 text-gray-300">
                             {product.proveedor?.nombre || (
                               <span className="text-gray-500 italic">—</span>
@@ -649,6 +760,8 @@ function PageContent() {
                               <span className="text-gray-500 italic">—</span>
                             )}
                           </td>
+
+
                           <td className="py-3 px-4 flex gap-2">
                             <div className="relative group">
                               <Link
@@ -658,7 +771,6 @@ function PageContent() {
                               >
                                 <Pencil size={18} />
                               </Link>
-                              {/* Tooltip */}
                               <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                                 Editar
                               </span>
@@ -671,7 +783,6 @@ function PageContent() {
                               >
                                 <Trash2 size={18} />
                               </button>
-                              {/* Tooltip */}
                               <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                                 Borrar
                               </span>
@@ -694,12 +805,19 @@ function PageContent() {
                               >
                                 <Truck size={18} />
                               </button>
-                              {/* Tooltip */}
                               <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                                 Proveedor
                               </span>
                             </div>
+
+
+
+
+
+
                           </td>
+
+
                         </tr>
                       );
                     })}
@@ -707,6 +825,7 @@ function PageContent() {
                 </table>
               </div>
             </div>
+
 
             <br />
             {/* ✅ Tabla de lotes: siempre usa la lista PAGINADA (products) */}
