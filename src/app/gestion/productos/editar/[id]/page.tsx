@@ -191,7 +191,7 @@ export default function EditProductPage() {
 
   // 📥 Cargar producto
   useEffect(() => {
-    if (!isAuthorized) return;
+    if (!isAuthorized || loadingOptions) return; // ← Esperar a que carguen las opciones
     setLoading(true);
     if (!id) {
       toast.error('ID de producto no válido');
@@ -200,7 +200,6 @@ export default function EditProductPage() {
     }
 
     const loadProduct = async () => {
-
       try {
         const res = await fetch(`/api/gestion/productos/${id}`);
         if (!res.ok) {
@@ -223,6 +222,7 @@ export default function EditProductPage() {
           imagen: data.imagen || null,
         });
 
+        // Verificar si la categoría existe en las categorías cargadas
         if (categorias.includes(data.categoria)) {
           setCategoriaMode('select');
         } else {
@@ -253,8 +253,7 @@ export default function EditProductPage() {
     };
 
     loadProduct();
-  }, [id, router, categorias]);
-
+  }, [id, router, isAuthorized, loadingOptions, categorias]); // ← Agregar loadingOptions
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'cantidadUnidad') {
