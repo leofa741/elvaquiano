@@ -6,6 +6,9 @@ import Product from '@/app/models/Product';
 // ========================================
 // GET: Obtener categorías (con contador)
 // ========================================
+// ========================================
+// GET: Obtener categorías (con contador)
+// ========================================
 export async function GET(request: NextRequest) {
   try {
     if (mongoose.connection.readyState === 0) {
@@ -15,27 +18,49 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const includeCount = searchParams.get('includeCount') === 'true';
 
-    // Obtener categorías únicas de productos activos
-    const categorias = await Product.distinct('categoria', { activo: true });
+    // Obtener categorías únicas de productos activos (filtrando null/undefined)
+    const categoriasRaw = await Product.distinct('categoria', { 
+      activo: true,
+      categoria: { $exists: true, $nin: [null, ''] }
+    });
+
+    // Filtrar categorías válidas
+    const categorias = categoriasRaw.filter(cat => 
+      cat && typeof cat === 'string' && cat.trim().length > 0
+    );
 
     if (includeCount) {
       // Contar productos por categoría
       const categoriasConCount = await Promise.all(
         categorias.map(async (categoria: string) => {
           const count = await Product.countDocuments({
-            categoria,
+            categoria: categoria.trim(),
             activo: true,
           });
-          return { nombre: categoria, productoCount: count };
+          return { 
+            nombre: categoria.trim(), 
+            productoCount: count 
+          };
         })
       );
-      return NextResponse.json(categoriasConCount.sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      
+      // Filtrar categorías con productos o mantener todas
+      const categoriasFiltradas = categoriasConCount.filter(cat => 
+        cat.productoCount > 0 || categorias.includes(cat.nombre)
+      );
+      
+      return NextResponse.json(
+        categoriasFiltradas.sort((a, b) => a.nombre.localeCompare(b.nombre))
+      );
     }
 
     return NextResponse.json(categorias.sort());
   } catch (error) {
-    console.error('Error al obtener categorías:', error);
-    return NextResponse.json({ error: 'Error al obtener categorías' }, { status: 500 });
+    console.error('❌ Error al obtener categorías:', error);
+    return NextResponse.json({ 
+      error: 'Error al obtener categorías',
+      details: error instanceof Error ? error.message : 'Error desconocido'
+    }, { status: 500 });
   }
 }
 
