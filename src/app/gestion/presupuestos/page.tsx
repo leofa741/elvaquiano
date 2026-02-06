@@ -6,6 +6,7 @@ import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import { FaFileInvoice, FaPlus, FaEye } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatARS } from '@/app/lib/formatcurrenci';
 
 interface Presupuesto {
   _id: string;
@@ -228,8 +229,8 @@ export default function PresupuestosPage() {
                       <span className="text-sm text-gray-400">presupesto # : {p._id}</span> <br />
                       <span className="text-sm text-gray-400">telefono : {p.cliente.telefono} </span>   
                       <div className="text-sm text-gray-400">
-                        ${p.total.toFixed(2)} •{' '}
-                        {new Date(p.createdAt).toLocaleDateString('es-AR')}
+                        
+                        {formatARS(p.total)} •{' '} {new Date(p.createdAt).toLocaleDateString('es-AR')}
                       </div>
                     </div>
 
