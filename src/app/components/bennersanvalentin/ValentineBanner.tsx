@@ -50,7 +50,7 @@ export default function ValentineBanner({
     via: '#650000',
     to: '#1a0000',
   },
-  accentColor = '#FFD700',
+  accentColor = '#ffff00',
 }: ValentineBannerProps) {
   const [mounted, setMounted] = useState(false);
   const [particles, setParticles] = useState<Particle[]>([]);
@@ -58,7 +58,7 @@ export default function ValentineBanner({
 
   useEffect(() => {
     setMounted(true);
-    
+
     // Generar partículas solo en el cliente
     const generatedParticles: Particle[] = [];
     for (let i = 0; i < 15; i++) {
@@ -78,7 +78,7 @@ export default function ValentineBanner({
     for (let i = 0; i < 8; i++) {
       generatedHearts.push({
         id: i,
-        size: Math.random() * 40 + 20,
+        size: Math.random() * 50 + 20,
         top: Math.random() * 100,
         left: Math.random() * 100,
         delay: Math.random() * 10,
@@ -92,13 +92,13 @@ export default function ValentineBanner({
     <div className="valentine-banner relative w-full mx-auto overflow-hidden shadow-[0_20px_60px_-15px_rgba(139,0,0,0.6)] border border-amber-900/30 bg-clip-padding backdrop-filter backdrop-blur-sm">
       {/* Efecto de brillo superior */}
       <div className="top-glow absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-300 to-transparent opacity-20 animate-pulse-slow" />
-      
+
       {/* Efecto de brillo inferior */}
       <div className="bottom-glow absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-300 to-transparent opacity-20 animate-pulse-slow-reverse" />
 
       {/* Fondo con efectos premium */}
       {backgroundImage ? (
-        <div className="bg-image relative h-80 md:h-96">
+        <div className="bg-image relative h-80 md:h-96 w-full" aria-hidden="true">
           <Image
             src={backgroundImage}
             alt="Fondo romántico premium"
@@ -107,7 +107,6 @@ export default function ValentineBanner({
             className="brightness-50 contrast-125 saturate-150"
             priority
           />
-          {/* Overlay de gradiente premium */}
           <div className="overlay absolute inset-0 bg-gradient-to-br from-black/40 via-black/20 to-black/60" />
         </div>
       ) : (
@@ -146,7 +145,7 @@ export default function ValentineBanner({
 
           {/* Corazones dorados animados - solo renderizados en el cliente */}
           {mounted && (
-            <div className="hearts absolute inset-0 opacity-8">
+            <div className="hearts absolute inset-0 opacity-22">
               {hearts.map((heart) => (
                 <div
                   key={heart.id}
@@ -181,13 +180,13 @@ export default function ValentineBanner({
       <div className="content absolute inset-0 flex flex-col items-center justify-center text-center px-6 md:px-8 text-white">
         {/* Logo con efecto premium */}
         {logoSrc && (
-          <div className="logo-container mb-6 w-32 h-32 md:w-40 md:h-40 relative animate-fade-in-up">
+          <div className="logo-container mb-6 w-52 h-52 md:w-60 md:h-60 relative animate-fade-in-up">
             <Image
               src={logoSrc}
               alt="Logo San Valentín Premium"
               fill
               style={{ objectFit: 'contain' }}
-              className="drop-shadow-[0_0_20px_rgba(255,215,0,0.5)] animate-pulse-glow"
+              className="drop-shadow-[0_0_30px_rgba(255,215,0,0.5)] animate-pulse-glow"
             />
           </div>
         )}
