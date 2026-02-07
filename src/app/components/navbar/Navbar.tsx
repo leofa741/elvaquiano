@@ -73,8 +73,8 @@ export default function Navbar() {
         {/* Logo móvil */}
         <div className="lg:hidden">
           <Link href="/" onClick={closeMenu}>
-            <Image
-              src="/El-Vaquiano.png"
+            <Image                                      
+             src="/img/logo-sanvalentin-removebg-preview.png"  // img/logo-sanvalentin-removebg-preview.png  El-Vaquiano.png
               alt="Distribuidora El Vaquiano"
               width={120}
               height={40}
@@ -93,7 +93,7 @@ export default function Navbar() {
         {/* Logo centrado desktop */}
         <div className="hidden lg:block absolute left-1/2 transform -translate-x-1/2">
           <Image
-            src="/El-Vaquiano.png"
+            src="/img/logo-sanvalentin-removebg-preview.png"
             alt="Distribuidora El Vaquiano"
             width={140}
             height={45}
