@@ -88,7 +88,7 @@ export const authOptions: NextAuthOptions = {
         const token = jwt.sign(
           { id: user.id.toString(), email: user.email, role: user.role },
           process.env.JWT_SECRET as string,
-          { expiresIn: '1h' }
+          { expiresIn: '5h' }
         );
 
         return {

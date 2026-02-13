@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     await newUser.save();
 
     // Generar token JWT
-    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET as string, { expiresIn: '1h' });
+    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET as string, { expiresIn: '5h' });
 
     return NextResponse.json({ message: 'Usuario registrado', token }, { status: 201 });
   } catch (error) {

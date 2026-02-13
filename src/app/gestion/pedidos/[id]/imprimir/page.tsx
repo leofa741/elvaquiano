@@ -141,14 +141,21 @@ export default function ImprimirPedidoPage() {
                     <div className="text-[10px] text-gray-600 mt-0.5"> {/* ✅ Más compacto */}
                         {new Date(pedido.createdAt).toLocaleString('es-AR')}
                     </div>
+
                 </div>
 
                 <hr />
 
                 {/* Cliente */}
-                <div className="font-semibold text-sm">{getClienteNombre(pedido.cliente)}</div> {/* ✅ Más compacto */
-
-                }
+                <div className="font-semibold text-sm flex justify-between gap-2">
+                    {getClienteNombre(pedido.cliente)}
+                    <span className='font-light text-[10px] mr-3'>consumidor final</span>
+                </div>
+              <hr className="border-t border-gray-500" />
+                <div className="text-[10px] text-gray-600 flex justify-between mt-0.5">
+                    <span>Cantidad / Descripcion</span>
+                    <span className='mr-3'>importe</span>
+                </div>
 
                 <hr />
 
@@ -163,17 +170,14 @@ export default function ImprimirPedidoPage() {
                                     `${p.cantidad} ${p.nombre.toUpperCase()}S`}
                             </div>
 
-                            {/* ✅ Y mostramos la medida comercial: "3 litros"
-            <div className="text-[10px] text-gray-600 leading-tight">
-              ({p.cantidad} {p.unidad})  x {formatARS(p.precioAplicado)}
-            </div> */}
+
 
                             <div className="font-semibold text-[10px] text-black leading-tight">
-                                ({p.cantidad} {p.cantidad === 1 ? 'UNIDAD' : 'UNIDADES'}) x {formatARS(p.precioAplicado)}
+                                ({p.cantidad} {p.cantidad === 1 ? 'U' : 'Uds'}) x {formatARS(p.precioAplicado)}
                             </div>
 
                             {/* Subtotal a la derecha */}
-                            <div className="text-right font-bold text-[11px] leading-tight mt-0.1">
+                            <div className="text-right font-bold text-[11px] leading-tight mt-0.1 mr-3">
                                 {formatARS(p.cantidad * p.precioAplicado)}
                             </div>
                         </div>
@@ -185,7 +189,7 @@ export default function ImprimirPedidoPage() {
                 }
 
                 {/* Total */}
-                <div className="flex justify-between font-bold text-sm"> {/* ✅ Más compacto */}
+                <div className="flex justify-between font-bold text-sm mr-3"> {/* ✅ Más compacto */}
                     <span>TOTAL</span>
                     <span>{formatARS(pedido.total)}</span>
                 </div>

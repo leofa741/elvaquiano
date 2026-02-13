@@ -32,6 +32,8 @@ interface Presupuesto {
   origen: string;
   validoHasta?: string;
   estado: string;
+  createdAt: string;
+
   notas?: string;
 
 }
@@ -114,8 +116,13 @@ export default function ImprimirPresupuestoPage() {
   }
   return (
     <div className="bg-gray-900 p-4 flex flex-col items-center justify-start min-[print]:min-h-0">
+
+
+
+
       <p className="text-white text-center mb-4">
         <strong>Presupuesto:</strong> #{presupuesto._id.slice(-6).toUpperCase()}
+
         <br />
         <span className="text-gray-400 mt-1">volver a la sección de <a href="/gestion/presupuestos" className="text-amber-400 underline">Presupuestos</a>.</span>
       </p>
@@ -131,16 +138,25 @@ export default function ImprimirPresupuestoPage() {
           </div>
           <h2 className="font-bold text-base">PRESUPUESTO</h2> {/* ✅ Tamaño reducido */}
           <div className="text-xs">#{presupuesto._id.slice(-6).toUpperCase()}</div>
-          {presupuesto.validoHasta && (
+          {presupuesto.createdAt && (
             <div className="text-[10px] mt-0.5"> {/* ✅ Más pequeño y compacto */}
-              Válido hasta {new Date(presupuesto.validoHasta).toLocaleDateString('es-AR')}
+              Válido hasta {new Date(presupuesto.createdAt).toLocaleDateString('es-AR')}
             </div>
           )}
         </div>
 
         <hr />
 
-        <div className="font-semibold text-sm">{getRazonSocial(presupuesto.cliente)}</div> {/* ✅ Más compacto */}
+        <div className="font-semibold text-sm flex justify-between">
+          <span >{getRazonSocial(presupuesto.cliente)} </span>
+          <span className='font-light text-[10px] mt-1 mr-3'>consumidor final</span>
+
+        </div>
+        <hr className="border-t border-gray-500" />
+        <div className="text-[10px] text-gray-600 flex justify-between mt-0.5">
+          <span>Cantidad / Descripcion</span>
+          <span className='mr-3'>importe</span>
+        </div>
 
         <hr />
 
@@ -165,7 +181,7 @@ export default function ImprimirPresupuestoPage() {
               </div>
 
 
-              <div className="text-right font-bold text-[11px] leading-tight mt-0.2">
+              <div className="text-right font-bold text-[11px] leading-tight mt-0.2 mr-3">
                 {formatARS(p.cantidad * p.precioAplicado)}
               </div>
             </div>
@@ -183,7 +199,7 @@ export default function ImprimirPresupuestoPage() {
 
         }
 
-        <div className="flex justify-between font-bold text-sm"> {/* ✅ Más compacto */}
+        <div className="flex justify-between font-bold text-sm mr-4"> {/* ✅ Más compacto */}
           <span>TOTAL</span>
           <span>{formatARS(presupuesto.total)}</span>
         </div>
