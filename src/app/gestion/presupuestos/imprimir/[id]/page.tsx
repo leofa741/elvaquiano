@@ -112,122 +112,127 @@ export default function ImprimirPresupuestoPage() {
       </div>
     );
   }
-return (
-  <div className="bg-gray-900 p-4 flex flex-col items-center justify-start min-[print]:min-h-0">
-    <p className="text-white text-center mb-4">
-      <strong>Presupuesto:</strong> #{presupuesto._id.slice(-6).toUpperCase()}
-      <br />
-      <span className="text-gray-400 mt-1">volver a la sección de <a href="/gestion/presupuestos" className="text-amber-400 underline">Presupuestos</a>.</span>
-    </p>
+  return (
+    <div className="bg-gray-900 p-4 flex flex-col items-center justify-start min-[print]:min-h-0">
+      <p className="text-white text-center mb-4">
+        <strong>Presupuesto:</strong> #{presupuesto._id.slice(-6).toUpperCase()}
+        <br />
+        <span className="text-gray-400 mt-1">volver a la sección de <a href="/gestion/presupuestos" className="text-amber-400 underline">Presupuestos</a>.</span>
+      </p>
 
-    <div className="ticket bg-white text-black p-3 rounded shadow max-w-[300px]"> {/* ✅ Padding reducido */}
-      <div className="text-center">
-        {/* LOGO */}
-        <div className="ticket-logo">
-          <img
-            src="/El-Vaquiano.png"
-            alt="Distribuidora El Vaquiano"
-          />
-        </div>
-        <h2 className="font-bold text-base">PRESUPUESTO</h2> {/* ✅ Tamaño reducido */}
-        <div className="text-xs">#{presupuesto._id.slice(-6).toUpperCase()}</div>
-        {presupuesto.validoHasta && (
-          <div className="text-[10px] mt-0.5"> {/* ✅ Más pequeño y compacto */}
-            Válido hasta {new Date(presupuesto.validoHasta).toLocaleDateString('es-AR')}
+      <div className="ticket bg-white text-black p-3 rounded shadow max-w-[300px]"> {/* ✅ Padding reducido */}
+        <div className="text-center">
+          {/* LOGO */}
+          <div className="ticket-logo">
+            <img
+              src="/El-Vaquiano.png"
+              alt="Distribuidora El Vaquiano"
+            />
           </div>
-        )}
-      </div>
-
-      <hr />
-
-      <div className="font-semibold text-sm">{getRazonSocial(presupuesto.cliente)}</div> {/* ✅ Más compacto */}
-
-      <hr />
-
-      <div className="mt-1 space-y-1"> {/* ✅ Margen y gap reducidos */}
-        {presupuesto.productos.map((p, i) => (
-          <div key={i} className="py-0.5"> {/* ✅ Padding vertical mínimo */}
-            {/* ✅ Siempre usamos p.cantidad como número de unidades físicas */}
-            <div className="font-medium text-[13px] leading-tight"> {/* ✅ Más compacto */}
-            {p.cantidad === 1 ? 
-              `${p.nombre}` : 
-              `${p.cantidad} ${p.nombre}s`}
+          <h2 className="font-bold text-base">PRESUPUESTO</h2> {/* ✅ Tamaño reducido */}
+          <div className="text-xs">#{presupuesto._id.slice(-6).toUpperCase()}</div>
+          {presupuesto.validoHasta && (
+            <div className="text-[10px] mt-0.5"> {/* ✅ Más pequeño y compacto */}
+              Válido hasta {new Date(presupuesto.validoHasta).toLocaleDateString('es-AR')}
             </div>
+          )}
+        </div>
 
-            {/* ✅ Y mostramos la medida comercial: "3 litros" */}
+        <hr />
+
+        <div className="font-semibold text-sm">{getRazonSocial(presupuesto.cliente)}</div> {/* ✅ Más compacto */}
+
+        <hr />
+
+        <div className="mt-1 space-y-1"> {/* ✅ Margen y gap reducidos */}
+          {presupuesto.productos.map((p, i) => (
+            <div key={i} className="py-0.5"> {/* ✅ Padding vertical mínimo */}
+              {/* ✅ Siempre usamos p.cantidad como número de unidades físicas */}
+
+              <div className="font-bold text-[13px] text-black leading-tight">
+                {p.cantidad === 1 ?
+                  p.nombre.toUpperCase() :
+                  `${p.cantidad} ${p.nombre.toUpperCase()}S`}
+              </div>
+
+              {/* ✅ Y mostramos la medida comercial: "3 litros"
             <div className="text-[10px] text-gray-600 leading-tight">
               ({p.cantidad} {p.unidad})  x {formatARS(p.precioAplicado)}
-            </div>
+            </div> */}
 
-          
-            <div className="text-right font-bold text-[11px] leading-tight mt-0.2">
-              {formatARS(p.cantidad * p.precioAplicado)}
+              <div className="font-semibold text-[10px] text-black leading-tight">
+                ({p.cantidad} {p.cantidad === 1 ? 'UNIDAD' : 'UNIDADES'}) x {formatARS(p.precioAplicado)}
+              </div>
+
+
+              <div className="text-right font-bold text-[11px] leading-tight mt-0.2">
+                {formatARS(p.cantidad * p.precioAplicado)}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-      
-      {/* Mostrar nota si existe (ej: "regenerado a partir de...") */}
-      {presupuesto.notas && (
-        <div className="text-center text-[10px] text-gray-500 italic mt-1 mb-0.5 leading-tight">
-          {presupuesto.notas}
+          ))}
         </div>
-      )}
-      
-      <hr className="my-1" /> {/* ✅ Margen reducido */
 
-}
-
-      <div className="flex justify-between font-bold text-sm"> {/* ✅ Más compacto */}
-        <span>TOTAL</span>
-        <span>{formatARS(presupuesto.total)}</span>
-      </div>
-      
-
-      <div className="text-center mt-1 text-[10px] text-gray-500 leading-tight"> {/* ✅ Más compacto */}
-        Documento no válido como comprobante fiscal
-      </div>
-
-      <div className="no-print mt-3">
-        <label className="text-xs text-gray-500 block mb-1">
-          Origen del pedido <span className="text-red-400">*</span>
-        </label>
-
-        <select
-          value={presupuesto.origen || ''}
-          onChange={async (e) => {
-            const origen = e.target.value;
-
-            await fetch(`/api/gestion/presupuestos/${presupuesto._id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ origen }),
-            });
-
-            setPresupuesto(prev => prev ? { ...prev, origen } : prev);
-          }}
-          className="w-full bg-gray-800 text-white border border-gray-600 rounded px-2 py-1"
-          required
-        >
-          <option value="">Seleccionar...</option>
-          <option value="mostrador">Mostrador</option>
-          <option value="online">Online (WhatsApp / Web)</option>
-        </select>
-      </div>
-
-      {/* BOTONES: solo visibles en pantalla */}
-      <div className="no-print mt-4 flex flex-col gap-2">
-        <BotonImprimir />
-
-        {presupuesto.notas?.includes('Presupuesto regenerado a partir del pedido') ? (
-          <div className="text-xs text-gray-500 text-center italic">
-            Este presupuesto fue regenerado a partir de un pedido ya existente...
+        {/* Mostrar nota si existe (ej: "regenerado a partir de...") */}
+        {presupuesto.notas && (
+          <div className="text-center text-[10px] text-gray-500 italic mt-1 mb-0.5 leading-tight">
+            {presupuesto.notas}
           </div>
-        ) : (
-          <BotonConvertir id={presupuesto._id} estado={presupuesto.estado} origen={presupuesto.origen} />
         )}
+
+        <hr className="my-1" /> {/* ✅ Margen reducido */
+
+        }
+
+        <div className="flex justify-between font-bold text-sm"> {/* ✅ Más compacto */}
+          <span>TOTAL</span>
+          <span>{formatARS(presupuesto.total)}</span>
+        </div>
+
+
+        <div className="text-center mt-1 text-[10px] text-gray-500 leading-tight"> {/* ✅ Más compacto */}
+          Documento no válido como comprobante fiscal
+        </div>
+
+        <div className="no-print mt-3">
+          <label className="text-xs text-gray-500 block mb-1">
+            Origen del pedido <span className="text-red-400">*</span>
+          </label>
+
+          <select
+            value={presupuesto.origen || ''}
+            onChange={async (e) => {
+              const origen = e.target.value;
+
+              await fetch(`/api/gestion/presupuestos/${presupuesto._id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ origen }),
+              });
+
+              setPresupuesto(prev => prev ? { ...prev, origen } : prev);
+            }}
+            className="w-full bg-gray-800 text-white border border-gray-600 rounded px-2 py-1"
+            required
+          >
+            <option value="">Seleccionar...</option>
+            <option value="mostrador">Mostrador</option>
+            <option value="online">Online (WhatsApp / Web)</option>
+          </select>
+        </div>
+
+        {/* BOTONES: solo visibles en pantalla */}
+        <div className="no-print mt-4 flex flex-col gap-2">
+          <BotonImprimir />
+
+          {presupuesto.notas?.includes('Presupuesto regenerado a partir del pedido') ? (
+            <div className="text-xs text-gray-500 text-center italic">
+              Este presupuesto fue regenerado a partir de un pedido ya existente...
+            </div>
+          ) : (
+            <BotonConvertir id={presupuesto._id} estado={presupuesto.estado} origen={presupuesto.origen} />
+          )}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
 }

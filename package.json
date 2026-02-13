@@ -45,7 +45,8 @@
     "react-zoom-pan-pinch": "^3.7.0",
     "slick-carousel": "^1.8.1",
     "sweetalert2": "^11.19.1",
-    "swiper": "^11.2.8"
+    "swiper": "^11.2.8",
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

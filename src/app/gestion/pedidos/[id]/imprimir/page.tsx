@@ -127,7 +127,7 @@ export default function ImprimirPedidoPage() {
                 {/* Encabezado */}
                 <div className="text-center mb-1"> {/* ✅ Margen reducido */
 
-}
+                }
 
                     {/* LOGO */}
                     <div className="ticket-logo">
@@ -148,7 +148,7 @@ export default function ImprimirPedidoPage() {
                 {/* Cliente */}
                 <div className="font-semibold text-sm">{getClienteNombre(pedido.cliente)}</div> {/* ✅ Más compacto */
 
-}
+                }
 
                 <hr />
 
@@ -157,18 +157,24 @@ export default function ImprimirPedidoPage() {
                     {pedido.productos.map((p, i) => (
                         <div key={i} className="py-0.5"> {/* ✅ Padding vertical mínimo */}
                             {/* ✅ Línea 1: "5 unidades de leche descremada" */}
-                            <div className="text-[13px] leading-tight"> {/* ✅ Más compacto */}
-                               {p.cantidad === 1 ? 
-                                 `${p.nombre}` : 
-                                 `${p.cantidad} ${p.nombre}s`}
+                            <div className="font-bold text-[13px] text-black leading-tight">
+                                {p.cantidad === 1 ?
+                                    p.nombre.toUpperCase() :
+                                    `${p.cantidad} ${p.nombre.toUpperCase()}S`}
                             </div>
-                            {/* ✅ Línea 2: "(5 litros)" */}
-                            <div className="text-[10px] text-gray-600 leading-tight">
-                                ({p.cantidad} {p.unidad}) x {formatARS(p.precioAplicado)}
+
+                            {/* ✅ Y mostramos la medida comercial: "3 litros"
+            <div className="text-[10px] text-gray-600 leading-tight">
+              ({p.cantidad} {p.unidad})  x {formatARS(p.precioAplicado)}
+            </div> */}
+
+                            <div className="font-semibold text-[10px] text-black leading-tight">
+                                ({p.cantidad} {p.cantidad === 1 ? 'UNIDAD' : 'UNIDADES'}) x {formatARS(p.precioAplicado)}
                             </div>
+
                             {/* Subtotal a la derecha */}
                             <div className="text-right font-bold text-[11px] leading-tight mt-0.1">
-                               {formatARS(p.cantidad * p.precioAplicado)}
+                                {formatARS(p.cantidad * p.precioAplicado)}
                             </div>
                         </div>
                     ))}
@@ -176,7 +182,7 @@ export default function ImprimirPedidoPage() {
 
                 <hr className="my-1" /> {/* ✅ Margen reducido */
 
-}
+                }
 
                 {/* Total */}
                 <div className="flex justify-between font-bold text-sm"> {/* ✅ Más compacto */}
@@ -186,7 +192,7 @@ export default function ImprimirPedidoPage() {
 
                 <hr className="my-1" /> {/* ✅ Margen reducido */
 
-}
+                }
 
                 {/* Estado de pago */}
                 <div className="text-center text-[10px] leading-tight"> {/* ✅ Más compacto */}
