@@ -1,3 +1,4 @@
+// app/lib/auth.ts
 /* eslint-disable */
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
@@ -6,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import connectDB from './mongoose';
 import UserModel from '../models/User';
+import ClienteModel from '../models/Cliente'; // ✅ Importar modelo Cliente
 import { NextRequest } from 'next/server';
 import LogModel from '../models/LogLogin';
 import nodemailer from "nodemailer";
@@ -31,9 +33,102 @@ type ExtendedUser = {
   image: string;
   token: string;
 };
+
+// ✅ Función para crear cliente automáticamente
+// app/lib/auth.ts
+
+// ✅ Función para crear cliente automáticamente (CORREGIDA)
+// app/lib/auth.ts
+
+// ✅ Función para crear cliente automáticamente (SOLUCIÓN DEFINITIVA)
+// app/lib/auth.ts
+
+// ✅ Función para normalizar teléfono
+function normalizeTelefono(text: string): string {
+  if (!text) return '00000000';
+  return text
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/[^0-9+]/g, '') || '00000000';
+}
+
+// ✅ Función para normalizar razón social
+function normalizeRazonSocial(text: string): string {
+  if (!text) return '';
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+// ✅ Función para crear cliente automáticamente (SOLUCIÓN DEFINITIVA)
+async function crearClienteAutomatico(userData: {
+  name: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  zipCode: string;
+  img?: string;
+}) {
+  try {
+    // Verificar si ya existe un cliente con este email
+    const clienteExistente = await ClienteModel.findOne({ email: userData.email });
+    
+    if (clienteExistente) {
+      console.log(`✅ Cliente ya existe para ${userData.email}`);
+      return clienteExistente;
+    }
+
+    // ✅ 1. Preparar datos con valores por defecto SEGUROS
+    const nombre = userData.name?.trim() || 'Usuario';
+    const apellido = userData.lastName?.trim() || 'Google';
+    const razonSocial = `${nombre} ${apellido}`.trim() || userData.email;
+    const telefono = userData.phone?.trim() || '00000000';
+
+    // ✅ 2. Normalizar campos explícitamente
+    const razonSocialNormalized = normalizeRazonSocial(razonSocial);
+    const telefonoNormalized = normalizeTelefono(telefono);
+
+    // ✅ 3. Crear cliente PASANDO EXPLÍCITAMENTE todos los campos requeridos
+    const nuevoCliente = new ClienteModel({
+      razonSocial: razonSocial,
+      razonSocialNormalized: razonSocialNormalized,
+      nombre: nombre,
+      apellido: apellido,
+      email: userData.email,
+      telefono: telefono,
+      telefonoNormalized: telefonoNormalized,
+      direccion: userData.address || '',
+      ciudad: userData.city || '',
+      provincia: '',
+      formaPago: 'efectivo',
+      activo: true,
+      origen: 'registro_automatico'
+    });
+
+    const clienteGuardado = await nuevoCliente.save();
+    console.log(`✅ Cliente creado automáticamente para ${userData.email}`);
+    
+    return clienteGuardado;
+  } catch (error: any) {
+    console.error('❌ Error creando cliente automático:', error);
+    
+    // ✅ Log detallado para debugging
+    if (error.errors) {
+      Object.keys(error.errors).forEach(key => {
+        console.error(`  Campo ${key}: ${error.errors[key].message}`);
+      });
+    }
+    
+    throw error;
+  }
+}
 // === Función para enviar email al iniciar sesión ===
-
-
 async function sendLoginEmail(to: string) {
   try {
     const transporter = nodemailer.createTransport({
@@ -50,7 +145,7 @@ async function sendLoginEmail(to: string) {
       subject: "Nuevo inicio de sesión detectado",
       html: `
         <h2>Hola!</h2>
-        <p>Se ha detectado un nuevo inicio de sesión en tu cuenta de  El Vaquiano Digital.</p>
+        <p>Se ha detectado un nuevo inicio de sesión en tu cuenta de El Vaquiano Digital.</p>
         <p><strong>Email:</strong> ${to}</p>
         <p><strong>Fecha:</strong> ${new Date().toLocaleString("es-AR")}</p>
         <br/>
@@ -85,8 +180,32 @@ export const authOptions: NextAuthOptions = {
         const isMatch = await bcrypt.compare(credentials!.password, user.password);
         if (!isMatch) throw new Error('Contraseña incorrecta');
 
+        // ✅ Si es user, crear cliente automáticamente
+        if (user.role === 'user') {
+          await crearClienteAutomatico({
+            name: user.name,
+            lastName: user.lastName,
+            email: user.email,
+            phone: user.phone,
+            address: user.address,
+            city: user.city,
+            zipCode: user.zipCode,
+            img: user.img
+          });
+        }
+
         const token = jwt.sign(
-          { id: user.id.toString(), email: user.email, role: user.role },
+          { 
+            id: user.id.toString(), 
+            email: user.email, 
+            role: user.role,
+            name: user.name,
+            lastName: user.lastName,
+            phone: user.phone,
+            address: user.address,
+            city: user.city,
+            zipCode: user.zipCode
+          },
           process.env.JWT_SECRET as string,
           { expiresIn: '5h' }
         );
@@ -131,6 +250,34 @@ export const authOptions: NextAuthOptions = {
             google: true,
           });
           await existingUser.save();
+
+          // ✅ Crear cliente automáticamente para usuarios de Google con rol 'user'
+          if (existingUser.role === 'user') {
+            await crearClienteAutomatico({
+              name: existingUser.name,
+              lastName: existingUser.lastName,
+              email: existingUser.email,
+              phone: existingUser.phone,
+              address: existingUser.address,
+              city: existingUser.city,
+              zipCode: existingUser.zipCode,
+              img: existingUser.img
+            });
+          }
+        } else {
+          // ✅ Si el usuario ya existe pero no tiene cliente, crearlo
+          if (existingUser.role === 'user') {
+            await crearClienteAutomatico({
+              name: existingUser.name,
+              lastName: existingUser.lastName,
+              email: existingUser.email,
+              phone: existingUser.phone,
+              address: existingUser.address,
+              city: existingUser.city,
+              zipCode: existingUser.zipCode,
+              img: existingUser.img
+            });
+          }
         }
 
         const token = jwt.sign(
@@ -146,7 +293,7 @@ export const authOptions: NextAuthOptions = {
             zipCode: existingUser.zipCode,
           },
           process.env.JWT_SECRET as string,
-          { expiresIn: '1h' }
+          { expiresIn: '5h' }
         );
 
         const u = user as ExtendedUser;
@@ -162,10 +309,7 @@ export const authOptions: NextAuthOptions = {
         u.name = existingUser.name || '';
       }
 
-
-
       // ⬅️⬅️ REGISTRO EN BITÁCORA (SOLO ADMIN Y SUPERADMIN)
-
       try {
         const role =
           (user as any).role ||

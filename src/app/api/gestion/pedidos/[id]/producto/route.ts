@@ -27,6 +27,19 @@ function validarCantidad(cantidad: number): { valido: boolean; error?: string } 
   return { valido: true };
 }
 
+// ✅ Helper para validar precio
+function validarPrecio(precio: number): { valido: boolean; error?: string } {
+  if (typeof precio !== 'number' || isNaN(precio)) {
+    return { valido: false, error: 'Precio debe ser un número' };
+  }
+  
+  if (precio <= 0) {
+    return { valido: false, error: 'Precio debe ser mayor a 0' };
+  }
+  
+  return { valido: true };
+}
+
 export async function DELETE(request: NextRequest, { params }: any) {
     try {
         // ✅ FIX: Await params
@@ -104,7 +117,7 @@ export async function POST(request: NextRequest, { params }: any) {
     try {
         // ✅ FIX: Await params
         const { id } = await params;
-        const { productoId, cantidad } = await request.json();
+        const { productoId, cantidad, precioPersonalizado, actualizarProducto } = await request.json();
 
         // ✅ FIX: Validar cantidad con decimales
         const validacion = validarCantidad(cantidad);
@@ -138,11 +151,40 @@ export async function POST(request: NextRequest, { params }: any) {
             }
         }
 
-        // ✅ CORRECCIÓN: Siempre usar precioMayorista o precioOferta
-        // precioMinorista ya no existe en el schema
-        const precioOfertaValida = productoDB.precioOferta && productoDB.precioOferta < productoDB.precioMayorista;
-        const precioAplicado = precioOfertaValida ? productoDB.precioOferta : productoDB.precioMayorista;
-        const tipoPrecio = precioOfertaValida ? 'oferta' : 'mayorista';
+        // ✅ Determinar precio a aplicar
+        let precioAplicado = productoDB.precioMayorista;
+        let tipoPrecio: 'mayorista' | 'oferta' = 'mayorista';
+
+        // Si hay precio de oferta válido, usarlo por defecto
+        if (productoDB.precioOferta && productoDB.precioOferta < productoDB.precioMayorista) {
+          precioAplicado = productoDB.precioOferta;
+          tipoPrecio = 'oferta';
+        }
+
+        // ✅ Si se especifica precio personalizado, usarlo
+        if (precioPersonalizado !== undefined) {
+          const validacionPrecio = validarPrecio(precioPersonalizado);
+          if (!validacionPrecio.valido) {
+            return NextResponse.json({ error: validacionPrecio.error || 'Precio personalizado inválido' }, { status: 400 });
+          }
+          precioAplicado = precioPersonalizado;
+          // Mantener el tipo de precio original (mayorista/oferta)
+        }
+
+        // ✅ Opcional: Actualizar el producto en la base de datos
+        if (actualizarProducto && precioPersonalizado !== undefined) {
+          if (tipoPrecio === 'mayorista') {
+            productoDB.precioMayorista = precioPersonalizado;
+          } else if (tipoPrecio === 'oferta') {
+            productoDB.precioOferta = precioPersonalizado;
+          }
+          await productoDB.save();
+
+          notifyProducts({
+            type: 'producto_actualizado',
+            data: productoDB,
+          });
+        }
 
         // ✅ Redondear cantidad a 3 decimales para evitar errores de precisión
         const cantidadRedondeada = parseFloat(cantidad.toFixed(3));

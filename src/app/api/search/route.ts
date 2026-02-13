@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     // Búsqueda normal
     const regex = new RegExp(query, 'i');
     const filter = {
+       activo: true, 
       $or: [
         { nombre: regex },
         { categoria: regex }

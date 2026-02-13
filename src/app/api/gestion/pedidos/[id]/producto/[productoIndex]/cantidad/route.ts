@@ -27,18 +27,25 @@ function validarCantidad(cantidad: number): { valido: boolean; error?: string } 
   return { valido: true };
 }
 
+// ✅ Helper para validar precio
+function validarPrecio(precio: number): { valido: boolean; error?: string } {
+  if (typeof precio !== 'number' || isNaN(precio)) {
+    return { valido: false, error: 'Precio debe ser un número' };
+  }
+  
+  if (precio <= 0) {
+    return { valido: false, error: 'Precio debe ser mayor a 0' };
+  }
+  
+  return { valido: true };
+}
+
 export async function PATCH(request: NextRequest, { params }: any) {
   try {
     // ✅ FIX: Await params antes de usarlo
     const { id, productoIndex } = await params;
-    const { nuevaCantidad } = await request.json();
+    const { nuevaCantidad, nuevoPrecio, actualizarProducto } = await request.json();
     const index = parseInt(productoIndex, 10);
-
-    // ✅ FIX: Validar cantidad con decimales
-    const validacion = validarCantidad(nuevaCantidad);
-    if (!validacion.valido) {
-      return NextResponse.json({ error: validacion.error || 'Cantidad inválida' }, { status: 400 });
-    }
 
     const pedido = await Pedido.findById(id).populate('productos.producto');
     if (!pedido) {
@@ -54,47 +61,83 @@ export async function PATCH(request: NextRequest, { params }: any) {
     }
 
     const item = pedido.productos[index];
-    const diferencia = item.cantidad - nuevaCantidad; // positiva si se reduce
 
-    // Manejo de stock solo si está en "preparacion"
-    if (pedido.estado === 'preparacion') {
-      const productoDB = await Producto.findById(item.producto);
-      if (productoDB) {
-        const stock = productoDB.stock.find((s: any) => s.deposito === pedido.deposito);
-        if (stock) {
-          // Si se reduce: devolver stock
-          // Si se aumenta: verificar que haya stock suficiente
-          if (diferencia > 0) {
-            stock.cantidad += diferencia;
-          } else if (diferencia < 0) {
-            const stockNecesario = Math.abs(diferencia);
-            if (stock.cantidad < stockNecesario) {
-              return NextResponse.json(
-                { error: `Stock insuficiente para "${item.nombre}". Disponible: ${stock.cantidad}` },
-                { status: 400 }
-              );
+    // ✅ Si se modifica cantidad, validar y actualizar stock
+    if (nuevaCantidad !== undefined) {
+      const validacion = validarCantidad(nuevaCantidad);
+      if (!validacion.valido) {
+        return NextResponse.json({ error: validacion.error || 'Cantidad inválida' }, { status: 400 });
+      }
+
+      const diferencia = item.cantidad - nuevaCantidad;
+
+      // Manejo de stock solo si está en "preparacion"
+      if (pedido.estado === 'preparacion') {
+        const productoDB = await Producto.findById(item.producto);
+        if (productoDB) {
+          const stock = productoDB.stock.find((s: any) => s.deposito === pedido.deposito);
+          if (stock) {
+            if (diferencia > 0) {
+              stock.cantidad += diferencia;
+            } else if (diferencia < 0) {
+              const stockNecesario = Math.abs(diferencia);
+              if (stock.cantidad < stockNecesario) {
+                return NextResponse.json(
+                  { error: `Stock insuficiente para "${item.nombre}". Disponible: ${stock.cantidad}` },
+                  { status: 400 }
+                );
+              }
+              stock.cantidad -= stockNecesario;
             }
-            stock.cantidad -= stockNecesario;
+            await productoDB.save();
+
+            notifyProducts({
+              type: 'stock_modificado',
+              data: {
+                producto: productoDB,
+                motivo: 'cantidad_modificada_en_pedido',
+                pedidoId: pedido._id,
+              },
+            });
+          }
+        }
+      }
+
+      // ✅ Actualizar cantidad y subtotal
+      item.cantidad = parseFloat(nuevaCantidad.toFixed(3));
+    }
+
+    // ✅ Si se modifica precio, actualizar
+    if (nuevoPrecio !== undefined) {
+      const validacionPrecio = validarPrecio(nuevoPrecio);
+      if (!validacionPrecio.valido) {
+        return NextResponse.json({ error: validacionPrecio.error || 'Precio inválido' }, { status: 400 });
+      }
+
+      item.precioAplicado = nuevoPrecio;
+
+      // ✅ Opcional: Actualizar el producto en la base de datos
+      if (actualizarProducto) {
+        const productoDB = await Producto.findById(item.producto);
+        if (productoDB) {
+          // Determinar si actualizar precioMayorista o precioOferta
+          if (item.tipoPrecio === 'mayorista') {
+            productoDB.precioMayorista = nuevoPrecio;
+          } else if (item.tipoPrecio === 'oferta') {
+            productoDB.precioOferta = nuevoPrecio;
           }
           await productoDB.save();
 
           notifyProducts({
-            type: 'stock_modificado',
-            data: {
-              producto: productoDB,
-              motivo: 'cantidad_modificada_en_pedido',
-              pedidoId: pedido._id,
-            },
+            type: 'producto_actualizado',
+            data: productoDB,
           });
         }
       }
     }
 
-    // ✅ Actualizar cantidad y subtotal (acepta decimales)
-    item.cantidad = parseFloat(nuevaCantidad.toFixed(3)); // Redondear a 3 decimales
-    item.subtotal = parseFloat((nuevaCantidad * item.precioAplicado).toFixed(2));
-
-    // Recalcular total
+    // ✅ Recalcular subtotal y total
+    item.subtotal = parseFloat((item.cantidad * item.precioAplicado).toFixed(2));
     pedido.total = parseFloat(
       pedido.productos.reduce((sum: any, p: { subtotal: any; }) => sum + p.subtotal, 0).toFixed(2)
     );
@@ -108,7 +151,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
 
     return NextResponse.json(pedido, { status: 200 });
   } catch (error: any) {
-    console.error('Error al modificar cantidad:', error);
+    console.error('Error al modificar cantidad/precio:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

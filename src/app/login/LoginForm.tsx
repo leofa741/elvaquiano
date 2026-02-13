@@ -172,13 +172,9 @@ export default function LoginForm() {
             ¿Olvidaste tu contraseña?
           </Link>
 
-
-
         </form>
       
-      </div>
-
-     
+      </div>     
 
     </div>
   );

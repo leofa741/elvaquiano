@@ -1,16 +1,12 @@
 // src/app/api/gestion/pedidos/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongoose';
-
-// Importamos los modelos
 import Cliente from '@/app/models/Cliente';
 import Product from '@/app/models/Product';
 import Pedido from '@/app/models/Pedido';
 import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClientsNotifier';
 
-
 // ✅ Aseguramos que los modelos se registren en Mongoose
-// (evita MissingSchemaError al usar .populate)
 const _ = (() => {
   void Cliente.modelName;
   void Product.modelName;
@@ -29,15 +25,65 @@ export async function POST(request: NextRequest) {
       clienteId,
       productos,
       deposito,
+      origen, // ✅ Campo requerido agregado
       fechaEstimadaEntrega,
       notas
     } = body;
 
-    if (!clienteId || !productos?.length || !deposito) {
+    // ✅ Validaciones explícitas antes de crear el documento
+    if (!clienteId) {
       return NextResponse.json(
-        { error: 'Cliente, productos y depósito son obligatorios.' },
+        { error: 'El cliente es obligatorio' },
         { status: 400 }
       );
+    }
+
+    if (!productos?.length) {
+      return NextResponse.json(
+        { error: 'Debe agregar al menos un producto' },
+        { status: 400 }
+      );
+    }
+
+    if (!deposito) {
+      return NextResponse.json(
+        { error: 'El depósito es obligatorio' },
+        { status: 400 }
+      );
+    }
+
+    if (!origen || !['online', 'mostrador'].includes(origen)) {
+      return NextResponse.json(
+        { error: 'Origen inválido. Debe ser "online" o "mostrador"' },
+        { status: 400 }
+      );
+    }
+
+    // ✅ Validar cada producto individualmente
+    for (const p of productos) {
+      if (!p.producto) {
+        return NextResponse.json(
+          { error: 'Cada producto debe tener un ID válido' },
+          { status: 400 }
+        );
+      }
+
+      if (!['mayorista', 'oferta'].includes(p.tipoPrecio)) {
+        return NextResponse.json(
+          { 
+            error: `Tipo de precio inválido para "${p.nombre}". Debe ser "mayorista" o "oferta"` 
+          },
+          { status: 400 }
+        );
+      }
+
+      // ✅ Protección contra precioOferta undefined
+      if (p.tipoPrecio === 'oferta' && (p.precioAplicado === undefined || p.precioAplicado === null)) {
+        return NextResponse.json(
+          { error: `El producto "${p.nombre}" no tiene precio de oferta disponible` },
+          { status: 400 }
+        );
+      }
     }
 
     const total = productos.reduce(
@@ -49,6 +95,7 @@ export async function POST(request: NextRequest) {
       cliente: clienteId,
       productos,
       deposito,
+      origen, // ✅ Incluir origen
       fechaEstimadaEntrega: fechaEstimadaEntrega || null,
       notas: notas || null,
       total,
@@ -62,18 +109,35 @@ export async function POST(request: NextRequest) {
       .populate({
         path: 'productos.producto',
         model: 'Product',
-        select: 'nombre precio'
+        select: 'nombre unidad precioMayorista precioOferta'
       });
 
-    // Notificar a los clientes conectados sobre el nuevo pedido
+    // Notificar a los clientes conectados
     notifyPedidoClients({ type: 'pedido_creado', data: pedidoConDatos });
 
     return NextResponse.json(pedidoConDatos, { status: 201 });
 
   } catch (error: any) {
-    console.error('Error al crear pedido:', error);
+    console.error('❌ Error al crear pedido:', error);
+
+    // ✅ Mostrar detalles específicos de validación de Mongoose
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map((err: any) => err.message);
+      return NextResponse.json(
+        { 
+          error: 'Validación fallida',
+          details: validationErrors 
+        },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
-      { error: 'Error al crear el pedido', details: error.message },
+      { 
+        error: 'Error al crear el pedido', 
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }
@@ -84,14 +148,16 @@ export async function POST(request: NextRequest) {
 // ---------------------------------------------
 export async function GET(request: NextRequest) {
   try {
+    await connectDB();
+
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get('page') || '1');
     const limit = parseInt(url.searchParams.get('limit') || '10');
     const skip = (page - 1) * limit;
 
-    const total = await Pedido.countDocuments();
-    const pedidos = await Pedido.find()
-      .populate('cliente', 'razonSocial')
+    const total = await Pedido.countDocuments({ activo: true });
+    const pedidos = await Pedido.find({ activo: true })
+      .populate('cliente', 'razonSocial nombre apellido')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -103,8 +169,14 @@ export async function GET(request: NextRequest) {
       total,
       totalPages: Math.ceil(total / limit),
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error al listar pedidos:', error);
-    return NextResponse.json({ error: 'Error al cargar pedidos' }, { status: 500 });
+    return NextResponse.json(
+      { 
+        error: 'Error al cargar pedidos',
+        details: error.message 
+      }, 
+      { status: 500 }
+    );
   }
 }

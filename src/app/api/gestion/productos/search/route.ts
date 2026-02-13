@@ -1,3 +1,4 @@
+// /api/gestion/productos/search/route.ts
 import { NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongoose';
 import Product from '@/app/models/Product';
@@ -20,8 +21,9 @@ export async function GET(req: Request) {
     // Normalizar texto (espacios múltiples)
     const normalized = q.replace(/\s+/g, ' ');
 
+    // ✅ CORREGIDO: Eliminar filtro activo: true para mostrar TODOS los productos
     const products = await Product.find({
-      activo: true,
+      // activo: true, ← ❌ ELIMINAR esta línea
       $or: [
         { nombre: { $regex: normalized, $options: 'i' } },
         { categoria: { $regex: normalized, $options: 'i' } },

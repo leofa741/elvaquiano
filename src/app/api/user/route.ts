@@ -1,15 +1,22 @@
-
 import { NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import User from '@/app/models/User';
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+// ✅ Configurar Cloudinary con validación
+try {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true
+  });
+  
+  console.log('✅ Cloudinary configurado correctamente');
+} catch (error) {
+  console.error('❌ Error configurando Cloudinary:', error);
+}
 
 export async function PUT(request: Request) {
   try {
@@ -36,38 +43,52 @@ export async function PUT(request: Request) {
     }
 
     let imgUrl = user.img;
+    
+    // ✅ Solo subir si hay archivo nuevo
     if (imgFile && imgFile.size > 0) {
-      const buffer = Buffer.from(await imgFile.arrayBuffer());
+      try {
+        const buffer = Buffer.from(await imgFile.arrayBuffer());
 
-      const uploadResult = await new Promise((resolve, reject) => {
-        cloudinary.uploader.upload_stream(
-          { folder: 'profile_images' },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
+        // ✅ Subir con método más robusto
+        const uploadResult = await cloudinary.uploader.upload(
+          `data:image/jpeg;base64,${buffer.toString('base64')}`,
+          {
+            folder: 'profile_images',
+            resource_type: 'image',
+            format: 'jpg',
+            transformation: [
+              { width: 500, height: 500, crop: 'fill', gravity: 'face' }
+            ]
           }
-        ).end(buffer);
-      });
+        );
 
-      imgUrl = (uploadResult as any).secure_url;
+        imgUrl = uploadResult.secure_url;
+        console.log('✅ Imagen subida a Cloudinary:', imgUrl);
+      } catch (uploadError: any) {
+        console.error('❌ Error subiendo a Cloudinary:', uploadError);
+        
+        // ✅ Si falla Cloudinary, continuar sin imagen
+        console.log('⚠️ Continuando sin actualizar imagen');
+        // No lanzar error, continuar con la actualización
+      }
     }
 
-    // Actualizar solo los campos que han cambiado
+    // ✅ Actualizar solo los campos que han cambiado
     const updates: Record<string, any> = {};
-    if (name !== user.name) updates.name = name;
-    if (lastName !== user.lastName) updates.lastName = lastName;
-    if (address !== user.address) updates.address = address;
-    if (city !== user.city) updates.city = city;
-    if (zipCode !== user.zipCode) updates.zipCode = zipCode;
-    if (email !== user.email) updates.email = email;
-    if (phone !== user.phone) updates.phone = phone;
-    if (imgUrl !== user.img) updates.img = imgUrl;
+    if (name && name !== user.name) updates.name = name;
+    if (lastName && lastName !== user.lastName) updates.lastName = lastName;
+    if (address && address !== user.address) updates.address = address;
+    if (city && city !== user.city) updates.city = city;
+    if (zipCode && zipCode !== user.zipCode) updates.zipCode = zipCode;
+    if (email && email !== user.email) updates.email = email;
+    if (phone && phone !== user.phone) updates.phone = phone;
+    if (imgUrl && imgUrl !== user.img) updates.img = imgUrl;
 
     if (Object.keys(updates).length > 0) {
       await User.findByIdAndUpdate(userId, updates, { new: true });
     }
 
-    // Obtener el usuario actualizado
+    // ✅ Obtener el usuario actualizado
     const updatedUser = await User.findById(userId);
 
     return NextResponse.json({ 
@@ -86,9 +107,12 @@ export async function PUT(request: Request) {
     }, { status: 200 });
 
   } catch (error) {
-    console.error('Error en la actualización del perfil:', error);
+    console.error('❌ Error en la actualización del perfil:', error);
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : 'Error al actualizar el perfil' }, 
+      { 
+        message: error instanceof Error ? error.message : 'Error al actualizar el perfil',
+        details: error instanceof Error ? error.stack : undefined
+      }, 
       { status: 500 }
     );
   }

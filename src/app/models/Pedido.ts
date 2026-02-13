@@ -19,7 +19,7 @@ const PedidoSchema = new Schema({
     cantidad: { type: Number, required: true, min: 0.001 },
     tipoPrecio: {
       type: String,
-      enum: ['minorista', 'mayorista'],
+      enum: ['mayorista', 'oferta'],  // ✅ CORRECTO
       required: true
     },
     precioAplicado: { type: Number, required: true },

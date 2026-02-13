@@ -1,3 +1,4 @@
+// src/app/gestion/pedidos/[id]/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -17,6 +18,9 @@ import {
   FaSearch,
   FaTimes,
   FaWeightHanging,
+  FaDollarSign,
+  FaCheck,
+  FaSync,
 } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import { formatARS } from '@/app/lib/formatcurrenci';
@@ -40,6 +44,7 @@ interface Producto {
   tipoPrecio: 'mayorista' | 'oferta';
   precioAplicado: number;
   subtotal: number;
+  producto: string; // ID del producto
 }
 
 interface ProductoSimple {
@@ -104,10 +109,14 @@ export default function DetallePedidoPage() {
   const [saldo, setSaldo] = useState<{ saldoPendiente: number; pagos: any[] } | null>(null);
   const [editandoProducto, setEditandoProducto] = useState<number | null>(null);
   const [cantidadTemporal, setCantidadTemporal] = useState<number>(1);
+  const [precioTemporal, setPrecioTemporal] = useState<number>(0);
+  const [actualizarProductoBase, setActualizarProductoBase] = useState<boolean>(false);
   const [productosDisponibles, setProductosDisponibles] = useState<ProductoSimple[]>([]);
   const [mostrarAgregar, setMostrarAgregar] = useState(false);
   const [productoSeleccionado, setProductoSeleccionado] = useState<string>('');
   const [cantidadNuevo, setCantidadNuevo] = useState<number>(1);
+  const [precioNuevo, setPrecioNuevo] = useState<number>(0);
+  const [actualizarProductoNuevo, setActualizarProductoNuevo] = useState<boolean>(false);
   const [busquedaProducto, setBusquedaProducto] = useState<string>('');
 
   // Fetch saldo
@@ -172,6 +181,17 @@ export default function DetallePedidoPage() {
   
   const stepCantidad = unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1;
 
+  // ✅ Obtener precio del producto seleccionado
+  const productoSeleccionadoData = productoSeleccionado 
+    ? productosDisponibles.find(p => p._id === productoSeleccionado)
+    : null;
+  
+  const precioSugerido = productoSeleccionadoData 
+    ? (productoSeleccionadoData.precio.oferta && productoSeleccionadoData.precio.oferta < productoSeleccionadoData.precio.mayorista 
+        ? productoSeleccionadoData.precio.oferta 
+        : productoSeleccionadoData.precio.mayorista)
+    : 0;
+
   const handleCambiarEstado = async (nuevoEstado: string) => {
     const result = await Swal.fire({
       title: '¿Cambiar estado?',
@@ -205,14 +225,21 @@ export default function DetallePedidoPage() {
     }
   };
 
-  const iniciarEdicion = (idx: number, cantidad: number) => {
+  const iniciarEdicion = (idx: number, cantidad: number, precio: number) => {
     setEditandoProducto(idx);
     setCantidadTemporal(cantidad);
+    setPrecioTemporal(precio);
+    setActualizarProductoBase(false);
   };
 
-  const guardarCantidad = async (idx: number) => {
+  const guardarCantidadYPrecio = async (idx: number) => {
     if (cantidadTemporal <= 0 || isNaN(cantidadTemporal)) {
       Swal.fire('Error', 'La cantidad debe ser mayor a 0', 'error');
+      return;
+    }
+
+    if (precioTemporal <= 0 || isNaN(precioTemporal)) {
+      Swal.fire('Error', 'El precio debe ser mayor a 0', 'error');
       return;
     }
 
@@ -223,7 +250,11 @@ export default function DetallePedidoPage() {
       const res = await fetch(`/api/gestion/pedidos/${id}/producto/${idx}/cantidad`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nuevaCantidad: cantidadValidada }),
+        body: JSON.stringify({ 
+          nuevaCantidad: cantidadValidada,
+          nuevoPrecio: precioTemporal,
+          actualizarProducto: actualizarProductoBase
+        }),
       });
 
       if (res.ok) {
@@ -231,10 +262,17 @@ export default function DetallePedidoPage() {
         setPedido(updatedPedido);
         await fetchSaldo();
         setEditandoProducto(null);
-        Swal.fire('¡Actualizado!', 'La cantidad fue modificada.', 'success');
+        Swal.fire({
+          icon: 'success',
+          title: '¡Actualizado!',
+          html: actualizarProductoBase 
+            ? 'Cantidad, precio y producto en base de datos actualizados.'
+            : 'Cantidad y precio actualizados.',
+          timer: 3000
+        });
       } else {
         const error = await res.json();
-        Swal.fire('Error', error.error || 'No se pudo actualizar la cantidad', 'error');
+        Swal.fire('Error', error.error || 'No se pudo actualizar', 'error');
       }
     } catch (err) {
       Swal.fire('Error', 'Error de conexión', 'error');
@@ -275,20 +313,136 @@ export default function DetallePedidoPage() {
   };
 
   // ✅ Agregar nuevo producto
-  const handleAgregarProducto = async () => {
-    if (!productoSeleccionado || cantidadNuevo <= 0 || isNaN(cantidadNuevo)) {
-      Swal.fire('Error', 'Selecciona un producto y una cantidad válida', 'error');
-      return;
-    }
+ // src/app/gestion/pedidos/[id]/page.tsx
 
-    // ✅ Validación: máximo 3 decimales
-    const cantidadValidada = parseFloat(cantidadNuevo.toFixed(3));
+// ✅ Agregar nuevo producto (con lógica de reemplazo si ya existe)
+const handleAgregarProducto = async () => {
+  if (!productoSeleccionado || cantidadNuevo <= 0 || isNaN(cantidadNuevo)) {
+    Swal.fire('Error', 'Selecciona un producto y una cantidad válida', 'error');
+    return;
+  }
 
-    try {
+  if (precioNuevo <= 0 || isNaN(precioNuevo)) {
+    Swal.fire('Error', 'El precio debe ser mayor a 0', 'error');
+    return;
+  }
+
+  // ✅ Validación: máximo 3 decimales
+  const cantidadValidada = parseFloat(cantidadNuevo.toFixed(3));
+
+  try {
+    // ✅ Verificar si el producto ya existe en el pedido
+    const productoExistente = pedido?.productos.findIndex(
+      p => p.producto === productoSeleccionado
+    );
+
+    if (productoExistente !== -1) {
+      // ✅ El producto ya existe, preguntar si reemplazar o sumar
+      const { value: accion } = await Swal.fire({
+        title: 'Producto ya existe',
+        html: `El producto ya está en el pedido.<br><br>
+               <strong>Opciones:</strong><br>
+               • <strong>Reemplazar:</strong> Actualizar cantidad y precio<br>
+               • <strong>Sumar:</strong> Agregar a la cantidad existente<br>
+               • <strong>Cancelar:</strong> No hacer nada`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3b82f6',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Reemplazar',
+        cancelButtonText: 'Cancelar',
+        showDenyButton: true,
+        denyButtonColor: '#8b5cf6',
+        denyButtonText: 'Sumar',
+        reverseButtons: true,
+      });
+
+      if (accion === null) {
+        // Cancelar
+        return;
+      }
+
+      if (accion === true) {
+        // ✅ Reemplazar: Actualizar cantidad y precio existente
+        const res = await fetch(`/api/gestion/pedidos/${id}/producto/${productoExistente}/cantidad`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            nuevaCantidad: cantidadValidada,
+            nuevoPrecio: precioNuevo,
+            actualizarProducto: actualizarProductoNuevo
+          }),
+        });
+
+        if (res.ok) {
+          const updatedPedido = await res.json();
+          setPedido(updatedPedido);
+          await fetchSaldo();
+          setMostrarAgregar(false);
+          setProductoSeleccionado('');
+          setCantidadNuevo(1);
+          setPrecioNuevo(0);
+          setActualizarProductoNuevo(false);
+          setBusquedaProducto('');
+          Swal.fire({
+            icon: 'success',
+            title: '¡Actualizado!',
+            html: actualizarProductoNuevo 
+              ? 'Producto reemplazado y actualizado en base de datos.'
+              : 'Producto reemplazado con nuevos valores.',
+            timer: 3000
+          });
+        } else {
+          const error = await res.json();
+          Swal.fire('Error', error.error || 'No se pudo actualizar el producto', 'error');
+        }
+      } else if (accion === false) {
+        // ✅ Sumar: Aumentar la cantidad existente
+        const productoActual = pedido.productos[productoExistente];
+        const nuevaCantidadTotal = productoActual.cantidad + cantidadValidada;
+        
+        const res = await fetch(`/api/gestion/pedidos/${id}/producto/${productoExistente}/cantidad`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            nuevaCantidad: nuevaCantidadTotal,
+            // Mantener el precio existente
+            actualizarProducto: actualizarProductoNuevo
+          }),
+        });
+
+        if (res.ok) {
+          const updatedPedido = await res.json();
+          setPedido(updatedPedido);
+          await fetchSaldo();
+          setMostrarAgregar(false);
+          setProductoSeleccionado('');
+          setCantidadNuevo(1);
+          setPrecioNuevo(0);
+          setActualizarProductoNuevo(false);
+          setBusquedaProducto('');
+          Swal.fire({
+            icon: 'success',
+            title: '¡Sumado!',
+            html: `Cantidad actualizada a ${formatCantidad(nuevaCantidadTotal, productoActual.unidad)} ${getUnidadTexto(nuevaCantidadTotal, productoActual.unidad)}`,
+            timer: 3000
+          });
+        } else {
+          const error = await res.json();
+          Swal.fire('Error', error.error || 'No se pudo actualizar la cantidad', 'error');
+        }
+      }
+    } else {
+      // ✅ El producto no existe, agregar nuevo
       const res = await fetch(`/api/gestion/pedidos/${id}/producto`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productoId: productoSeleccionado, cantidad: cantidadValidada }),
+        body: JSON.stringify({ 
+          productoId: productoSeleccionado, 
+          cantidad: cantidadValidada,
+          precioPersonalizado: precioNuevo,
+          actualizarProducto: actualizarProductoNuevo
+        }),
       });
 
       if (res.ok) {
@@ -298,16 +452,26 @@ export default function DetallePedidoPage() {
         setMostrarAgregar(false);
         setProductoSeleccionado('');
         setCantidadNuevo(1);
+        setPrecioNuevo(0);
+        setActualizarProductoNuevo(false);
         setBusquedaProducto('');
-        Swal.fire('¡Agregado!', 'El producto fue añadido al pedido.', 'success');
+        Swal.fire({
+          icon: 'success',
+          title: '¡Agregado!',
+          html: actualizarProductoNuevo 
+            ? 'Producto agregado con precio personalizado y actualizado en base de datos.'
+            : 'Producto agregado con precio personalizado.',
+          timer: 3000
+        });
       } else {
         const error = await res.json();
         Swal.fire('Error', error.error || 'No se pudo agregar el producto', 'error');
       }
-    } catch (err) {
-      Swal.fire('Error', 'Error de conexión', 'error');
     }
-  };
+  } catch (err) {
+    Swal.fire('Error', 'Error de conexión', 'error');
+  }
+};
 
   return (
     <div className="p-4 sm:p-6 md:p-8">
@@ -431,12 +595,19 @@ export default function DetallePedidoPage() {
                       value={productoSeleccionado}
                       onChange={(e) => {
                         setProductoSeleccionado(e.target.value);
-                        // Resetear cantidad al cambiar de producto
+                        // Resetear cantidad y precio al cambiar de producto
                         const prod = productosDisponibles.find(p => p._id === e.target.value);
-                        if (prod && (prod.unidad === 'kg' || prod.unidad === 'litro')) {
-                          setCantidadNuevo(0.000); // Empezar en 0 para peso
-                        } else {
-                          setCantidadNuevo(1);
+                        if (prod) {
+                          if (prod.unidad === 'kg' || prod.unidad === 'litro') {
+                            setCantidadNuevo(0.000);
+                          } else {
+                            setCantidadNuevo(1);
+                          }
+                          // Establecer precio sugerido
+                          const precioSugerido = prod.precio.oferta && prod.precio.oferta < prod.precio.mayorista 
+                            ? prod.precio.oferta 
+                            : prod.precio.mayorista;
+                          setPrecioNuevo(precioSugerido);
                         }
                       }}
                       className="w-full bg-gray-700 text-white rounded px-3 py-2 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -500,6 +671,53 @@ export default function DetallePedidoPage() {
                   </div>
                 </div>
 
+                {/* ✅ Campo de precio personalizado */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-1">
+                      <FaDollarSign className="text-amber-400" />
+                      Precio unitario
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={precioNuevo}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value);
+                          if (!isNaN(value) && value > 0) {
+                            setPrecioNuevo(value);
+                          }
+                        }}
+                        className="w-full pl-8 pr-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 text-lg"
+                        placeholder="Precio"
+                      />
+                    </div>
+                    {productoSeleccionadoData && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Precio sugerido: {formatARS(precioSugerido)} ({productoSeleccionadoData.precio.oferta && productoSeleccionadoData.precio.oferta < productoSeleccionadoData.precio.mayorista ? 'oferta' : 'mayorista'})
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={actualizarProductoNuevo}
+                        onChange={(e) => setActualizarProductoNuevo(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-300 group-hover:text-white transition">
+                        <FaSync className="inline mr-1 text-blue-400" />
+                        Actualizar producto en base de datos
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
                 {/* ✅ Botones de acción */}
                 <div className="flex gap-2 justify-end pt-3 border-t border-gray-600">
                   <button
@@ -507,6 +725,8 @@ export default function DetallePedidoPage() {
                       setMostrarAgregar(false);
                       setProductoSeleccionado('');
                       setCantidadNuevo(1);
+                      setPrecioNuevo(0);
+                      setActualizarProductoNuevo(false);
                       setBusquedaProducto('');
                     }}
                     className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded hover:bg-gray-600 transition"
@@ -515,9 +735,9 @@ export default function DetallePedidoPage() {
                   </button>
                   <button
                     onClick={handleAgregarProducto}
-                    disabled={!productoSeleccionado || cantidadNuevo <= 0 || isNaN(cantidadNuevo)}
+                    disabled={!productoSeleccionado || cantidadNuevo <= 0 || precioNuevo <= 0 || isNaN(cantidadNuevo) || isNaN(precioNuevo)}
                     className={`px-4 py-2 rounded transition ${
-                      productoSeleccionado && cantidadNuevo > 0 && !isNaN(cantidadNuevo)
+                      productoSeleccionado && cantidadNuevo > 0 && precioNuevo > 0 && !isNaN(cantidadNuevo) && !isNaN(precioNuevo)
                         ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                         : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                     }`}
@@ -542,79 +762,114 @@ export default function DetallePedidoPage() {
                 <div>
                   <div className="text-white">{p.nombre}</div>
                   <div className="text-sm text-gray-400">
-                    <span className="ml-2 capitalize">{p.tipoPrecio}</span> ({formatARS(p.precioAplicado)} c/u)
+                    <span className="ml-2 capitalize">{p.tipoPrecio}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                   {editandoProducto === idx ? (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
+                      {/* ✅ Edición de cantidad */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            const nuevaCantidad = Math.max(0.001, parseFloat((cantidadTemporal - (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3)));
+                            setCantidadTemporal(nuevaCantidad);
+                          }}
+                          className="w-7 h-7 rounded bg-gray-700 text-white flex items-center justify-center text-sm"
+                          title={p.unidad === 'kg' || p.unidad === 'litro' ? 'Restar 100g' : 'Restar 1 unidad'}
+                        >
+                          –
+                        </button>
+                        <input
+                          type="number"
+                          step={p.unidad === 'kg' || p.unidad === 'litro' ? "0.001" : "1"}
+                          min="0.001"
+                          value={cantidadTemporal}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            if (!isNaN(value) && value > 0) {
+                              setCantidadTemporal(value);
+                            }
+                          }}
+                          className="w-20 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-sm font-mono"
+                        />
+                        <button
+                          onClick={() => {
+                            const nuevaCantidad = parseFloat((cantidadTemporal + (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3));
+                            setCantidadTemporal(nuevaCantidad);
+                          }}
+                          className="w-7 h-7 rounded bg-gray-700 text-white flex items-center justify-center text-sm"
+                          title={p.unidad === 'kg' || p.unidad === 'litro' ? 'Sumar 100g' : 'Sumar 1 unidad'}
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      {/* ✅ Edición de precio */}
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-400 text-sm">$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={precioTemporal}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            if (!isNaN(value) && value > 0) {
+                              setPrecioTemporal(value);
+                            }
+                          }}
+                          className="w-28 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-sm font-mono"
+                        />
+                      </div>
+
+                      {/* ✅ Checkbox para actualizar producto en base */}
+                      <label className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer hover:text-white">
+                        <input
+                          type="checkbox"
+                          checked={actualizarProductoBase}
+                          onChange={(e) => setActualizarProductoBase(e.target.checked)}
+                          className="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                        />
+                        <FaSync className="text-blue-400" size={10} />
+                        Actualizar BD
+                      </label>
+
+                      {/* ✅ Botones de acción */}
                       <button
-                        onClick={() => {
-                          const nuevaCantidad = Math.max(0.001, parseFloat((cantidadTemporal - (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3)));
-                          setCantidadTemporal(nuevaCantidad);
-                        }}
-                        className="w-8 h-8 rounded-full bg-gray-700 text-white flex items-center justify-center text-lg"
-                        title={p.unidad === 'kg' || p.unidad === 'litro' ? 'Restar 100g' : 'Restar 1 unidad'}
+                        onClick={() => guardarCantidadYPrecio(idx)}
+                        className="text-green-500 hover:text-green-400 text-sm font-medium flex items-center gap-1"
+                        title="Guardar cambios"
                       >
-                        –
-                      </button>
-                      <input
-                        type="number"
-                        step={p.unidad === 'kg' || p.unidad === 'litro' ? "0.001" : "1"}
-                        min="0.001"
-                        value={cantidadTemporal}
-                        onChange={(e) => {
-                          const value = parseFloat(e.target.value);
-                          if (!isNaN(value) && value > 0) {
-                            setCantidadTemporal(value);
-                          }
-                        }}
-                        className="w-28 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-lg font-mono"
-                        autoFocus
-                      />
-                      <button
-                        onClick={() => {
-                          const nuevaCantidad = parseFloat((cantidadTemporal + (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3));
-                          setCantidadTemporal(nuevaCantidad);
-                        }}
-                        className="w-8 h-8 rounded-full bg-gray-700 text-white flex items-center justify-center text-lg"
-                        title={p.unidad === 'kg' || p.unidad === 'litro' ? 'Sumar 100g' : 'Sumar 1 unidad'}
-                      >
-                        +
-                      </button>
-                      <button
-                        onClick={() => guardarCantidad(idx)}
-                        className="text-green-500 hover:text-green-400 text-sm font-medium"
-                      >
-                        ✓ Guardar
+                        <FaCheck size={14} /> Guardar
                       </button>
                       <button
                         onClick={() => setEditandoProducto(null)}
                         className="text-gray-500 hover:text-gray-400 text-sm"
+                        title="Cancelar"
                       >
                         ✕
                       </button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
-                      <div className="text-right min-w-[180px]">
+                      <div className="text-right min-w-[200px]">
                         {/* ✅ Formato inteligente según unidad */}
                         <div className="text-white font-medium">
-                          {formatCantidad(p.cantidad, p.unidad)} {getUnidadTexto(p.cantidad, p.unidad)} de {p.nombre}
+                          {formatCantidad(p.cantidad, p.unidad)} {getUnidadTexto(p.cantidad, p.unidad)}
                         </div>
                         <div className="text-xs text-gray-400">
-                          ({formatCantidad(p.cantidad, p.unidad)} {p.unidad})
+                          {formatARS(p.precioAplicado)} c/u • {formatARS(p.subtotal)} total
                         </div>
-                        <div className="text-white font-bold">{formatARS(p.subtotal)}</div>
                       </div>
 
                       {['preparacion', 'enviado', 'entregado'].includes(pedido.estado) && (
                         <div className="flex gap-1">
                           <button
-                            onClick={() => iniciarEdicion(idx, p.cantidad)}
+                            onClick={() => iniciarEdicion(idx, p.cantidad, p.precioAplicado)}
                             className="text-amber-500 hover:text-amber-400"
-                            title="Editar cantidad"
+                            title="Editar cantidad y precio"
                           >
                             <FaEdit size={16} />
                           </button>

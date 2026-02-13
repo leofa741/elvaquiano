@@ -15,6 +15,7 @@ const loteSchema = new Schema({
 
 
 
+
 const productSchema = new Schema({
   nombre: { type: String, required: true, trim: true },
   categoria: { type: String, required: true, trim: true },

@@ -1,8 +1,9 @@
+// src/app/gestion/page.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
     FaBox,
@@ -50,13 +51,6 @@ const modules = [
         icon: <FaBox className="text-3xl text-amber-400" />,
         href: '/gestion/categorias',
     },
-    // {
-    //   id: 'facturacion',
-    //   title: 'Facturación',
-    //   description: 'Comprobantes internos e integración futura con AFIP.',
-    //    icon: <FaFileInvoice className="text-3xl text-amber-400" />,
-    //    href: '/gestion/facturacion',
-    //   },
     {
         id: 'dashboard',
         title: 'Dashboard',
@@ -77,42 +71,68 @@ export default function GestiónPage() {
     const { status, data: session } = useSession();
     const router = useRouter();
     const pathname = usePathname();
+    
+    // ✅ Estado para controlar si ya se validó el rol
+    const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
     // 🔒 Validación estricta de autenticación y rol
     useEffect(() => {
-        if (status === 'loading') return;
+        const validateAccess = async () => {
+            if (status === 'loading') return;
 
-        // Si no está autenticado
-        if (status === 'unauthenticated') {
-            router.push('/login');
-            return;
-        }
-
-        // Verificar token y rol
-        const token = session?.user?.token || localStorage.getItem('token');
-        if (!token) {
-            router.push('/login');
-            return;
-        }
-
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            // Solo permitir si es admin, superadmin o vendedor (ajusta según tus roles)
-            const allowedRoles = ['superadmin', 'admin', 'vendedor'];
-            if (!allowedRoles.includes(payload.role)) {
-                router.push('/'); // o '/profile' si los usuarios comunes tienen acceso limitado
+            // Si no está autenticado
+            if (status === 'unauthenticated') {
+                router.push('/login');
+                setIsAuthorized(false);
                 return;
             }
-        } catch (err) {
-            console.error('Token inválido', err);
-            router.push('/login');
-            return;
-        }
+
+            // Verificar token y rol
+            const token = session?.user?.token || localStorage.getItem('token');
+            if (!token) {
+                router.push('/login');
+                setIsAuthorized(false);
+                return;
+            }
+
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const allowedRoles = ['superadmin', 'admin', 'vendedor'];
+                
+                if (!allowedRoles.includes(payload.role)) {
+                    // ✅ Redirigir a página de usuario común (perfil, home, etc.)
+                    router.push('/');
+                    setIsAuthorized(false);
+                    return;
+                }
+                
+                // ✅ Autorizado
+                setIsAuthorized(true);
+            } catch (err) {
+                console.error('Token inválido', err);
+                router.push('/login');
+                setIsAuthorized(false);
+            }
+        };
+
+        validateAccess();
     }, [status, session, router, pathname]);
 
-    // ❌ Nunca mostrar contenido sensible hasta que se valide todo
-    if (status !== 'authenticated') {
-        return null; // ← Evita el "flash" de contenido no autorizado
+    // ✅ Mientras se valida, mostrar loader (NO null)
+    if (status === 'loading' || isAuthorized === null) {
+        return (
+            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-amber-500 mx-auto mb-4"></div>
+                    <p className="text-gray-400 text-lg">Verificando permisos...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // ✅ Si no está autorizado, no mostrar nada (ya se redirigió)
+    if (!isAuthorized) {
+        return null;
     }
 
     // ✅ Solo renderizar si pasa todas las validaciones
