@@ -242,7 +242,7 @@ export default function BackToSchoolBanner({
                     ✏️ ¡Vuelta al Cole! Precios Especiales
                 </div>
 
-                {/* Logo con efecto premium */}
+              
                 {/* Logo con efecto premium */}
                 {logoSrc && (
                     <div
@@ -250,6 +250,7 @@ export default function BackToSchoolBanner({
                         style={{
                             width: '180px',
                             height: '180px',
+                        
                         }}
                     >
                         <Image
@@ -260,7 +261,9 @@ export default function BackToSchoolBanner({
                             style={{
                                 objectFit: 'contain',
                                 width: '100%',
-                                height: '100%'
+                                height: '100%',
+                                transform: 'translateY(35px)',
+                              
                             }}
                             className="drop-shadow-[0_0_25px_rgba(251,191,36,0.6)] animate-pulse-glow"
                         />
