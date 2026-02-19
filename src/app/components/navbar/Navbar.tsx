@@ -74,7 +74,7 @@ export default function Navbar() {
         <div className="lg:hidden">
           <Link href="/" onClick={closeMenu}>
             <Image                                      
-             src="/img/logo-sanvalentin-removebg-preview.png"  // img/logo-sanvalentin-removebg-preview.png  El-Vaquiano.png
+             src="/img/logo-escolar-1-removebg-preview.png"  // img/logo-sanvalentin-removebg-preview.png  El-Vaquiano.png
               alt="Distribuidora El Vaquiano"
               width={120}
               height={40}
@@ -93,10 +93,10 @@ export default function Navbar() {
         {/* Logo centrado desktop */}
         <div className="hidden lg:block absolute left-1/2 transform -translate-x-1/2">
           <Image
-            src="/img/logo-sanvalentin-removebg-preview.png"
+            src="/img/logo-escolar-1-removebg-preview.png"
             alt="Distribuidora El Vaquiano"
-            width={140}
-            height={45}
+            width={120}
+            height={35}
             priority
           />
         </div>

@@ -4,8 +4,8 @@ import Banner from "./components/baner/Banner";
 import { Metadata } from "next";
 import Image from "next/image";
 import CategoryResumenCard from "./components/categoryresumencard/CategoryResumenCard";
-import ValentineBanner from "./components/bennersanvalentin/ValentineBanner";
-import dynamic from "next/dynamic"
+
+import BackToSchoolBanner from "./components/backtoschol/BackToSchoolBanner";
 
 
 
@@ -16,7 +16,6 @@ export const metadata: Metadata = {
   keywords:
     "distribuidora, venta mayorista alimentos, suministros comerciales, productos para kioscos, bodegas, restaurantes, El Vaquiano, distribuidora alimentos Patagonia",
 };
-
 
 
 // Beneficio clave (icono + texto)
@@ -31,8 +30,7 @@ const Benefit = ({ icon, title, description }: { icon: string; title: string; de
 );
 
 
-
-// Datos de categorías destacadas (pueden venir de una API o base de datos)
+// Datos de categorías destacadas (de base de datos)
 
 export default async function Home() {
   const res = await fetch(
@@ -52,7 +50,6 @@ export default async function Home() {
 
 
 
-
   return (
     <>
       {/* Hero Banner (ya lo tienes en Banner.tsx) */}
@@ -61,15 +58,20 @@ export default async function Home() {
       </div>
 
 
-      
-
-      <ValentineBanner
-        logoSrc="/img/logo-sanvalentin-removebg-preview.png"
-        title="Un gesto que perdura"
-        subtitle="Celebra el amor con los Precios que hacen latir tu negocio este el 14 de febrero."
-        ctaText="Descubre la colección"
-
-      />
+<BackToSchoolBanner
+  title="¡Vuelta al Cole!"
+  subtitle="Precios especiales en productos seleccionados. Equipate con lo mejor para empezar el año escolar."
+  ctaText="Ver Ofertas →"
+ // onCtaClick={() => router.push('/ofertas-cole')}
+  logoSrc="/img/logo-escolar-1-removebg-preview.png"
+  gradientColors={{
+    from: '#1e40af',
+    via: '#3b82f6', 
+    to: '#06b6d4'
+  }}
+  accentColor="#fbbf24"
+  highlightColor="#10b981"
+/>
 
       {/* Sección: Valor principal + CTAs */}
       <section className="py-16  dark:bg-gray-900">
@@ -105,14 +107,6 @@ export default async function Home() {
           </div>
         </div>
       </section>
-
-
-
-
-
-
-
-
 
 
       {/* Beneficios clave */}
@@ -172,8 +166,6 @@ export default async function Home() {
               />
             ))}
           </div>
-
-
         </div>
       </section>
 
