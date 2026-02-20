@@ -32,3 +32,33 @@ export async function GET(
 
   return NextResponse.json(presupuesto, { status: 200 });
 }
+
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { id } = params;
+
+    const eliminado = await Presupuesto.findByIdAndDelete(id);
+
+    if (!eliminado) {
+      return NextResponse.json(
+        { error: 'Presupuesto no encontrado' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(
+      { message: 'Presupuesto eliminado correctamente' },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('Error al eliminar presupuesto:', error);
+    return NextResponse.json(
+      { error: 'Error interno del servidor' },
+      { status: 500 }
+    );
+  }
+}
