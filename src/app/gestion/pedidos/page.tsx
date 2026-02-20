@@ -121,7 +121,7 @@ export default function PedidosPage() {
     };
 
     fetchPedidos();
-    const interval = setInterval(fetchPedidos, 52000); // polling
+ const interval = setInterval(fetchPedidos, 140000); // ✅ Cada 2 minutos
     return () => clearInterval(interval);
   }, [isAuthorized, page]);
 
