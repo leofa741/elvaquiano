@@ -52,7 +52,7 @@ export default function BackToSchoolBanner({
         via: '#3b82f6',
         to: '#0ea5e9',
     },
-    accentColor = '#fbbf24',
+    accentColor = '#1e40af',
     highlightColor = '#10b981',
 }: BackToSchoolBannerProps) {
     const [mounted, setMounted] = useState(false);
@@ -142,7 +142,7 @@ export default function BackToSchoolBanner({
     return (
         <div className="school-banner relative w-full mx-auto overflow-hidden shadow-[0_25px_80px_-20px_rgba(30,64,175,0.7)] border border-blue-400/30 bg-clip-padding backdrop-filter backdrop-blur-sm">
             {/* Efecto de brillo superior */}
-            <div className="top-glow absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-300 to-transparent opacity-30 animate-pulse-slow" />
+            <div className="top-glow absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-red-300 to-transparent opacity-30 animate-pulse-slow" />
 
             {/* Efecto de brillo inferior */}
             <div className="bottom-glow absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-300 to-transparent opacity-30 animate-pulse-slow-reverse" />
@@ -238,7 +238,7 @@ export default function BackToSchoolBanner({
             {/* Contenido centrado con efectos premium */}
             <div className="content absolute inset-0 flex flex-col items-center justify-center text-center px-6 md:px-8 text-white z-10">
                 {/* Badge promocional */}
-                <div className="promo-badge mb-4 px-4 py-2 bg-gradient-to-r from-yellow-500 to-amber-600 rounded-full text-xs md:text-sm font-bold text-blue-900 shadow-lg animate-fade-in-down">
+                <div className="promo-badge mb-4 px-4 py-2 bg-gradient-to-r from-blue-500 to-amber-600 rounded-full text-xs md:text-sm font-bold text-blue-900 shadow-lg animate-fade-in-down">
                     ✏️ ¡Vuelta al Cole! Precios Especiales
                 </div>
 
@@ -265,14 +265,14 @@ export default function BackToSchoolBanner({
                                 transform: 'translateY(35px)',
                               
                             }}
-                            className="drop-shadow-[0_0_25px_rgba(251,191,36,0.6)] animate-pulse-glow"
+                            className="drop-shadow-[0_0_25px_rgba(25,191,36,0.6)] animate-pulse-glow"
                         />
                     </div>
                 )}
 
                 {/* Título con efecto premium */}
                 <h1 className="title text-3xl md:text-5xl lg:text-6xl font-extrabold mb-4 tracking-tight drop-shadow-[0_4px_20px_rgba(0,0,0,0.7)] leading-tight animate-fade-in-up">
-                    <span className="gradient-text bg-clip-text text-transparent bg-gradient-to-r from-yellow-200 via-white to-emerald-200 animate-gradient-shift">
+                    <span className="gradient-text bg-clip-text text-transparent bg-gradient-to-r from-blue-200 via-white to-emerald-200 animate-gradient-shift">
                         {title}
                     </span>
                 </h1>
@@ -379,10 +379,10 @@ export default function BackToSchoolBanner({
 
         @keyframes pulseGlow {
           0%, 100% {
-            box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+            box-shadow: 0 0 20px rgba(25, 191, 36, 0.5);
           }
           50% {
-            box-shadow: 0 0 40px rgba(251, 191, 36, 0.8);
+            box-shadow: 0 0 40px rgba(25, 191, 36, 0.8);
           }
         }
 
@@ -443,7 +443,7 @@ export default function BackToSchoolBanner({
             box-shadow: 0 0 15px rgba(251, 191, 36, 0);
           }
           50% {
-            box-shadow: 0 0 35px rgba(251, 191, 36, 0.7);
+            box-shadow: 0 0 35px rgba(25, 191, 36, 0.7);
           }
           100% {
             box-shadow: 0 0 15px rgba(251, 191, 36, 0);

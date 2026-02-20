@@ -69,7 +69,7 @@ export default async function Home() {
     via: '#3b82f6', 
     to: '#06b6d4'
   }}
-  accentColor="#fbbf24"
+  accentColor='#1e40af'
   highlightColor="#10b981"
 />
 
