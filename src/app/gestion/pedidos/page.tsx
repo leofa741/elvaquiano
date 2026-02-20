@@ -10,6 +10,8 @@ import {
   FaClock,
   FaDollarSign,
   FaEye,
+  FaChevronLeft,
+  FaChevronRight,
 } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
@@ -55,11 +57,6 @@ const ESTADO_CONFIG: Record<
   cancelado: { label: 'Cancelado', color: 'bg-red-600', text: 'text-white' },
 };
 
-/* =======================
-   CONFIG ESTADOS PAGO
-======================= */
-
-
 const ESTADO_PAGO_CONFIG: Record<
   'pendiente' | 'parcial' | 'pagado',
   { label: string; color: string }
@@ -70,7 +67,7 @@ const ESTADO_PAGO_CONFIG: Record<
 };
 
 /* =======================
-   SANITIZADOR (CLAVE)
+   SANITIZADOR
 ======================= */
 const sanitizePedido = (p: any): Pedido => ({
   _id: String(p?._id ?? ''),
@@ -85,6 +82,11 @@ const sanitizePedido = (p: any): Pedido => ({
 });
 
 /* =======================
+   CONFIG PAGINACIÓN
+======================= */
+const ITEMS_POR_PAGINA = 10;
+
+/* =======================
    COMPONENTE
 ======================= */
 export default function PedidosPage() {
@@ -94,40 +96,64 @@ export default function PedidosPage() {
   const [loading, setLoading] = useState(true);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
 
+  // 📄 Estados de paginación
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   /* =======================
-     FETCH INICIAL + POLLING
+     FETCH INICIAL (solo al montar o cambiar página)
+     ✅ SIN POLLING - Solo SSE para actualizaciones
   ======================= */
 
 
   useEffect(() => {
     if (!isAuthorized) return;
 
-    setLoading(true);
+    let mounted = true;
+
     const fetchPedidos = async () => {
+      if (!mounted) return;
+
       try {
-        const res = await fetch(`/api/gestion/pedidos?page=${page}&limit=10`, { cache: 'no-store' });
-        const { data, totalPages: total } = await res.json();
-        const list = Array.isArray(data) ? data.map(sanitizePedido) : [];
-        setPedidos(list);
-        setTotalPages(total);
+        setLoading(true);
+        const res = await fetch(
+          `/api/gestion/pedidos?page=${page}&limit=${ITEMS_POR_PAGINA}`,
+          { cache: 'no-store' }
+        );
+
+        if (!res.ok) throw new Error('Error al cargar pedidos');
+
+        // ✅ CORRECCIÓN: Nombres distintos para cada propiedad
+        const { data, totalPages, totalItems } = await res.json();
+
+        if (mounted) {
+          const list = Array.isArray(data) ? data.map(sanitizePedido) : [];
+          setPedidos(list);
+          setTotalPages(totalPages);        // 👈 totalPages va a totalPages
+          setTotalItems(totalItems ?? 0);   // 👈 totalItems va a totalItems
+        }
       } catch (err) {
         console.error('Error al cargar pedidos:', err);
+        if (mounted) {
+          Swal.fire('Error', 'No se pudieron cargar los pedidos', 'error');
+        }
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     fetchPedidos();
-    const interval = setInterval(fetchPedidos, 12000); // polling
-    return () => clearInterval(interval);
+
+    // Cleanup al desmontar o cambiar página
+    return () => {
+      mounted = false;
+    };
   }, [isAuthorized, page]);
 
-
   /* =======================
-     SSE
+     SSE - ÚNICO MECANISMO DE ACTUALIZACIÓN EN TIEMPO REAL
+     ✅ Reemplaza al polling - Solo consume cuando hay cambios reales
   ======================= */
   useEffect(() => {
     if (!isAuthorized) return;
@@ -135,25 +161,32 @@ export default function PedidosPage() {
     const es = new EventSource('/api/gestion/pedidos/events');
 
     es.onmessage = (event) => {
-      if (!event.data) return;
-      if (event.data === 'ping' || event.data === 'connected') return;
+      if (!event.data || event.data === 'ping' || event.data === 'connected') return;
       if (!event.data.startsWith('{')) return;
 
       try {
         const parsed = JSON.parse(event.data);
 
-        if (parsed.type === 'pedido_creado') {
-          setPedidos((prev) => [
-            sanitizePedido(parsed.data),
-            ...prev,
-          ]);
+        // 👇 Solo actualizar si estamos en página 1 (la más reciente)
+        const enPrimeraPagina = page === 1;
 
+        if (parsed.type === 'pedido_creado' && enPrimeraPagina) {
+          // Insertar al inicio y mantener límite de página
+          setPedidos((prev) => {
+            const nuevo = sanitizePedido(parsed.data);
+            const actualizado = [nuevo, ...prev];
+            return actualizado.length > ITEMS_POR_PAGINA
+              ? actualizado.slice(0, ITEMS_POR_PAGINA)
+              : actualizado;
+          });
+
+          // Notificación toast sutil
           Swal.fire({
             toast: true,
             position: 'top-end',
             icon: 'success',
-            title: 'Nuevo pedido creado',
-            timer: 2500,
+            title: '🆕 Nuevo pedido',
+            timer: 2000,
             showConfirmButton: false,
           });
         }
@@ -162,35 +195,53 @@ export default function PedidosPage() {
           parsed.type === 'pedido_estado_actualizado' ||
           parsed.type === 'pedido_cancelado'
         ) {
+          // Actualizar solo si el pedido está en la página actual
           setPedidos((prev) =>
             prev.map((p) =>
-              p._id === parsed.data._id
-                ? sanitizePedido(parsed.data)
-                : p
+              p._id === parsed.data._id ? sanitizePedido(parsed.data) : p
             )
           );
-
-          Swal.fire({
-            toast: true,
-            position: 'top-end',
-            icon: 'info',
-            title: 'Pedido actualizado',
-            timer: 2500,
-            showConfirmButton: false,
-          });
         }
       } catch (err) {
         console.error('Error procesando SSE:', err);
       }
     };
 
-    es.onerror = () => {
-      console.warn('SSE pedidos desconectado');
+    es.onerror = (err) => {
+      console.warn('SSE desconectado, reconectando...', err);
       es.close();
     };
 
-    return () => es.close();
-  }, [isAuthorized]);
+    // Cleanup al desmontar
+    return () => {
+      es.close();
+    };
+  }, [isAuthorized, page]);
+
+  /* =======================
+     PAGINACIÓN CON SCROLL
+  ======================= */
+  const irAPagina = (nuevaPagina: number) => {
+    if (nuevaPagina < 1 || nuevaPagina > totalPages) return;
+    setPage(nuevaPagina);
+    // Scroll suave al inicio del listado
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Cálculos para mostrar rango visible
+  const inicio = totalItems > 0 ? (page - 1) * ITEMS_POR_PAGINA + 1 : 0;
+  const fin = totalItems > 0 ? Math.min(page * ITEMS_POR_PAGINA, totalItems) : 0;
+
+  /* =======================
+     AUTH STATES
+  ======================= */
+  if (!isAuthorized) {
+    return (
+      <div className="p-6 text-center text-gray-400 min-h-screen flex items-center justify-center">
+        Verificando acceso...
+      </div>
+    );
+  }
 
   /* =======================
      RENDER
@@ -204,18 +255,19 @@ export default function PedidosPage() {
             <FaShoppingCart className="text-amber-400" />
             Gestión de Pedidos
           </h1>
-          <p className="text-gray-400 mt-1">
-            Seguimiento completo de pedidos.
-          </p>
-          <p className="text-gray-400 text-sm">volver a gestion
-            <Link href="/gestion" className="underline hover:text-amber-400"> Gestión </Link>
+          <p className="text-gray-400 mt-1">Seguimiento completo de pedidos.</p>
+          <p className="text-gray-400 text-sm">
+            volver a gestión{' '}
+            <Link href="/gestion" className="underline hover:text-amber-400">
+              Gestión
+            </Link>
           </p>
         </div>
 
         <Link
           href="/gestion/pedidos/nuevo"
-          className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition" >
-
+          className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition"
+        >
           <FaPlus /> Nuevo Pedido
         </Link>
       </div>
@@ -223,16 +275,11 @@ export default function PedidosPage() {
       {/* LISTADO */}
       <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
         {loading ? (
-          <div className="p-6 text-center text-gray-300">
-            Cargando pedidos...
-          </div>
+          <div className="p-6 text-center text-gray-300">Cargando pedidos...</div>
         ) : pedidos.length === 0 ? (
-          <div className="p-6 text-center text-gray-400">
-            No hay pedidos registrados.
-          </div>
+          <div className="p-6 text-center text-gray-400">No hay pedidos registrados.</div>
         ) : (
           <div className="divide-y divide-gray-700">
-
             {pedidos.map((pedido) => {
               const estadoLog = ESTADO_CONFIG[pedido.estado];
               const estadoPago = ESTADO_PAGO_CONFIG[pedido.estadoPago];
@@ -242,7 +289,10 @@ export default function PedidosPage() {
               );
 
               return (
-                <div key={pedido._id} className="p-4 hover:bg-gray-750 transition-colors">
+                <div
+                  key={pedido._id}
+                  className="p-4 hover:bg-gray-750 transition-colors"
+                >
                   <div className="flex flex-col md:flex-row md:justify-between gap-4">
                     {/* Columna izquierda: info principal */}
                     <div className="flex-1 min-w-0">
@@ -263,7 +313,13 @@ export default function PedidosPage() {
                         {pedido.fechaEstimadaEntrega && (
                           <span className="flex items-center gap-1">
                             <FaClock className="text-blue-400" />
-                            {new Date(pedido.fechaEstimadaEntrega).toLocaleDateString()}
+                            {new Date(pedido.fechaEstimadaEntrega).toLocaleDateString('es-AR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
                           </span>
                         )}
                       </div>
@@ -303,34 +359,66 @@ export default function PedidosPage() {
                 </div>
               );
             })}
+          </div>
+        )}
 
+        {/* 📄 PAGINACIÓN */}
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 p-4 border-t border-gray-700">
+            <span className="text-sm text-gray-400">
+              Mostrando{' '}
+              <span className="text-white font-medium">
+                {inicio}-{fin}
+              </span>{' '}
+              de{' '}
+              <span className="text-white font-medium">{totalItems}</span> pedidos
+            </span>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => irAPagina(1)}
+                disabled={page === 1}
+                className="px-3 py-2 bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed rounded hover:bg-gray-600 transition text-sm"
+                title="Primera página"
+              >
+                <FaChevronLeft className="inline" />
+                <FaChevronLeft className="inline -ml-1" />
+              </button>
+
+              <button
+                onClick={() => irAPagina(page - 1)}
+                disabled={page === 1}
+                className="px-4 py-2 bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed rounded hover:bg-gray-600 transition text-sm"
+              >
+                Anterior
+              </button>
+
+              <span className="px-3 py-2 text-gray-300 text-sm">
+                Página <span className="text-white font-semibold">{page}</span> de{' '}
+                <span className="text-white font-semibold">{totalPages}</span>
+              </span>
+
+              <button
+                onClick={() => irAPagina(page + 1)}
+                disabled={page === totalPages}
+                className="px-4 py-2 bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed rounded hover:bg-gray-600 transition text-sm"
+              >
+                Siguiente
+              </button>
+
+              <button
+                onClick={() => irAPagina(totalPages)}
+                disabled={page === totalPages}
+                className="px-3 py-2 bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed rounded hover:bg-gray-600 transition text-sm"
+                title="Última página"
+              >
+                <FaChevronRight className="inline -mr-1" />
+                <FaChevronRight className="inline" />
+              </button>
+            </div>
           </div>
         )}
       </div>
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-2 p-4">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
-          >
-            ← Anterior
-          </button>
-
-          <span className="px-3 py-1 text-gray-300">
-            Página {page} de {totalPages}
-          </span>
-
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-            className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
-          >
-            Siguiente →
-          </button>
-        </div>
-      )}
-
     </div>
   );
 }

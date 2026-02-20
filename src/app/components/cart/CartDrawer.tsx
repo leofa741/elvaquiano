@@ -140,7 +140,7 @@ const openWhatsApp = (clienteNombre: string, clienteTelefono: string, message: s
       return `• ${p.nombre} x${p.qty} - ${formatARS(precio * p.qty)}`;
     }).join('\n');
 
-    const mensajeTexto = `* NUEVO PEDIDO WEB - El Vaquiano*
+    const mensajeTexto = `* NUEVO PEDIDO WEB - El Vaquiano *
 
  *Cliente:* ${form.razonSocial}
  *Contacto:* ${form.telefono}

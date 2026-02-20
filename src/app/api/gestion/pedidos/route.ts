@@ -146,36 +146,34 @@ export async function POST(request: NextRequest) {
 // ---------------------------------------------
 // GET: Listar pedidos
 // ---------------------------------------------
-export async function GET(request: NextRequest) {
-  try {
-    await connectDB();
+// /app/api/gestion/pedidos/route.ts
 
-    const url = new URL(request.url);
-    const page = parseInt(url.searchParams.get('page') || '1');
-    const limit = parseInt(url.searchParams.get('limit') || '10');
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
     const skip = (page - 1) * limit;
 
-    const total = await Pedido.countDocuments({ activo: true });
-    const pedidos = await Pedido.find({ activo: true })
-      .populate('cliente', 'razonSocial nombre apellido')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    const [data, totalItems] = await Promise.all([
+      Pedido.find()
+        .populate('cliente', 'razonSocial')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Pedido.countDocuments(),
+    ]);
 
     return NextResponse.json({
-      data: pedidos,
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
+      data,
+      totalPages: Math.ceil(totalItems / limit),
+      totalItems, // 👈 Este es el que usa el frontend
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error al listar pedidos:', error);
     return NextResponse.json(
-      { 
-        error: 'Error al cargar pedidos',
-        details: error.message 
-      }, 
+      { error: 'Error al cargar pedidos' },
       { status: 500 }
     );
   }
