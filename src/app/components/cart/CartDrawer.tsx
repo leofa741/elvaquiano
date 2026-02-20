@@ -66,36 +66,38 @@ export default function CartDrawer() {
   /* ===============================
      📱 FUNCIÓN: ABRIR WHATSAPP CON NÚMERO FIJO
   =============================== */
-  const openWhatsApp = (clienteNombre: string, clienteTelefono: string, message: string): boolean => {
-    // ✅ Usar SIEMPRE el número de la recepcionista (YA PROCESADO)
-    const phoneClean = NUMERO_RECEPCIONISTA;
-    
-    // Codificar mensaje para URL
-    const messageEncoded = encodeURIComponent(message);
-    const waURL = `https://wa.me/${phoneClean}?text=${messageEncoded}`;
-    
-    // Detectar dispositivo y abrir de forma compatible
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    
-    try {
-      if (isIOS) {
-        // 🍎 iOS: Usar location.href para evitar pantalla negra
-        window.location.href = waURL;
-      } else {
-        // 🤖 Android/Desktop: window.open con fallback
-        const newWindow = window.open(waURL, '_blank');
-        if (!newWindow || newWindow.closed) {
-          window.location.href = waURL;
-        }
-      }
-      return true;
-    } catch (e) {
-      console.error('Error abriendo WhatsApp:', e);
+ /* ===============================
+   📱 FUNCIÓN: ABRIR WHATSAPP CON NÚMERO FIJO
+=============================== */
+const openWhatsApp = (clienteNombre: string, clienteTelefono: string, message: string): boolean => {
+  // ✅ Número de la recepcionista (YA PROCESADO)
+  const phoneClean = NUMERO_RECEPCIONISTA; // '5492224492051'
+  
+  // ✅ Codificar mensaje para URL
+  const messageEncoded = encodeURIComponent(message);
+  
+  // ✅ URL CORREGIDA: sin espacios
+  const waURL = `https://wa.me/${phoneClean}?text=${messageEncoded}`;
+  
+  // ✅ Detectar iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  
+  try {
+    if (isIOS) {
+      // 🍎 iOS: Usar location.href (más confiable que window.open)
       window.location.href = waURL;
-      return false;
+    } else {
+      // 🤖 Android/Desktop: Abrir en nueva pestaña como el botón flotante
+      window.open(waURL, '_blank', 'noopener,noreferrer');
     }
-  };
-
+    return true;
+  } catch (e) {
+    console.error('Error abriendo WhatsApp:', e);
+    // Fallback final: navegación directa
+    window.location.href = waURL;
+    return false;
+  }
+};
   /* ===============================
      ✅ CONFIRMAR PEDIDO - FLUJO COMPLETO
   =============================== */
