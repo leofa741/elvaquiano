@@ -104,6 +104,7 @@ export default function ProductCard({ product, onAdd }: any) {
         >
           {isOutOfStock ? 'Sin stock' : 'Agregar al carrito'}
         </button>
+        
       </div>
     </div>
   );

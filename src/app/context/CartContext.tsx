@@ -69,6 +69,7 @@ const clearCart = () => {
 };
 
 
+
   return (
     <CartContext.Provider
       value={{
