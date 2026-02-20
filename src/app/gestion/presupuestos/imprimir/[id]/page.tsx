@@ -117,12 +117,8 @@ export default function ImprimirPresupuestoPage() {
   return (
     <div className="bg-gray-900 p-4 flex flex-col items-center justify-start min-[print]:min-h-0">
 
-
-
-
       <p className="text-white text-center mb-4">
         <strong>Presupuesto:</strong> #{presupuesto._id.slice(-6).toUpperCase()}
-
         <br />
         <span className="text-gray-400 mt-1">volver a la sección de <a href="/gestion/presupuestos" className="text-amber-400 underline">Presupuestos</a>.</span>
       </p>
@@ -139,8 +135,14 @@ export default function ImprimirPresupuestoPage() {
           <h2 className="font-bold text-base">PRESUPUESTO</h2> {/* ✅ Tamaño reducido */}
           <div className="text-xs">#{presupuesto._id.slice(-6).toUpperCase()}</div>
           {presupuesto.createdAt && (
-            <div className="text-[10px] mt-0.5"> {/* ✅ Más pequeño y compacto */}
-              Válido hasta {new Date(presupuesto.createdAt).toLocaleDateString('es-AR')}
+            <div className="text-[10px] mt-0.5">              
+              {new Date(presupuesto.createdAt).toLocaleString('es-AR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
             </div>
           )}
         </div>
@@ -166,18 +168,12 @@ export default function ImprimirPresupuestoPage() {
               {/* ✅ Siempre usamos p.cantidad como número de unidades físicas */}
 
               <div className="font-bold text-[13px] text-black leading-tight">
-                {p.cantidad === 1 ?
-                  p.nombre.toUpperCase() :
-                  `${p.cantidad} ${p.nombre.toUpperCase()}S`}
+                {p.nombre.toUpperCase() }
               </div>
 
-              {/* ✅ Y mostramos la medida comercial: "3 litros"
-            <div className="text-[10px] text-gray-600 leading-tight">
-              ({p.cantidad} {p.unidad})  x {formatARS(p.precioAplicado)}
-            </div> */}
-
+           
               <div className="font-semibold text-[10px] text-black leading-tight">
-                ({p.cantidad} {p.cantidad === 1 ? 'UNIDAD' : 'UNIDADES'}) x {formatARS(p.precioAplicado)}
+                ({p.cantidad} {p.cantidad === 1 ? 'U' : 'Uds'}) x {formatARS(p.precioAplicado)}
               </div>
 
 

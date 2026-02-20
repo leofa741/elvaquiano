@@ -151,7 +151,7 @@ export default function ImprimirPedidoPage() {
                     {getClienteNombre(pedido.cliente)}
                     <span className='font-light text-[10px] mr-3'>consumidor final</span>
                 </div>
-              <hr className="border-t border-gray-500" />
+                <hr className="border-t border-gray-500" />
                 <div className="text-[10px] text-gray-600 flex justify-between mt-0.5">
                     <span>Cantidad / Descripcion</span>
                     <span className='mr-3'>importe</span>
@@ -165,9 +165,7 @@ export default function ImprimirPedidoPage() {
                         <div key={i} className="py-0.5"> {/* ✅ Padding vertical mínimo */}
                             {/* ✅ Línea 1: "5 unidades de leche descremada" */}
                             <div className="font-bold text-[13px] text-black leading-tight">
-                                {p.cantidad === 1 ?
-                                    p.nombre.toUpperCase() :
-                                    `${p.cantidad} ${p.nombre.toUpperCase()}S`}
+                                {p.nombre.toUpperCase()}
                             </div>
 
 
