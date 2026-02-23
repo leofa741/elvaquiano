@@ -7,7 +7,7 @@ import Swal from 'sweetalert2';
 import { useState, useEffect, useCallback } from 'react';
 
 // 📞 NÚMERO DE LA RECEPCIONISTA (FIJO)
-const NUMERO_RECEPCIONISTA = '5492224492051'; // +54 9 2224 49-2051 sin símbolos
+const NUMERO_RECEPCIONISTA = '5492224492051';
 
 export default function CartDrawer() {
   const { cart, removeFromCart, incrementQty, decrementQty, clearCart } = useCart();
@@ -18,7 +18,6 @@ export default function CartDrawer() {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
@@ -64,50 +63,45 @@ export default function CartDrawer() {
   }, 0);
 
   /* ===============================
-     📱 FUNCIÓN: ABRIR WHATSAPP CON NÚMERO FIJO
+     📱 FUNCIÓN: ABRIR WHATSAPP
   =============================== */
- /* ===============================
-   📱 FUNCIÓN: ABRIR WHATSAPP CON NÚMERO FIJO
-=============================== */
-const openWhatsApp = (clienteNombre: string, clienteTelefono: string, message: string): boolean => {
-  // ✅ Número de la recepcionista (YA PROCESADO)
-  const phoneClean = NUMERO_RECEPCIONISTA; // '5492224492051'
-  
-  // ✅ Codificar mensaje para URL
-  const messageEncoded = encodeURIComponent(message);
-  
-  // ✅ URL CORREGIDA: sin espacios
-  const waURL = `https://wa.me/${phoneClean}?text=${messageEncoded}`;
-  
-  // ✅ Detectar iOS
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-  
-  try {
-    if (isIOS) {
-      // 🍎 iOS: Usar location.href (más confiable que window.open)
+  const openWhatsApp = (clienteNombre: string, clienteTelefono: string, message: string): boolean => {
+    const phoneClean = NUMERO_RECEPCIONISTA;
+    const messageEncoded = encodeURIComponent(message);
+    const waURL = `https://wa.me/${phoneClean}?text=${messageEncoded}`;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+
+    try {
+      if (isIOS) {
+        window.location.href = waURL;
+      } else {
+        window.open(waURL, '_blank', 'noopener,noreferrer');
+      }
+      return true;
+    } catch (e) {
+      console.error('Error abriendo WhatsApp:', e);
       window.location.href = waURL;
-    } else {
-      // 🤖 Android/Desktop: Abrir en nueva pestaña como el botón flotante
-      window.open(waURL, '_blank', 'noopener,noreferrer');
+      return false;
     }
-    return true;
-  } catch (e) {
-    console.error('Error abriendo WhatsApp:', e);
-    // Fallback final: navegación directa
-    window.location.href = waURL;
-    return false;
-  }
-};
+  };
+
   /* ===============================
-     ✅ CONFIRMAR PEDIDO - FLUJO COMPLETO
+     ✅ CONFIRMAR PEDIDO - FLUJO ACTUALIZADO
   =============================== */
   const confirmOrder = async () => {
-    // 🔹 PASO 0: Mostrar formulario (datos DEL CLIENTE)
+    // 🔹 Cargar datos guardados (opcional, para UX)
+    const savedClient = typeof window !== 'undefined' 
+      ? localStorage.getItem('cliente_online') 
+      : null;
+    const clientData = savedClient ? JSON.parse(savedClient) : null;
+
+    // 🔹 PASO 0: Mostrar formulario con Nombre, Dirección y Teléfono
     const { value: form } = await Swal.fire({
       title: 'Confirmar pedido',
       html: `
-        <input id="razonSocial" class="swal2-input" placeholder="Razón Social *" autocomplete="organization" required>
-        <input id="telefono" class="swal2-input" placeholder="Tu WhatsApp (ej: 1112345678) *" autocomplete="tel" inputmode="tel" required>
+        <input id="nombre" class="swal2-input" placeholder="Nombre y Apellido *" autocomplete="name" required value="${clientData?.nombre || ''}">
+        <input id="direccion" class="swal2-input" placeholder="Dirección de entrega *" autocomplete="street-address" required value="${clientData?.direccion || ''}">
+        <input id="telefono" class="swal2-input" placeholder="Tu WhatsApp (ej: 1112345678) *" autocomplete="tel" inputmode="tel" required value="${clientData?.telefono || ''}">
       `,
       focusConfirm: false,
       showCancelButton: true,
@@ -115,35 +109,37 @@ const openWhatsApp = (clienteNombre: string, clienteTelefono: string, message: s
       cancelButtonText: 'Cancelar',
       reverseButtons: true,
       preConfirm: () => {
-        const razonSocial = (document.getElementById('razonSocial') as HTMLInputElement)?.value.trim();
+        const nombre = (document.getElementById('nombre') as HTMLInputElement)?.value.trim();
+        const direccion = (document.getElementById('direccion') as HTMLInputElement)?.value.trim();
         const telefono = (document.getElementById('telefono') as HTMLInputElement)?.value.trim();
 
-        if (!razonSocial || !telefono) {
-          Swal.showValidationMessage('⚠️ Completá razón social y WhatsApp');
+        if (!nombre || !direccion || !telefono) {
+          Swal.showValidationMessage('⚠️ Completá nombre, dirección y WhatsApp');
           return false;
         }
         if (telefono.replace(/\D/g, '').length < 10) {
           Swal.showValidationMessage('⚠️ Ingresá un teléfono válido');
           return false;
         }
-        return { razonSocial, telefono };
+        return { nombre, direccion, telefono };
       },
     });
 
     if (!form) return;
 
-    // 🔹 PASO 1: Armar mensaje (incluye datos del cliente para que la recepcionista lo vea)
+    // 🔹 PASO 1: Armar mensaje para WhatsApp
     const itemsResumen = cart.map((p: any) => {
-      const precio = p.precioOferta && p.precioOferta < p.precioMayorista 
-        ? p.precioOferta 
+      const precio = p.precioOferta && p.precioOferta < p.precioMayorista
+        ? p.precioOferta
         : p.precioMayorista;
       return `• ${p.nombre} x${p.qty} - ${formatARS(precio * p.qty)}`;
     }).join('\n');
 
     const mensajeTexto = `* NUEVO PEDIDO WEB - El Vaquiano *
 
- *Cliente:* ${form.razonSocial}
- *Contacto:* ${form.telefono}
+*Cliente:* ${form.nombre}
+*Dirección:* ${form.direccion}
+*Contacto:* ${form.telefono}
 
 * Productos:*
 ${itemsResumen}
@@ -152,20 +148,21 @@ ${itemsResumen}
 
 _Este pedido fue generado desde nuestra web. Por favor, confirmá la compra respondiendo este mensaje._`;
 
-    // 🔹 PASO 2: Abrir WhatsApp AL NÚMERO DE LA RECEPCIONISTA
-    const whatsappOpened = openWhatsApp(form.razonSocial, form.telefono, mensajeTexto);
+    // 🔹 PASO 2: Abrir WhatsApp
+    const whatsappOpened = openWhatsApp(form.nombre, form.telefono, mensajeTexto);
 
-    // 🔹 PASO 3: Guardar pedido en backend (con datos del cliente)
+    // 🔹 PASO 3: Guardar pedido en backend + persistir datos del cliente
     try {
       const res = await fetch('/api/gestion/presupuestos/online', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          cliente: { 
-            razonSocial: form.razonSocial, 
-            telefono: form.telefono 
-          }, 
-          cart 
+        body: JSON.stringify({
+          cliente: {
+            nombre: form.nombre,
+            direccion: form.direccion,
+            telefono: form.telefono
+          },
+          cart
         }),
       });
 
@@ -175,17 +172,25 @@ _Este pedido fue generado desde nuestra web. Por favor, confirmá la compra resp
         throw new Error(data.error || 'Error al guardar el presupuesto');
       }
 
-      // ✅ Éxito: vaciar carrito y mostrar confirmación
+      // ✅ Guardar datos del cliente para próxima vez (UX)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cliente_online', JSON.stringify({
+          nombre: form.nombre,
+          direccion: form.direccion,
+          telefono: form.telefono
+        }));
+      }
+
       clearCart();
-      
+
       Swal.fire({
         title: '✅ Pedido registrado',
         html: `
           <p><strong>Presupuesto #${data._id}</strong> guardado correctamente.</p>
           <p class="text-sm text-gray-500 mt-2">
-            ${!whatsappOpened 
-              ? '⚠️ WhatsApp no se abrió automáticamente. Tocá el botón para enviar.' 
-              : 'Revisá WhatsApp para completar el envío del mensaje a la recepcionista.'}
+            ${!whatsappOpened
+            ? '⚠️ WhatsApp no se abrió automáticamente. Tocá el botón para enviar.'
+            : 'Revisá WhatsApp para completar el envío del mensaje a la recepcionista.'}
           </p>
         `,
         icon: 'success',
@@ -194,14 +199,13 @@ _Este pedido fue generado desde nuestra web. Por favor, confirmá la compra resp
         cancelButtonText: 'Cerrar',
       }).then((result) => {
         if (result.isConfirmed && !whatsappOpened) {
-          openWhatsApp(form.razonSocial, form.telefono, mensajeTexto);
+          openWhatsApp(form.nombre, form.telefono, mensajeTexto);
         }
       });
 
       if (isMobile) setIsOpen(false);
 
     } catch (err: any) {
-      // ⚠️ Error en backend
       Swal.fire({
         title: '⚠️ Atención',
         html: `
@@ -216,14 +220,14 @@ _Este pedido fue generado desde nuestra web. Por favor, confirmá la compra resp
         if (result.isConfirmed) {
           confirmOrder();
         } else if (result.dismiss === Swal.DismissReason.cancel) {
-          openWhatsApp(form.razonSocial, form.telefono, mensajeTexto);
+          openWhatsApp(form.nombre, form.telefono, mensajeTexto);
         }
       });
     }
   };
 
   /* ===============================
-     📱 COMPONENTES UI
+     📱 COMPONENTES UI (sin cambios)
   =============================== */
   const MobileCartButton = () => (
     <motion.button
@@ -253,11 +257,10 @@ _Este pedido fue generado desde nuestra web. Por favor, confirmá la compra resp
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-      className={`fixed ${
-        isMobile 
-          ? 'left-1/2 -translate-x-1/2 bottom-0 w-[92%] max-w-md rounded-t-3xl rounded-b-none' 
+      className={`fixed ${isMobile
+          ? 'left-1/2 -translate-x-1/2 bottom-0 w-[92%] max-w-md rounded-t-3xl rounded-b-none'
           : 'bottom-6 right-6 w-80'
-      } z-50 ${isMobile ? 'max-h-[75vh]' : ''} bg-[#0D4A6B] text-white border border-[#1A5A7A] shadow-2xl overflow-hidden`}
+        } z-50 ${isMobile ? 'max-h-[75vh]' : ''} bg-[#0D4A6B] text-white border border-[#1A5A7A] shadow-2xl overflow-hidden`}
     >
       {isMobile && (
         <div className="w-full flex justify-center py-3 border-b border-[#1A5A7A]">
@@ -282,7 +285,7 @@ _Este pedido fue generado desde nuestra web. Por favor, confirmá la compra resp
             </button>
           )}
         </div>
-        
+
         {isMobile && (
           <button
             onClick={() => setIsOpen(false)}

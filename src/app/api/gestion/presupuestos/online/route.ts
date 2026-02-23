@@ -6,8 +6,9 @@ import { NextResponse } from 'next/server';
 import Producto from '@/app/models/Product';
 import { notifyProducts } from '@/app/api/gestion/productos/events/productsNotifier';
 
-// 🔧 Funciones de normalización (mismo que en el modelo)
-const normalizeRazonSocial = (text: string): string => {
+// 🔧 Funciones de normalización (coinciden con el modelo)
+const normalizeText = (text: string): string => {
+  if (!text) return '';
   return text
     .trim()
     .toLowerCase()
@@ -18,6 +19,7 @@ const normalizeRazonSocial = (text: string): string => {
 };
 
 const normalizeTelefono = (text: string): string => {
+  if (!text) return '';
   return text
     .trim()
     .replace(/\s+/g, '')
@@ -48,23 +50,27 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { cliente: clienteInput, cart } = body;
 
-    if (!clienteInput?.razonSocial || !clienteInput?.telefono || !cart?.length) {
-      return NextResponse.json({ error: 'Datos incompletos' }, { status: 400 });
+    // ✅ VALIDACIÓN ACTUALIZADA
+    if (!clienteInput?.nombre || !clienteInput?.direccion || !clienteInput?.telefono || !cart?.length) {
+      return NextResponse.json({ error: 'Datos incompletos: nombre, dirección y teléfono son obligatorios' }, { status: 400 });
     }
 
-    // 🔧 Normalizar datos de entrada
-    const razonSocialOriginal = clienteInput.razonSocial.trim();
-    const razonSocialNormalized = normalizeRazonSocial(razonSocialOriginal);
+    // 🔧 Normalizar y procesar datos
+    const nombreCompleto = clienteInput.nombre.trim();
+    const direccionOriginal = clienteInput.direccion.trim();
     const telefonoOriginal = clienteInput.telefono.trim();
     const telefonoNormalized = normalizeTelefono(telefonoOriginal);
 
-    // 🔍 Buscar cliente por razón social normalizada O teléfono normalizado
-    let cliente = await Cliente.findOne({
-      $or: [
-        { razonSocialNormalized },
-        { telefonoNormalized }
-      ]
-    });
+    // 🔧 Separar nombre y apellido (simple: por primer espacio)
+    const [primerNombre, ...restoApellido] = nombreCompleto.split(' ');
+    const apellido = restoApellido.join(' ') || 'Online';
+
+    // 🔧 Usar nombreCompleto como razónSocial (cumple required+unique del modelo)
+    const razonSocialOriginal = nombreCompleto;
+    const razonSocialNormalized = normalizeText(razonSocialOriginal);
+
+    // 🔍 Buscar cliente por teléfono normalizado (más confiable para online)
+    let cliente = await Cliente.findOne({ telefonoNormalized });
 
     // ➕ Crear cliente si no existe
     if (!cliente) {
@@ -72,23 +78,18 @@ export async function POST(req: Request) {
         cliente = await Cliente.create({
           razonSocial: razonSocialOriginal,
           razonSocialNormalized,
-          nombre: 'Cliente',
-          apellido: 'Online',
+          nombre: primerNombre,
+          apellido,
           telefono: telefonoOriginal,
           telefonoNormalized,
+          direccion: direccionOriginal,
           activo: true,
           origen: 'online',
         });
       } catch (error: any) {
-        // Si falla por duplicado, buscar nuevamente (puede haber race condition)
+        // Race condition: si falla por duplicado, buscar nuevamente
         if (error.code === 11000 || error.name === 'MongoServerError') {
-          cliente = await Cliente.findOne({
-            $or: [
-              { razonSocialNormalized },
-              { telefonoNormalized }
-            ]
-          });
-          
+          cliente = await Cliente.findOne({ telefonoNormalized });
           if (!cliente) {
             return NextResponse.json(
               { error: 'Error al crear cliente. Intente nuevamente.' },
@@ -100,14 +101,25 @@ export async function POST(req: Request) {
         }
       }
     } else {
-      // 🔄 Si existe pero con razón social diferente, actualizar para mostrar la última versión
+      // 🔄 Actualizar datos si cambiaron
       let needsUpdate = false;
       
       if (cliente.razonSocial !== razonSocialOriginal) {
         cliente.razonSocial = razonSocialOriginal;
         needsUpdate = true;
       }
-      
+      if (cliente.nombre !== primerNombre) {
+        cliente.nombre = primerNombre;
+        needsUpdate = true;
+      }
+      if (cliente.apellido !== apellido) {
+        cliente.apellido = apellido;
+        needsUpdate = true;
+      }
+      if (cliente.direccion !== direccionOriginal) {
+        cliente.direccion = direccionOriginal;
+        needsUpdate = true;
+      }
       if (cliente.telefono !== telefonoOriginal) {
         cliente.telefono = telefonoOriginal;
         needsUpdate = true;
@@ -118,7 +130,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 📦 Productos
+    // 📦 Procesar productos del carrito
     const productos = cart.map((p: any) => {
       const precioAplicado =
         p.precioOferta && p.precioOferta < p.precioMayorista
@@ -131,18 +143,14 @@ export async function POST(req: Request) {
         unidad: p.unidad,
         cantidad: p.qty,
         unidadesFisicas: p.qty,
-        tipoPrecio:
-          precioAplicado === p.precioMayorista ? 'mayorista' : 'oferta',
+        tipoPrecio: precioAplicado === p.precioMayorista ? 'mayorista' : 'oferta',
         precioAplicado,
         subtotal: precioAplicado * p.qty,
         deposito: DEPOSITO_DEFAULT,
       };
     });
 
-    const total = productos.reduce(
-      (acc: number, p: any) => acc + p.subtotal,
-      0
-    );
+    const total = productos.reduce((acc: number, p: any) => acc + p.subtotal, 0);
 
     // 🧾 Crear presupuesto
     const presupuesto = await Presupuesto.create({
@@ -153,7 +161,7 @@ export async function POST(req: Request) {
       origen: 'online',
     });
 
-    // ✅ RESERVAR STOCK ONLINE
+    // ✅ Reservar stock
     await reservarStockOnline(productos);
 
     return NextResponse.json({
@@ -164,20 +172,15 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Error en presupuesto online:', error);
     
-    // Manejar error de duplicado específico
     if (error.code === 11000 || error.name === 'MongoServerError') {
       return NextResponse.json(
-        { error: 'Ya existe un cliente con esta razón social o teléfono' },
+        { error: 'Ya existe un cliente con este teléfono o razón social' },
         { status: 409 }
       );
     }
     
-    // Manejar error personalizado del middleware
     if (error.statusCode === 409) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
     
     return NextResponse.json(
