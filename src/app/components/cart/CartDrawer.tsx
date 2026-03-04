@@ -88,46 +88,95 @@ export default function CartDrawer() {
   /* ===============================
      ✅ CONFIRMAR PEDIDO - FLUJO ACTUALIZADO
   =============================== */
-  const confirmOrder = async () => {
-    // 🔹 Cargar datos guardados (opcional, para UX)
-    const savedClient = typeof window !== 'undefined' 
-      ? localStorage.getItem('cliente_online') 
-      : null;
-    const clientData = savedClient ? JSON.parse(savedClient) : null;
+const confirmOrder = async () => {
+  // 🔹 1. Cargar datos guardados (opcional, para UX)
+  const savedClient = typeof window !== 'undefined' 
+    ? localStorage.getItem('cliente_online') 
+    : null;
+  const clientData = savedClient ? JSON.parse(savedClient) : null;
 
-    // 🔹 PASO 0: Mostrar formulario con Nombre, Dirección y Teléfono
-    const { value: form } = await Swal.fire({
-      title: 'Confirmar pedido',
-      html: `
-        <input id="nombre" class="swal2-input" placeholder="Nombre y Apellido *" autocomplete="name" required value="${clientData?.nombre || ''}">
-        <input id="direccion" class="swal2-input" placeholder="Dirección de entrega *" autocomplete="street-address" required value="${clientData?.direccion || ''}">
-        <input id="telefono" class="swal2-input" placeholder="Tu WhatsApp (ej: 1112345678) *" autocomplete="tel" inputmode="tel" required value="${clientData?.telefono || ''}">
-      `,
-      focusConfirm: false,
-      showCancelButton: true,
-      confirmButtonText: 'Confirmar',
-      cancelButtonText: 'Cancelar',
-      reverseButtons: true,
-      preConfirm: () => {
-        const nombre = (document.getElementById('nombre') as HTMLInputElement)?.value.trim();
-        const direccion = (document.getElementById('direccion') as HTMLInputElement)?.value.trim();
-        const telefono = (document.getElementById('telefono') as HTMLInputElement)?.value.trim();
+  // 🔹 2. Mostrar formulario con SweetAlert2
+  const { value: form } = await Swal.fire<{
+    nombre: string;
+    direccion: string;
+    telefono: string;
+  }>({
+    title: 'Confirmar pedido',
+    html: `
+      <input id="nombre" class="swal2-input" placeholder="Nombre y Apellido *" autocomplete="name" required value="${clientData?.nombre || ''}">
+      <input id="direccion" class="swal2-input" placeholder="Dirección de entrega *" autocomplete="street-address" required value="${clientData?.direccion || ''}">
+      <input id="telefono" class="swal2-input" placeholder="Tu WhatsApp (ej: 1112345678) *" autocomplete="tel" inputmode="tel" required value="${clientData?.telefono || ''}">
+    `,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: 'Confirmar',
+    cancelButtonText: 'Cancelar',
+    reverseButtons: true,
+    preConfirm: () => {
+      const nombre = (document.getElementById('nombre') as HTMLInputElement)?.value.trim();
+      const direccion = (document.getElementById('direccion') as HTMLInputElement)?.value.trim();
+      const telefono = (document.getElementById('telefono') as HTMLInputElement)?.value.trim();
 
-        if (!nombre || !direccion || !telefono) {
-          Swal.showValidationMessage('⚠️ Completá nombre, dirección y WhatsApp');
-          return false;
-        }
-        if (telefono.replace(/\D/g, '').length < 10) {
-          Swal.showValidationMessage('⚠️ Ingresá un teléfono válido');
-          return false;
-        }
-        return { nombre, direccion, telefono };
-      },
+      if (!nombre || !direccion || !telefono) {
+        Swal.showValidationMessage('⚠️ Completá nombre, dirección y WhatsApp');
+        return false;
+      }
+      if (telefono.replace(/\D/g, '').length < 10) {
+        Swal.showValidationMessage('⚠️ Ingresá un teléfono válido');
+        return false;
+      }
+      return { nombre, direccion, telefono };
+    },
+  });
+
+  // Si el usuario cancela el formulario
+  if (!form) return;
+
+  // 🔹 3. Mostrar loading modal (usamos Swal.showLoading() directamente)
+  Swal.fire({
+    title: 'Procesando pedido...',
+    text: 'Generando presupuesto en nuestro sistema',
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    didOpen: () => Swal.showLoading()
+  });
+
+  try {
+    // 🔹 4. INTENTO DE GUARDADO CON TIMEOUT (AbortController)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); 
+
+    const res = await fetch('/api/gestion/presupuestos/online', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cliente: {
+          nombre: form.nombre,
+          direccion: form.direccion,
+          telefono: form.telefono
+        },
+        cart,
+        // 👇 ID temporal para trazabilidad en caso de error
+        tempId: typeof crypto !== 'undefined' && crypto.randomUUID 
+          ? crypto.randomUUID() 
+          : `temp_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+    const data = await res.json();
 
-    if (!form) return;
+    if (!res.ok) {
+      throw new Error(data.error || `Error del servidor: ${res.status}`);
+    }
 
-    // 🔹 PASO 1: Armar mensaje para WhatsApp
+    // ✅ ÉXITO: Cerramos el loading con Swal.close() (método estático)
+    Swal.close();
+
+    const presupuestoId = data._id;
+
+    // 🔹 5. ARMAR MENSAJE CON EL ID REAL
     const itemsResumen = cart.map((p: any) => {
       const precio = p.precioOferta && p.precioOferta < p.precioMayorista
         ? p.precioOferta
@@ -136,96 +185,77 @@ export default function CartDrawer() {
     }).join('\n');
 
     const mensajeTexto = `* NUEVO PEDIDO WEB - El Vaquiano *
-
+*Presupuesto #:* ${presupuestoId}
 *Cliente:* ${form.nombre}
 *Dirección:* ${form.direccion}
 *Contacto:* ${form.telefono}
 
 * Productos:*
 ${itemsResumen}
+* Total:* ${formatARS(total)}`;
 
-* Total:* ${formatARS(total)}
-
-_Este pedido fue generado desde nuestra web. Por favor, confirmá la compra respondiendo este mensaje._`;
-
-    // 🔹 PASO 2: Abrir WhatsApp
-    const whatsappOpened = openWhatsApp(form.nombre, form.telefono, mensajeTexto);
-
-    // 🔹 PASO 3: Guardar pedido en backend + persistir datos del cliente
-    try {
-      const res = await fetch('/api/gestion/presupuestos/online', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cliente: {
-            nombre: form.nombre,
-            direccion: form.direccion,
-            telefono: form.telefono
-          },
-          cart
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Error al guardar el presupuesto');
-      }
-
-      // ✅ Guardar datos del cliente para próxima vez (UX)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cliente_online', JSON.stringify({
-          nombre: form.nombre,
-          direccion: form.direccion,
-          telefono: form.telefono
-        }));
-      }
-
-      clearCart();
-
-      Swal.fire({
-        title: '✅ Pedido registrado',
-        html: `
-          <p><strong>Presupuesto #${data._id}</strong> guardado correctamente.</p>
-          <p class="text-sm text-gray-500 mt-2">
-            ${!whatsappOpened
-            ? '⚠️ WhatsApp no se abrió automáticamente. Tocá el botón para enviar.'
-            : 'Revisá WhatsApp para completar el envío del mensaje a la recepcionista.'}
-          </p>
-        `,
-        icon: 'success',
-        confirmButtonText: !whatsappOpened ? '📱 Abrir WhatsApp ahora' : 'Entendido',
-        showCancelButton: !whatsappOpened,
-        cancelButtonText: 'Cerrar',
-      }).then((result) => {
-        if (result.isConfirmed && !whatsappOpened) {
-          openWhatsApp(form.nombre, form.telefono, mensajeTexto);
-        }
-      });
-
-      if (isMobile) setIsOpen(false);
-
-    } catch (err: any) {
-      Swal.fire({
-        title: '⚠️ Atención',
-        html: `
-          <p>WhatsApp se abrió, pero hubo un error al guardar tu pedido en nuestro sistema.</p>
-          <p class="text-sm text-gray-500 mt-2"><strong>Detalle:</strong> ${err.message}</p>
-        `,
-        icon: 'warning',
-        confirmButtonText: '🔄 Reintentar',
-        showCancelButton: true,
-        cancelButtonText: 'Ir a WhatsApp igual',
-      }).then((result) => {
-        if (result.isConfirmed) {
-          confirmOrder();
-        } else if (result.dismiss === Swal.DismissReason.cancel) {
-          openWhatsApp(form.nombre, form.telefono, mensajeTexto);
-        }
-      });
+    // 🔹 6. GUARDAR DATOS DEL CLIENTE EN LOCALSTORAGE (UX)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cliente_online', JSON.stringify(form));
     }
-  };
 
+    // 🔹 7. ABRIR WHATSAPP (ahora es seguro, lo crítico ya está guardado)
+    const whatsappOpened = openWhatsApp(form.nombre, form.telefono, mensajeTexto);
+    
+    // 🔹 8. LIMPIAR CARRITO Y MOSTRAR ÉXITO
+    clearCart();
+    
+    Swal.fire({
+      title: '✅ ¡Todo listo!',
+      html: `<p>Tu pedido <strong>#${presupuestoId}</strong> está registrado.</p>
+             <p class="text-sm text-gray-600 mt-2">Revisá WhatsApp para enviar el mensaje a la recepcionista.</p>`,
+      icon: 'success',
+      confirmButtonText: whatsappOpened ? 'Entendido' : '📱 Abrir WhatsApp',
+      showCancelButton: !whatsappOpened,
+      cancelButtonText: 'Cerrar',
+    }).then((result) => {
+      if (result.isConfirmed && !whatsappOpened) {
+        openWhatsApp(form.nombre, form.telefono, mensajeTexto);
+      }
+      if (isMobile) setIsOpen(false);
+    });
+
+  } catch (err: any) {
+    // ❌ FALLO CRÍTICO: Cerramos loading y NO abrimos WhatsApp
+    Swal.close();
+    
+    console.error('Error crítico en pedido:', err);
+
+    // Si es timeout de red (AbortError)
+    if (err.name === 'AbortError') {
+      Swal.fire({
+        title: '⚠️ Conexión lenta',
+        text: 'No pudimos confirmar tu pedido con el servidor. Por favor revisa tu internet e intenta de nuevo.',
+        icon: 'warning',
+        confirmButtonText: 'Reintentar',
+        showCancelButton: true,
+        cancelButtonText: 'Cancelar',
+      }).then((r) => { 
+        if (r.isConfirmed) confirmOrder(); 
+      });
+      return;
+    }
+
+    // Error genérico del backend o red
+    Swal.fire({
+      title: '❌ Error de registro',
+      html: `<p>No se pudo guardar el pedido en nuestro sistema.</p>
+             <p class="text-xs text-gray-500 mt-2">Detalles: ${err.message || 'Error desconocido'}</p>
+             <p class="text-sm mt-3 font-bold text-red-600">⚠️ No se abrió WhatsApp para evitar pedidos sin registrar.</p>`,
+      icon: 'error',
+      confirmButtonText: '🔄 Intentar de nuevo',
+      showCancelButton: true,
+      cancelButtonText: 'Cancelar',
+    }).then((result) => {
+      if (result.isConfirmed) confirmOrder();
+    });
+  }
+};
   /* ===============================
      📱 COMPONENTES UI (sin cambios)
   =============================== */
