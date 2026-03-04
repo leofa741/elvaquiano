@@ -317,6 +317,7 @@ ${typeof window !== 'undefined' ? window.location.origin : 'https://elvaquiano.c
           <h3 className="font-semibold text-base tracking-tight">
             🛒 Tu selección ({cart.length})
           </h3>
+          
           {cart.length > 1 && (
             <button
               onClick={handleClearCart}

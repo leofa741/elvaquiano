@@ -23,21 +23,43 @@ export default function ProductCard({ product, onAdd }: any) {
   const isOutOfStock = stockTotal === 0;
   const isLowStock = !isOutOfStock && stockTotal <= product.stockMinimoAlerta;
 
+  // ✅ Texto dinámico para el badge de stock (esquina)
+  const stockBadgeText = isOutOfStock
+    ? 'Sin stock'
+    : isLowStock
+    ? `⚠️ ${stockTotal}`
+    : `${stockTotal} disp.`;
+
+  // ✅ Clases condicionales para el badge
+  const stockBadgeClasses = isOutOfStock
+    ? 'text-red-600 bg-red-50 border-red-200'
+    : isLowStock
+    ? 'text-amber-700 bg-amber-50 border-amber-200'
+    : 'text-green-600 bg-green-50 border-green-200';
+
   // ✅ Manejo seguro de la imagen
   const imageSrc = product.imagen && product.imagen.trim() !== ''
     ? product.imagen
-    : '/img/no-image.png'; // o '/placeholder.svg', etc.
+    : '/img/no-image.png';
   
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full relative">
-      {/* Badge de oferta */}
+      
+      {/* Badge de oferta (esquina superior izquierda) */}
       {hasOffer && (
         <div className="absolute top-2 left-2 z-10">
-          <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full">
+          <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-sm">
             OFERTA
           </span>
         </div>
       )}
+
+      {/* 🔹 Badge de stock con cantidad (esquina superior derecha) */}
+      <div className="absolute top-2 right-2 z-10">
+        <span className={`text-[10px] font-semibold px-2 py-1 rounded-full border ${stockBadgeClasses}`}>
+          {stockBadgeText}
+        </span>
+      </div>
 
       {/* Imagen */}
       <div className="relative h-40 w-full flex items-center justify-center bg-gray-50">
@@ -71,18 +93,19 @@ export default function ProductCard({ product, onAdd }: any) {
             {formatARS(finalPrice)}
           </p>
 
+          {/* Badge de stock en el cuerpo (refuerzo visual) */}
           <div className="mt-2">
             {isOutOfStock ? (
-              <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded">
+              <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded border border-red-200">
                 Sin stock
               </span>
             ) : isLowStock ? (
-              <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded">
-                Últimas unidades
+              <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                ⚠️ Últimas {stockTotal} unidades
               </span>
             ) : (
-              <span className="text-xs text-green-600 font-medium">
-                En stock
+              <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded border border-green-200">
+                ✅ {stockTotal} unidades disponibles
               </span>
             )}
           </div>

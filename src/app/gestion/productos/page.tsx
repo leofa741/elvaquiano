@@ -438,6 +438,145 @@ function PageContent() {
     });
   };
 
+  //    custom reset stock
+
+  // ✅ Opción personalizada: Resetear stock a una cantidad definida por el admin
+  const resetStockToCustom = async (product: Product) => {
+    // 🔹 Paso 1: Mostrar modal con input para ingresar la nueva cantidad
+    const { value: nuevaCantidad } = await Swal.fire({
+      title: '🔄 Resetear stock',
+      html: `
+      <div class="text-left">
+        <p class="mb-3">
+          Producto: <strong class="text-[#0D4A6B]">${product.nombre}</strong><br/>
+          Stock actual: <strong>${product.stock.reduce((acc: number, s: any) => acc + s.cantidad, 0)} unidades</strong>
+        </p>
+        
+        <label for="stockCantidad" class="swal2-input" style="width:100%;text-align:left;font-weight:500;margin-bottom:8px">
+          ¿A qué cantidad querés resetear el stock?
+        </label>
+        
+        <input 
+          id="stockCantidad" 
+          type="number" 
+          class="swal2-input" 
+          placeholder="Ej: 50" 
+          min="0" 
+          step="1"
+          value="0"
+          style="width:100%;margin:0 auto;"
+        >
+        
+        <p class="text-xs text-gray-500 mt-3" style="text-align:left">
+          ⚠️ Esta acción reemplazará el stock en <strong>todos los depósitos</strong> por el valor ingresado.
+        </p>
+      </div>
+    `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonColor: '#0D4A6B',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: '✅ Actualizar stock',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+      preConfirm: () => {
+        const input = document.getElementById('stockCantidad') as HTMLInputElement;
+        const valor = parseInt(input?.value, 10);
+
+        if (isNaN(valor) || valor < 0) {
+          Swal.showValidationMessage('⚠️ Ingresá un número válido mayor o igual a 0');
+          return false;
+        }
+        return valor;
+      },
+      allowOutsideClick: () => !Swal.isLoading()
+    });
+
+    // Si el usuario cancela o no ingresa un valor válido
+    if (nuevaCantidad === undefined || nuevaCantidad === null) return;
+
+    // 🔹 Paso 2: Confirmación final antes de ejecutar (doble check para seguridad)
+    const stockActual = product.stock.reduce((acc: number, s: any) => acc + s.cantidad, 0);
+
+    const { isConfirmed } = await Swal.fire({
+      title: '¿Confirmar cambios?',
+      html: `
+      <div class="text-left">
+        <p class="mb-2">
+          <strong>Producto:</strong> ${product.nombre}<br/><br/>
+          📉 Stock actual: <strong class="text-gray-600">${stockActual}</strong><br/>
+          📈 Nuevo stock: <strong class="text-[#0D4A6B] text-lg">${nuevaCantidad}</strong> en todos los depósitos
+        </p>
+        <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800">
+          <strong>⚠️ Esta acción:</strong><br/>
+          • Reemplazará el stock en todos los depósitos<br/>
+          • Eliminará todos los lotes existentes<br/>
+          • Reseteará el stock reservado a 0<br/>
+          • No se puede deshacer
+        </div>
+      </div>
+    `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#0D4A6B',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, aplicar cambios',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+    });
+
+    if (!isConfirmed) return;
+
+    // 🔹 Paso 3: Ejecutar el reseteo con la cantidad personalizada
+    try {
+      // ✅ Estructura del payload para actualizar stock
+      const updatePayload = {
+        stock: product.stock.map((s: any) => ({
+          deposito: s.deposito,
+          cantidad: nuevaCantidad  // ← Cantidad definida por el admin
+        })),
+        lotes: [],              // ← Limpiar historial de lotes
+        stockReservado: 0       // ← Resetear reservas pendientes
+      };
+
+      console.log('📤 Payload enviado:', updatePayload);
+
+      const res = await fetch(`/api/gestion/productos/${product._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatePayload),
+      });
+
+      if (res.ok) {
+        const updatedProduct = await res.json();
+
+        // 🔄 Actualizar estado local de productos
+        setProducts(prev =>
+          prev.map(p => p._id === product._id ? updatedProduct : p)
+        );
+
+        // 🔄 Actualizar resultados de búsqueda si hay filtro activo
+        if (internalSearch?.trim()) {
+          setSearchResults(prev =>
+            prev.map(p => p._id === product._id ? updatedProduct : p)
+          );
+        }
+
+        // 🔔 Notificar a otros componentes que recarguen el resumen de stock
+        window.dispatchEvent(new CustomEvent('stockSummaryReload'));
+
+        toast.success(`✅ Stock de "${product.nombre}" actualizado a ${nuevaCantidad} unidades`);
+      } else {
+        const errorData = await res.json().catch(() => null);
+        console.error('❌ Error API:', errorData || res.statusText);
+        toast.error(`Error al actualizar: ${errorData?.message || 'Respuesta inválida del servidor'}`);
+      }
+    } catch (err) {
+      console.error('❌ Error de conexión:', err);
+      toast.error('Error de conexión con el servidor. Intentá nuevamente.');
+    }
+  };
+
   return (
     <>
       <div className="p-4 sm:p-6 md:p-8">
@@ -690,34 +829,36 @@ function PageContent() {
                             {/* 👇 NUEVO BOTÓN: Resetear Stock */}
                             <div className="relative group">
                               <button
-                                onClick={() => resetStockToZero(product)}
-                                className="text-purple-500 hover:text-purple-700 transition-colors focus:outline-none"
-                                aria-label="Resetear stock a cero"
+                                className="text-purple-500 hover:text-purple-700 transition-colors focus:outline-none flex items-center gap-1"
+                                aria-label="Opciones de stock"
                               >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  width="20"
-                                  height="20"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                   <path d="M21 16v-4a2 2 0 0 0-2-2H7" />
                                   <path d="M3 12l4-4 4 4" />
                                   <rect x="3" y="16" width="18" height="4" rx="1" />
                                 </svg>
-
-                                <span className="ml-1 text-xs">
-                                  Resetear Stock
-                                </span>
-
-
+                                <span className="text-[10px] font-medium hidden xl:inline">Stock</span>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                               </button>
-                              <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                                Resetear Stock
-                              </span>
+
+                              {/* Dropdown */}
+                              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-30">
+                                <button
+                                  onClick={() => resetStockToZero(product)}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2"
+                                >
+                                  <span className="text-purple-500">🗑️</span> Resetear a Cero
+                                </button>
+                                <button
+                                  onClick={() => resetStockToCustom(product)}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2"
+                                >
+                                  <span className="text-blue-500">✏️</span> Cantidad personalizada...
+                                </button>
+                              </div>
                             </div>
+
+
                           </td>
                           <td className="py-3 px-4">
                             {product.activo ? (
