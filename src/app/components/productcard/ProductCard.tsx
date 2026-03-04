@@ -27,24 +27,24 @@ export default function ProductCard({ product, onAdd }: any) {
   const stockBadgeText = isOutOfStock
     ? 'Sin stock'
     : isLowStock
-    ? `⚠️ ${stockTotal}`
-    : `✅ en stock`;
+      ? `⚠️ ${stockTotal}`
+      : `✅ en stock`;
 
   // ✅ Clases condicionales para el badge
   const stockBadgeClasses = isOutOfStock
     ? 'text-red-600 bg-red-50 border-red-200'
     : isLowStock
-    ? 'text-amber-700 bg-amber-50 border-amber-200'
-    : 'text-green-600 bg-green-50 border-green-200';
+      ? 'text-amber-700 bg-amber-50 border-amber-200'
+      : 'text-green-600 bg-green-50 border-green-200';
 
   // ✅ Manejo seguro de la imagen
   const imageSrc = product.imagen && product.imagen.trim() !== ''
     ? product.imagen
     : '/img/no-image.png';
-  
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full relative">
-      
+
       {/* Badge de oferta (esquina superior izquierda) */}
       {hasOffer && (
         <div className="absolute top-2 left-2 z-10">
@@ -62,14 +62,14 @@ export default function ProductCard({ product, onAdd }: any) {
       </div>
 
       {/* Imagen */}
-      <div className="relative h-40 w-full flex items-center justify-center bg-gray-50">
+      <div className="h-40 w-full flex items-center justify-center bg-gray-50">
         <Image
           src={imageSrc}
           alt={product.nombre || 'Producto'}
-          fill
-          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 33vw"
+          width={150}
+          height={150}
+       
           className="object-contain p-2"
-          priority={false}
         />
       </div>
 
@@ -127,7 +127,7 @@ export default function ProductCard({ product, onAdd }: any) {
         >
           {isOutOfStock ? 'Sin stock' : 'Agregar al carrito'}
         </button>
-        
+
       </div>
     </div>
   );

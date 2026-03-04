@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
     CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
   },
   images: {
+     unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
@@ -30,6 +31,7 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+   
   },
 };
 
