@@ -88,174 +88,188 @@ export default function CartDrawer() {
   /* ===============================
      ✅ CONFIRMAR PEDIDO - FLUJO ACTUALIZADO
   =============================== */
-const confirmOrder = async () => {
-  // 🔹 1. Cargar datos guardados (opcional, para UX)
-  const savedClient = typeof window !== 'undefined' 
-    ? localStorage.getItem('cliente_online') 
-    : null;
-  const clientData = savedClient ? JSON.parse(savedClient) : null;
+  const confirmOrder = async () => {
+    // 🔹 1. Cargar datos guardados (opcional, para UX)
+    const savedClient = typeof window !== 'undefined'
+      ? localStorage.getItem('cliente_online')
+      : null;
+    const clientData = savedClient ? JSON.parse(savedClient) : null;
 
-  // 🔹 2. Mostrar formulario con SweetAlert2
-  const { value: form } = await Swal.fire<{
-    nombre: string;
-    direccion: string;
-    telefono: string;
-  }>({
-    title: 'Confirmar pedido',
-    html: `
+    // 🔹 2. Mostrar formulario con SweetAlert2
+    const { value: form } = await Swal.fire<{
+      nombre: string;
+      direccion: string;
+      telefono: string;
+    }>({
+      title: 'Confirmar pedido',
+      html: `
       <input id="nombre" class="swal2-input" placeholder="Nombre y Apellido *" autocomplete="name" required value="${clientData?.nombre || ''}">
       <input id="direccion" class="swal2-input" placeholder="Dirección de entrega *" autocomplete="street-address" required value="${clientData?.direccion || ''}">
       <input id="telefono" class="swal2-input" placeholder="Tu WhatsApp (ej: 1112345678) *" autocomplete="tel" inputmode="tel" required value="${clientData?.telefono || ''}">
     `,
-    focusConfirm: false,
-    showCancelButton: true,
-    confirmButtonText: 'Confirmar',
-    cancelButtonText: 'Cancelar',
-    reverseButtons: true,
-    preConfirm: () => {
-      const nombre = (document.getElementById('nombre') as HTMLInputElement)?.value.trim();
-      const direccion = (document.getElementById('direccion') as HTMLInputElement)?.value.trim();
-      const telefono = (document.getElementById('telefono') as HTMLInputElement)?.value.trim();
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+      preConfirm: () => {
+        const nombre = (document.getElementById('nombre') as HTMLInputElement)?.value.trim();
+        const direccion = (document.getElementById('direccion') as HTMLInputElement)?.value.trim();
+        const telefono = (document.getElementById('telefono') as HTMLInputElement)?.value.trim();
 
-      if (!nombre || !direccion || !telefono) {
-        Swal.showValidationMessage('⚠️ Completá nombre, dirección y WhatsApp');
-        return false;
-      }
-      if (telefono.replace(/\D/g, '').length < 10) {
-        Swal.showValidationMessage('⚠️ Ingresá un teléfono válido');
-        return false;
-      }
-      return { nombre, direccion, telefono };
-    },
-  });
-
-  // Si el usuario cancela el formulario
-  if (!form) return;
-
-  // 🔹 3. Mostrar loading modal (usamos Swal.showLoading() directamente)
-  Swal.fire({
-    title: 'Procesando pedido...',
-    text: 'Generando presupuesto en nuestro sistema',
-    allowOutsideClick: false,
-    allowEscapeKey: false,
-    didOpen: () => Swal.showLoading()
-  });
-
-  try {
-    // 🔹 4. INTENTO DE GUARDADO CON TIMEOUT (AbortController)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); 
-
-    const res = await fetch('/api/gestion/presupuestos/online', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cliente: {
-          nombre: form.nombre,
-          direccion: form.direccion,
-          telefono: form.telefono
-        },
-        cart,
-        // 👇 ID temporal para trazabilidad en caso de error
-        tempId: typeof crypto !== 'undefined' && crypto.randomUUID 
-          ? crypto.randomUUID() 
-          : `temp_${Date.now()}_${Math.random().toString(36).slice(2)}`
-      }),
-      signal: controller.signal
+        if (!nombre || !direccion || !telefono) {
+          Swal.showValidationMessage('⚠️ Completá nombre, dirección y WhatsApp');
+          return false;
+        }
+        if (telefono.replace(/\D/g, '').length < 10) {
+          Swal.showValidationMessage('⚠️ Ingresá un teléfono válido');
+          return false;
+        }
+        return { nombre, direccion, telefono };
+      },
     });
-    
-    clearTimeout(timeoutId);
-    const data = await res.json();
 
-    if (!res.ok) {
-      throw new Error(data.error || `Error del servidor: ${res.status}`);
-    }
+    // Si el usuario cancela el formulario
+    if (!form) return;
 
-    // ✅ ÉXITO: Cerramos el loading con Swal.close() (método estático)
-    Swal.close();
+    // 🔹 3. Mostrar loading modal (usamos Swal.showLoading() directamente)
+    Swal.fire({
+      title: 'Procesando pedido...',
+      text: 'Generando presupuesto en nuestro sistema',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => Swal.showLoading()
+    });
 
-    const presupuestoId = data._id;
+    try {
+      // 🔹 4. INTENTO DE GUARDADO CON TIMEOUT (AbortController)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    // 🔹 5. ARMAR MENSAJE CON EL ID REAL
-    const itemsResumen = cart.map((p: any) => {
-      const precio = p.precioOferta && p.precioOferta < p.precioMayorista
-        ? p.precioOferta
-        : p.precioMayorista;
-      return `• ${p.nombre} x${p.qty} - ${formatARS(precio * p.qty)}`;
-    }).join('\n');
+      const res = await fetch('/api/gestion/presupuestos/online', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente: {
+            nombre: form.nombre,
+            direccion: form.direccion,
+            telefono: form.telefono
+          },
+          cart,
+          // 👇 ID temporal para trazabilidad en caso de error
+          tempId: typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `temp_${Date.now()}_${Math.random().toString(36).slice(2)}`
+        }),
+        signal: controller.signal
+      });
 
-    const mensajeTexto = `* NUEVO PEDIDO WEB - El Vaquiano *
+      clearTimeout(timeoutId);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || `Error del servidor: ${res.status}`);
+      }
+
+      // ✅ ÉXITO: Cerramos el loading con Swal.close() (método estático)
+      Swal.close();
+
+      const presupuestoId = data._id;
+
+      // 🔹 5. ARMAR MENSAJE CON EL ID REAL
+      const itemsResumen = cart.map((p: any) => {
+        const precio = p.precioOferta && p.precioOferta < p.precioMayorista
+          ? p.precioOferta
+          : p.precioMayorista;
+        return `• ${p.nombre} x${p.qty} - ${formatARS(precio * p.qty)}`;
+      }).join('\n');
+
+ const mensajeTexto = `* NUEVO PEDIDO WEB - El Vaquiano *
 *Presupuesto #:* ${presupuestoId}
+
 *Cliente:* ${form.nombre}
 *Dirección:* ${form.direccion}
 *Contacto:* ${form.telefono}
 
 * Productos:*
 ${itemsResumen}
-* Total:* ${formatARS(total)}`;
 
-    // 🔹 6. GUARDAR DATOS DEL CLIENTE EN LOCALSTORAGE (UX)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cliente_online', JSON.stringify(form));
-    }
+* Total:* ${formatARS(total)}
 
-    // 🔹 7. ABRIR WHATSAPP (ahora es seguro, lo crítico ya está guardado)
-    const whatsappOpened = openWhatsApp(form.nombre, form.telefono, mensajeTexto);
-    
-    // 🔹 8. LIMPIAR CARRITO Y MOSTRAR ÉXITO
-    clearCart();
-    
-    Swal.fire({
-      title: '✅ ¡Todo listo!',
-      html: `<p>Tu pedido <strong>#${presupuestoId}</strong> está registrado.</p>
-             <p class="text-sm text-gray-600 mt-2">Revisá WhatsApp para enviar el mensaje a la recepcionista.</p>`,
-      icon: 'success',
-      confirmButtonText: whatsappOpened ? 'Entendido' : '📱 Abrir WhatsApp',
-      showCancelButton: !whatsappOpened,
-      cancelButtonText: 'Cerrar',
-    }).then((result) => {
-      if (result.isConfirmed && !whatsappOpened) {
-        openWhatsApp(form.nombre, form.telefono, mensajeTexto);
+──────────────────
+🕒 *Horarios de atención:*
+Lun-Vie: 8:00-16:00 | Sáb: 9:00-13:00
+
+📍 *Retiro en tienda:* 
+Mendoza 194, San Vicente, Bs. As.
+
+💬 _Respondé a este mensaje para confirmar o consultar._
+──────────────────
+*El Vaquiano* - Calidad y tradición 🧉
+${typeof window !== 'undefined' ? window.location.origin : 'https://elvaquiano.com.ar'}`;
+
+      // 🔹 6. GUARDAR DATOS DEL CLIENTE EN LOCALSTORAGE (UX)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cliente_online', JSON.stringify(form));
       }
-      if (isMobile) setIsOpen(false);
-    });
 
-  } catch (err: any) {
-    // ❌ FALLO CRÍTICO: Cerramos loading y NO abrimos WhatsApp
-    Swal.close();
-    
-    console.error('Error crítico en pedido:', err);
+      // 🔹 7. ABRIR WHATSAPP (ahora es seguro, lo crítico ya está guardado)
+      const whatsappOpened = openWhatsApp(form.nombre, form.telefono, mensajeTexto);
 
-    // Si es timeout de red (AbortError)
-    if (err.name === 'AbortError') {
+      // 🔹 8. LIMPIAR CARRITO Y MOSTRAR ÉXITO
+      clearCart();
+
       Swal.fire({
-        title: '⚠️ Conexión lenta',
-        text: 'No pudimos confirmar tu pedido con el servidor. Por favor revisa tu internet e intenta de nuevo.',
-        icon: 'warning',
-        confirmButtonText: 'Reintentar',
-        showCancelButton: true,
-        cancelButtonText: 'Cancelar',
-      }).then((r) => { 
-        if (r.isConfirmed) confirmOrder(); 
+        title: '✅ ¡Todo listo!',
+        html: `<p>Tu pedido <strong>#${presupuestoId}</strong> está registrado.</p>
+             <p class="text-sm text-gray-600 mt-2">Revisá WhatsApp para enviar el mensaje a la recepcionista.</p>`,
+        icon: 'success',
+        confirmButtonText: whatsappOpened ? 'Entendido' : '📱 Abrir WhatsApp',
+        showCancelButton: !whatsappOpened,
+        cancelButtonText: 'Cerrar',
+      }).then((result) => {
+        if (result.isConfirmed && !whatsappOpened) {
+          openWhatsApp(form.nombre, form.telefono, mensajeTexto);
+        }
+        if (isMobile) setIsOpen(false);
       });
-      return;
-    }
 
-    // Error genérico del backend o red
-    Swal.fire({
-      title: '❌ Error de registro',
-      html: `<p>No se pudo guardar el pedido en nuestro sistema.</p>
+    } catch (err: any) {
+      // ❌ FALLO CRÍTICO: Cerramos loading y NO abrimos WhatsApp
+      Swal.close();
+
+      console.error('Error crítico en pedido:', err);
+
+      // Si es timeout de red (AbortError)
+      if (err.name === 'AbortError') {
+        Swal.fire({
+          title: '⚠️ Conexión lenta',
+          text: 'No pudimos confirmar tu pedido con el servidor. Por favor revisa tu internet e intenta de nuevo.',
+          icon: 'warning',
+          confirmButtonText: 'Reintentar',
+          showCancelButton: true,
+          cancelButtonText: 'Cancelar',
+        }).then((r) => {
+          if (r.isConfirmed) confirmOrder();
+        });
+        return;
+      }
+
+      // Error genérico del backend o red
+      Swal.fire({
+        title: '❌ Error de registro',
+        html: `<p>No se pudo guardar el pedido en nuestro sistema.</p>
              <p class="text-xs text-gray-500 mt-2">Detalles: ${err.message || 'Error desconocido'}</p>
              <p class="text-sm mt-3 font-bold text-red-600">⚠️ No se abrió WhatsApp para evitar pedidos sin registrar.</p>`,
-      icon: 'error',
-      confirmButtonText: '🔄 Intentar de nuevo',
-      showCancelButton: true,
-      cancelButtonText: 'Cancelar',
-    }).then((result) => {
-      if (result.isConfirmed) confirmOrder();
-    });
-  }
-};
+        icon: 'error',
+        confirmButtonText: '🔄 Intentar de nuevo',
+        showCancelButton: true,
+        cancelButtonText: 'Cancelar',
+      }).then((result) => {
+        if (result.isConfirmed) confirmOrder();
+      });
+    }
+  };
   /* ===============================
      📱 COMPONENTES UI (sin cambios)
   =============================== */
@@ -288,8 +302,8 @@ ${itemsResumen}
       exit={{ opacity: 0, y: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 300 }}
       className={`fixed ${isMobile
-          ? 'left-1/2 -translate-x-1/2 bottom-0 w-[92%] max-w-md rounded-t-3xl rounded-b-none'
-          : 'bottom-6 right-6 w-80'
+        ? 'left-1/2 -translate-x-1/2 bottom-0 w-[92%] max-w-md rounded-t-3xl rounded-b-none'
+        : 'bottom-6 right-6 w-80'
         } z-50 ${isMobile ? 'max-h-[75vh]' : ''} bg-[#0D4A6B] text-white border border-[#1A5A7A] shadow-2xl overflow-hidden`}
     >
       {isMobile && (
