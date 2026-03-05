@@ -67,9 +67,9 @@ export default function ProductCard({ product, onAdd }: any) {
           src={imageSrc}
           alt={product.nombre || 'Producto'}
           width={150}
-          height={150}
-       
+          height={150}       
           className="object-contain p-2"
+          unoptimized
         />
       </div>
 
