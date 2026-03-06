@@ -24,7 +24,8 @@ export async function GET(
   }
 
   const presupuesto = await Presupuesto.findById(id)
-    .populate('cliente', 'razonSocial');
+      .populate('cliente', 'razonSocial direccion telefono email') 
+      .lean();
 
   if (!presupuesto) {
     return NextResponse.json({ error: 'Presupuesto no encontrado' }, { status: 404 });

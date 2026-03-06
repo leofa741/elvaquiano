@@ -16,6 +16,7 @@ interface Cliente {
     apellido?: string;
     telefono?: string;
     formaPago?: string;
+    direccion?: string;
 }
 
 interface Producto {
@@ -42,6 +43,8 @@ interface Pedido {
     estadoPago: 'pendiente' | 'parcial' | 'pagado';
     createdAt: string;
     pagos?: Pago[]; // opcional: si decides cargarlos
+    notas?: string;
+    direccion?: string;
 }
 
 function getClienteNombre(cliente: any): string {
@@ -49,6 +52,18 @@ function getClienteNombre(cliente: any): string {
     if (typeof cliente === 'string') return 'Cliente eliminado';
     return cliente.razonSocial || `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim() || 'Sin nombre';
 }
+
+function getDireccion(pedido: Pedido): string | null {
+    return pedido.direccion ||
+        (typeof pedido.cliente === 'object' && pedido.cliente?.direccion) ||
+        null;
+}
+
+function getTelefono(pedido: Pedido): string | null {
+    return pedido.cliente && typeof pedido.cliente === 'object' ? pedido.cliente.telefono || null : null;
+}
+
+
 
 function getFormaPagoLabel(forma: string): string {
     const labels: Record<string, string> = {
@@ -146,10 +161,46 @@ export default function ImprimirPedidoPage() {
 
                 <hr />
 
-                {/* Cliente */}
-                <div className="font-semibold text-sm flex justify-between gap-2">
-                    {getClienteNombre(pedido.cliente)}
-                    <span className='font-light text-[10px] mr-3'>consumidor final</span>
+                {/* 👤 Información del Cliente - Diseño optimizado para ticket */}
+                <div className="border-b border-gray-200 pb-2 mb-2">
+                    {/* Nombre del cliente - Destacado */}
+                    <div className="font-bold text-[11px] text-gray-900 leading-tight">
+                        {getClienteNombre(pedido.cliente)}
+                    </div>
+
+                    {/* Datos de contacto - Grid flexible */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+                        {/* Dirección */}
+                        {getDireccion(pedido) && (
+                            <span className="inline-flex items-center gap-1 text-[9px] text-gray-600 font-light">
+                                <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span className="truncate max-w-[180px]">{getDireccion(pedido)}</span>
+                            </span>
+                        )}
+
+                        {/* Teléfono */}
+                        {getTelefono(pedido) && (
+                            <span className="inline-flex items-center gap-1 text-[9px] text-gray-600 font-light">
+                                <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                </svg>
+                                {getTelefono(pedido)}
+                            </span>
+                        )}
+
+                        {/* Fallback: Consumidor Final - Solo si no hay NINGÚN dato de contacto */}
+                        {!getDireccion(pedido) && !getTelefono(pedido) && (
+                            <span className="inline-flex items-center gap-1 text-[9px] text-gray-400 italic font-light">
+                                <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                Consumidor final
+                            </span>
+                        )}
+                    </div>
                 </div>
                 <hr className="border-t border-gray-500" />
                 <div className="text-[10px] text-gray-600 flex justify-between mt-0.5">

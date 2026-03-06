@@ -21,7 +21,10 @@ interface Producto {
 
 
 interface Cliente {
+  direccion?: string;
+  telefono?: string;
   razonSocial?: string;
+
 }
 
 interface Presupuesto {
@@ -33,8 +36,9 @@ interface Presupuesto {
   validoHasta?: string;
   estado: string;
   createdAt: string;
-
   notas?: string;
+  direccion?: string;
+  telefono?: string;
 
 }
 
@@ -44,12 +48,26 @@ function getRazonSocial(cliente: any): string {
   return cliente.razonSocial || 'Sin nombre';
 }
 
+function getDireccion(presupuesto: Presupuesto): string | null {
+  return presupuesto.direccion ||
+    (typeof presupuesto.cliente === 'object' && presupuesto.cliente?.direccion) ||
+    null;
+}
+
+function getTelefono(presupuesto: Presupuesto): string | null {
+  return presupuesto.telefono ||
+    (typeof presupuesto.cliente === 'object' && presupuesto.cliente?.telefono) ||
+    null;
+}
+
 export default function ImprimirPresupuestoPage() {
   const { id } = useParams();
   const router = useRouter();
   const auth = useAdminAuthorization();
   const [presupuesto, setPresupuesto] = useState<Presupuesto | null>(null);
   const [loading, setLoading] = useState(true);
+
+
 
   useEffect(() => {
     if (auth !== true || !id) return;
@@ -135,7 +153,7 @@ export default function ImprimirPresupuestoPage() {
           <h2 className="font-bold text-base">PRESUPUESTO</h2> {/* ✅ Tamaño reducido */}
           <div className="text-xs">#{presupuesto._id.slice(-6).toUpperCase()}</div>
           {presupuesto.createdAt && (
-            <div className="text-[10px] mt-0.5">              
+            <div className="text-[10px] mt-0.5">
               {new Date(presupuesto.createdAt).toLocaleString('es-AR', {
                 day: '2-digit',
                 month: '2-digit',
@@ -149,10 +167,23 @@ export default function ImprimirPresupuestoPage() {
 
         <hr />
 
-        <div className="font-semibold text-sm flex justify-between">
-          <span >{getRazonSocial(presupuesto.cliente)} </span>
-          <span className='font-light text-[10px] mt-1 mr-3'>consumidor final</span>
+        <div className="font-semibold text-sm flex flex-col gap-0.5 mb-1">
+          {/* Razón Social */}
+          <span className="font-bold text-[11px]">{getRazonSocial(presupuesto.cliente)}</span>
 
+          {/* Dirección y Teléfono en una línea flexible */}
+          <div className="flex flex-wrap gap-x-3 text-[10px] text-gray-600 font-light">
+            {getDireccion(presupuesto) && (
+              <span>📍 {getDireccion(presupuesto)}</span>
+            )}
+            {getTelefono(presupuesto) && (
+              <span>📞 {getTelefono(presupuesto)}</span>
+            )}
+            {/* Fallback si no hay dirección ni teléfono */}
+            {!getDireccion(presupuesto) && !getTelefono(presupuesto) && (
+              <span className="italic text-gray-400">consumidor final</span>
+            )}
+          </div>
         </div>
         <hr className="border-t border-gray-500" />
         <div className="text-[10px] text-gray-600 flex justify-between mt-0.5">
@@ -168,10 +199,10 @@ export default function ImprimirPresupuestoPage() {
               {/* ✅ Siempre usamos p.cantidad como número de unidades físicas */}
 
               <div className="font-bold text-[13px] text-black leading-tight">
-                {p.nombre.toUpperCase() }
+                {p.nombre.toUpperCase()}
               </div>
 
-           
+
               <div className="font-semibold text-[10px] text-black leading-tight">
                 ({p.cantidad} {p.cantidad === 1 ? 'U' : 'Uds'}) x {formatARS(p.precioAplicado)}
               </div>
@@ -183,6 +214,7 @@ export default function ImprimirPresupuestoPage() {
             </div>
           ))}
         </div>
+
 
         {/* Mostrar nota si existe (ej: "regenerado a partir de...") */}
         {presupuesto.notas && (
