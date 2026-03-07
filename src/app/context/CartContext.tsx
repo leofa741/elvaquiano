@@ -86,6 +86,8 @@ export function CartProvider({ children }: any) {
             : p
         );
       } 
+
+      
       
       // 📦 Producto nuevo: agregamos con qty limitada al stock disponible
       else {

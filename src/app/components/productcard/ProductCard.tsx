@@ -11,6 +11,7 @@ export default function ProductCard({ product, onAdd }: any) {
     (acc: number, s: any) => acc + s.cantidad,
     0
   );
+  
 
   const hasOffer =
     product.precioOferta &&

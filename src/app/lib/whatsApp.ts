@@ -41,6 +41,7 @@ export function sendWhatsApp({
   if (presupuestoId) {
     message += ` *Presupuesto:* ${presupuestoId}\n\n`;
   }
+  
 
   message += ` *PRODUCTOS:*\n${productList.trim()}\n\n`;
   message += ` *TOTAL:* ${formatARS(totalFinal)}\n\n`;
