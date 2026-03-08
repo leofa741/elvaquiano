@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback } from 'react';
 const NUMERO_RECEPCIONISTA = '5492224492051';
 
 // ⏱️ TIEMPO DE BLOQUEO PARA PREVENIR DUPLICADOS (5 minutos)
-const DUPLICATE_BLOCK_TIME = 5 * 60 * 1000;
+const DUPLICATE_BLOCK_TIME = 3 * 60 * 1000;
 
 export default function CartDrawer() {
   const { cart, removeFromCart, incrementQty, decrementQty, clearCart } = useCart();
