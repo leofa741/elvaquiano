@@ -16,7 +16,7 @@ export default function CartDrawer() {
   const { cart, removeFromCart, incrementQty, decrementQty, clearCart } = useCart();
   const [isMobile, setIsMobile] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  
+
   // 🔹 ESTADOS PARA CONTROL DE CONEXIÓN Y DUPLICADOS
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmissionId, setLastSubmissionId] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export default function CartDrawer() {
     if (typeof window !== 'undefined') {
       const savedId = localStorage.getItem('last_presupuesto_id');
       const savedTime = localStorage.getItem('last_presupuesto_timestamp');
-      
+
       if (savedId && savedTime) {
         const elapsed = Date.now() - parseInt(savedTime, 10);
         if (elapsed < DUPLICATE_BLOCK_TIME) {
@@ -60,19 +60,19 @@ export default function CartDrawer() {
   // 🔹 UTILIDAD: Verificar conexión real con timeout
   const checkInternetConnection = async (timeout = 5000): Promise<boolean> => {
     if (!navigator.onLine) return false;
-    
+
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
-      
+
       // Usamos un endpoint público confiable para testear conectividad
-      await fetch('https://httpbin.org/ip', { 
+      await fetch('https://httpbin.org/ip', {
         method: 'HEAD',
         mode: 'no-cors',
         cache: 'no-store',
-        signal: controller.signal 
+        signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId);
       return true;
     } catch {
@@ -100,7 +100,7 @@ export default function CartDrawer() {
         localStorage.removeItem('last_presupuesto_id');
         localStorage.removeItem('last_presupuesto_timestamp');
         setLastSubmissionId(null);
-        
+
         if (isMobile) setIsOpen(false);
         Swal.fire('Carrito vaciado', 'Los productos han sido eliminados', 'success');
       }
@@ -161,27 +161,55 @@ export default function CartDrawer() {
     if (typeof window !== 'undefined') {
       const lastId = localStorage.getItem('last_presupuesto_id');
       const lastTime = localStorage.getItem('last_presupuesto_timestamp');
-      
+
       if (lastId && lastTime) {
         const elapsed = Date.now() - parseInt(lastTime, 10);
         if (elapsed < DUPLICATE_BLOCK_TIME) {
           Swal.fire({
             title: '✅ Pedido ya registrado',
             html: `
-              <p class="text-sm">Tu presupuesto <strong>#${lastId}</strong> ya está en nuestro sistema.</p>
-              <p class="text-xs text-gray-800 mt-2">🚫 <strong>No vuelvas a intentar enviarlo</strong>, ya tenemos todo registrado.</p>
-              <p class="text-xs text-gray-400 mt-1">Si necesitás modificar algo, contactanos por WhatsApp.</p>
-            `,
+    <p class="text-sm">Tu presupuesto <strong>#${lastId}</strong> ya está en nuestro sistema.</p>
+    <p class="text-sm text-gray-800 mt-2">🚫 <strong>No vuelvas a intentar enviarlo</strong>, ya tenemos todo registrado.</p></br></br>
+  <p class="text-sm text-green-700 font-bold mt-1"> <strong>Si necesitás modificar algo, contactanos por WhatsApp. </strong></p></br></br>
+     <p class="text-sm text-red-800 font-bold mt-1">
+  ⚠️ Si necesitás hacer un pedido nuevo clickea en <br/>
+  <span class="text-red-900 underline">"🔄 Hacer pedido nuevo"</span>.
+</p>
+  `,
             icon: 'info',
             confirmButtonText: 'Entendido',
             showCancelButton: true,
             cancelButtonText: '📱 Ir a WhatsApp',
+            showDenyButton: true, // 👈 NUEVO: habilita tercer botón
+            denyButtonText: '🔄 Hacer pedido nuevo', // 👈 TEXTO del nuevo botón
+            denyButtonColor: '#0D4A6B', // 👈 Opcional: color del botón
           }).then((r) => {
             if (r.isDismissed) {
-              // Abrir WhatsApp con consulta sobre pedido existente
+              // Usuario clickeó "📱 Ir a WhatsApp"
               openWhatsApp('', '', `Hola, consulto por mi pedido #${lastId} ya registrado.`);
             }
+            // 👇 NUEVO: Manejo del botón "Hacer pedido nuevo"
+            else if (r.isDenied) {
+              // Limpiar flags de bloqueo de duplicados
+              localStorage.removeItem('last_presupuesto_id');
+              localStorage.removeItem('last_presupuesto_timestamp');
+              setLastSubmissionId(null);
+
+              // Vaciar el carrito para permitir nuevo pedido
+              clearCart();
+
+              // Feedback visual al usuario
+              Swal.fire({
+                title: '🛒 Carrito vaciado',
+                text: 'Ya podés comenzar un nuevo pedido desde cero.',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+              });
+            }
+            // Si clickeó "Entendido", no hace nada adicional (solo cierra el modal)
           });
+
           return; // ⛔ DETENEMOS EL FLUJO ACÁ
         }
       }
@@ -346,7 +374,7 @@ ${typeof window !== 'undefined' ? window.location.origin : 'https://elvaquiano.c
 
       // 🔹 Caso 1: Timeout o error de red (AbortError, NetworkError, etc.)
       if (err.name === 'AbortError' || err.message?.includes('Network') || err.message?.includes('Failed to fetch') || !navigator.onLine) {
-        
+
         Swal.fire({
           title: '📡 Conexión inestable',
           html: `
@@ -465,7 +493,7 @@ ${typeof window !== 'undefined' ? window.location.origin : 'https://elvaquiano.c
           <h3 className="font-semibold text-base tracking-tight">
             🛒 Tu selección ({cart.length})
           </h3>
-          
+
           {cart.length > 1 && (
             <button
               onClick={handleClearCart}
@@ -562,8 +590,8 @@ ${typeof window !== 'undefined' ? window.location.origin : 'https://elvaquiano.c
           onClick={confirmOrder}
           disabled={isSubmitting}
           className={`w-full py-3 rounded-lg text-sm font-bold transition-colors duration-200 shadow-lg flex items-center justify-center gap-2
-            ${isSubmitting 
-              ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
+            ${isSubmitting
+              ? 'bg-gray-400 cursor-not-allowed text-gray-600'
               : 'bg-[#FFB81C] hover:bg-[#E5A50D] text-[#0D4A6B]'
             }`}
         >
