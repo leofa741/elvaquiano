@@ -10,6 +10,7 @@ import { Providers } from "./providers/Providers";
 import { ToastContainer } from "react-toastify";
 import { Analytics } from "@vercel/analytics/react"
 import Loader from "./components/loading/Loader";
+import VersionChecker from "./components/version/VersionChecker";
 
 
 const geistSans = Geist({
@@ -74,7 +75,7 @@ export default function RootLayout({
             </div>
           </header>
           <main>
-
+            <VersionChecker />
             {children}
             {/* Botón flotante de WhatsApp — versión mejorada */}
             <a
