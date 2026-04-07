@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 // 📞 NÚMERO DE LA RECEPCIONISTA (FIJO) - SIN ESPACIOS
 const NUMERO_RECEPCIONISTA = '5492224492051';
 
-// ⏱️ TIEMPO DE BLOQUEO PARA PREVENIR DUPLICADOS (5 minutos)
+// ⏱️ TIEMPO DE BLOQUEO PARA PREVENIR DUPLICADOS (3 minutos)
 const DUPLICATE_BLOCK_TIME = 3 * 60 * 1000;
 
 export default function CartDrawer() {
@@ -20,6 +20,20 @@ export default function CartDrawer() {
   // 🔹 ESTADOS PARA CONTROL DE CONEXIÓN Y DUPLICADOS
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmissionId, setLastSubmissionId] = useState<string | null>(null);
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+
+  useEffect(() => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('cart');
+    const parsed = stored ? JSON.parse(stored) : [];
+    console.log('🔄 Sync check:', {
+      ruta: window.location.pathname,
+      contexto: cart.length,
+      storage: parsed.length,
+      ok: cart.length === parsed.length
+    });
+  }
+}, [cart, pathname]); // Se ejecutará en cada cambio de ruta o carrito
 
   useEffect(() => {
     const checkMobile = () => {
