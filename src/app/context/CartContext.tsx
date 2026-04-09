@@ -131,7 +131,7 @@ export function CartProvider({ children }: any) {
     });
   };
 
-  // 🔹 INCREMENTAR / DECREMENTAR / REMOVER / CLEAR (sin cambios en la lógica)
+  // 🔹 INCREMENTAR CANTIDAD (botón +)
   const incrementQty = (id: string) => {
     setCart(prev =>
       prev.map(p => {
@@ -145,6 +145,7 @@ export function CartProvider({ children }: any) {
     );
   };
 
+  // 🔹 DECREMENTAR CANTIDAD (botón −)
   const decrementQty = (id: string) => {
     setCart(prev =>
       prev
@@ -153,16 +154,43 @@ export function CartProvider({ children }: any) {
     );
   };
 
+  // 🔹 ✨ NUEVO: ACTUALIZAR CANTIDAD MANUAL (para input numérico)
+  const updateQty = (id: string, newQty: number, stockMax: number) => {
+    // Validar y limitar la cantidad
+    const finalQty = Math.max(1, Math.min(newQty, stockMax));
+    
+    setCart(prev => {
+      // Si el producto existe, actualizamos su cantidad
+      const exists = prev.some(p => p._id === id);
+      if (exists) {
+        return prev.map(p => 
+          p._id === id ? { ...p, qty: finalQty } : p
+        );
+      }
+      // Si no existe (caso edge), no hacemos nada
+      return prev;
+    });
+
+    // Notificación opcional si se ajustó por stock
+    if (newQty > stockMax && stockMax > 0) {
+      showStockNotification(`⚠️ Se ajustó a ${stockMax} (máximo disponible)`, 'info');
+    }
+  };
+
+  // 🔹 REMOVER PRODUCTO
   const removeFromCart = (id: string) => {
     setCart(prev => prev.filter(p => p._id !== id));
   };
 
+  // 🔹 VACIAR CARRITO
   const clearCart = () => {
     setCart([]);
   };
 
+  // 🔹 CONTADOR DE ITEMS
   const getCartCount = () => cart.reduce((acc, item) => acc + item.qty, 0);
 
+  // 🔹 CALCULAR TOTAL
   const getCartTotal = () => {
     return cart.reduce((acc: number, p: any) => {
       const price = p.precioOferta && p.precioOferta < p.precioMayorista
@@ -180,6 +208,7 @@ export function CartProvider({ children }: any) {
         addToCart,
         incrementQty,
         decrementQty,
+        updateQty,        // 👈 NUEVO: expuesto para uso en componentes
         removeFromCart,
         clearCart,
         getCartCount,

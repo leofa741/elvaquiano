@@ -13,27 +13,34 @@ const NUMERO_RECEPCIONISTA = '5492224492051';
 const DUPLICATE_BLOCK_TIME = 3 * 60 * 1000;
 
 export default function CartDrawer() {
-  const { cart, removeFromCart, incrementQty, decrementQty, clearCart } = useCart();
+  const { cart, removeFromCart, incrementQty, decrementQty, clearCart, updateQty } = useCart();
   const [isMobile, setIsMobile] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
   // 🔹 ESTADOS PARA CONTROL DE CONEXIÓN Y DUPLICADOS
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmissionId, setLastSubmissionId] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 2;
+
+  // 🔹 ✨ NUEVOS ESTADOS PARA EDICIÓN MANUAL DE CANTIDAD
+  const [editingQtyId, setEditingQtyId] = useState<string | null>(null);
+  const [manualQtyInput, setManualQtyInput] = useState<string>('');
+
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
 
   useEffect(() => {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('cart');
-    const parsed = stored ? JSON.parse(stored) : [];
-    console.log('🔄 Sync check:', {
-      ruta: window.location.pathname,
-      contexto: cart.length,
-      storage: parsed.length,
-      ok: cart.length === parsed.length
-    });
-  }
-}, [cart, pathname]); // Se ejecutará en cada cambio de ruta o carrito
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('cart');
+      const parsed = stored ? JSON.parse(stored) : [];
+      console.log('🔄 Sync check:', {
+        ruta: window.location.pathname,
+        contexto: cart.length,
+        storage: parsed.length,
+        ok: cart.length === parsed.length
+      });
+    }
+  }, [cart, pathname]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -55,7 +62,6 @@ export default function CartDrawer() {
         if (elapsed < DUPLICATE_BLOCK_TIME) {
           setLastSubmissionId(savedId);
         } else {
-          // Limpiar si ya pasó el tiempo de bloqueo
           localStorage.removeItem('last_presupuesto_id');
           localStorage.removeItem('last_presupuesto_timestamp');
         }
@@ -71,15 +77,31 @@ export default function CartDrawer() {
     decrementQty(id);
   }, [decrementQty]);
 
+  // 🔹 ✨ NUEVA FUNCIÓN: Confirmar cantidad ingresada manualmente
+  const handleConfirmManualQty = (productId: string, stockMax: number) => {
+    const parsed = parseInt(manualQtyInput, 10);
+
+    if (isNaN(parsed) || parsed < 1) {
+      setEditingQtyId(null);
+      setManualQtyInput('');
+      return;
+    }
+
+    // Usar la función del contexto para actualizar
+    updateQty(productId, parsed, stockMax);
+
+    setEditingQtyId(null);
+    setManualQtyInput('');
+  };
+
   // 🔹 UTILIDAD: Verificar conexión real con timeout
-  const checkInternetConnection = async (timeout = 5000): Promise<boolean> => {
+  const checkInternetConnection = async (timeout = 3000): Promise<boolean> => {
     if (!navigator.onLine) return false;
 
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-      // Usamos un endpoint público confiable para testear conectividad
       await fetch('https://httpbin.org/ip', {
         method: 'HEAD',
         mode: 'no-cors',
@@ -110,10 +132,10 @@ export default function CartDrawer() {
     }).then((result) => {
       if (result.isConfirmed) {
         clearCart();
-        // ✅ Limpiar flags de último pedido al vaciar manualmente
         localStorage.removeItem('last_presupuesto_id');
         localStorage.removeItem('last_presupuesto_timestamp');
         setLastSubmissionId(null);
+        setRetryCount(0);
 
         if (isMobile) setIsOpen(false);
         Swal.fire('Carrito vaciado', 'Los productos han sido eliminados', 'success');
@@ -136,7 +158,6 @@ export default function CartDrawer() {
   const openWhatsApp = (clienteNombre: string, clienteTelefono: string, message: string): boolean => {
     const phoneClean = NUMERO_RECEPCIONISTA.replace(/\s+/g, '');
     const messageEncoded = encodeURIComponent(message);
-    // ✅ URL corregida: sin espacios entre wa.me/ y el número
     const waURL = `https://wa.me/${phoneClean}?text=${messageEncoded}`;
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
 
@@ -158,7 +179,6 @@ export default function CartDrawer() {
      ✅ CONFIRMAR PEDIDO - FLUJO COMPLETO Y CORREGIDO
   =============================== */
   const confirmOrder = async () => {
-    // 🚫 PREVENIR CLICKS MÚLTIPLES
     if (isSubmitting) {
       Swal.fire({
         title: '⏳ Procesando...',
@@ -194,25 +214,18 @@ export default function CartDrawer() {
             confirmButtonText: 'Entendido',
             showCancelButton: true,
             cancelButtonText: '📱 Ir a WhatsApp',
-            showDenyButton: true, // 👈 NUEVO: habilita tercer botón
-            denyButtonText: '🔄 Hacer pedido nuevo', // 👈 TEXTO del nuevo botón
-            denyButtonColor: '#0D4A6B', // 👈 Opcional: color del botón
+            showDenyButton: true,
+            denyButtonText: '🔄 Hacer pedido nuevo',
+            denyButtonColor: '#0D4A6B',
           }).then((r) => {
             if (r.isDismissed) {
-              // Usuario clickeó "📱 Ir a WhatsApp"
               openWhatsApp('', '', `Hola, consulto por mi pedido #${lastId} ya registrado.`);
-            }
-            // 👇 NUEVO: Manejo del botón "Hacer pedido nuevo"
-            else if (r.isDenied) {
-              // Limpiar flags de bloqueo de duplicados
+            } else if (r.isDenied) {
               localStorage.removeItem('last_presupuesto_id');
               localStorage.removeItem('last_presupuesto_timestamp');
               setLastSubmissionId(null);
-
-              // Vaciar el carrito para permitir nuevo pedido
               clearCart();
-
-              // Feedback visual al usuario
+              setRetryCount(0);
               Swal.fire({
                 title: '🛒 Carrito vaciado',
                 text: 'Ya podés comenzar un nuevo pedido desde cero.',
@@ -221,10 +234,8 @@ export default function CartDrawer() {
                 showConfirmButton: false
               });
             }
-            // Si clickeó "Entendido", no hace nada adicional (solo cierra el modal)
           });
-
-          return; // ⛔ DETENEMOS EL FLUJO ACÁ
+          return;
         }
       }
     }
@@ -232,13 +243,11 @@ export default function CartDrawer() {
     setIsSubmitting(true);
 
     try {
-      // 🔹 1. Cargar datos guardados (opcional, para UX)
       const savedClient = typeof window !== 'undefined'
         ? localStorage.getItem('cliente_online')
         : null;
       const clientData = savedClient ? JSON.parse(savedClient) : null;
 
-      // 🔹 2. Mostrar formulario con SweetAlert2
       const { value: form } = await Swal.fire<{
         nombre: string;
         direccion: string;
@@ -272,13 +281,12 @@ export default function CartDrawer() {
         },
       });
 
-      // Si el usuario cancela el formulario
       if (!form) {
         setIsSubmitting(false);
+        setRetryCount(0);
         return;
       }
 
-      // 🔹 3. Mostrar loading modal
       Swal.fire({
         title: 'Procesando pedido...',
         text: 'Generando presupuesto en nuestro sistema',
@@ -287,7 +295,6 @@ export default function CartDrawer() {
         didOpen: () => Swal.showLoading()
       });
 
-      // 🔹 4. INTENTO DE GUARDADO CON TIMEOUT (AbortController)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -315,11 +322,9 @@ export default function CartDrawer() {
         throw new Error(data.error || `Error del servidor: ${res.status}`);
       }
 
-      // ✅ ÉXITO: Cerramos el loading
       Swal.close();
       const presupuestoId = data._id;
 
-      // 🔹 5. ARMAR MENSAJE CON EL ID REAL
       const itemsResumen = cart.map((p: any) => {
         const precio = p.precioOferta && p.precioOferta < p.precioMayorista
           ? p.precioOferta
@@ -351,20 +356,16 @@ Mendoza 194, San Vicente, Bs. As.
 *El Vaquiano* - Calidad y tradición 🧉
 ${typeof window !== 'undefined' ? window.location.origin : 'https://elvaquiano.com.ar'}`;
 
-      // 🔹 6. GUARDAR DATOS DEL CLIENTE + FLAG DE PEDIDO EXITOSO
       if (typeof window !== 'undefined') {
         localStorage.setItem('cliente_online', JSON.stringify(form));
-        // ✅ Guardar ID y timestamp para prevenir duplicados
         localStorage.setItem('last_presupuesto_id', presupuestoId);
         localStorage.setItem('last_presupuesto_timestamp', Date.now().toString());
         setLastSubmissionId(presupuestoId);
       }
 
-      // 🔹 7. ABRIR WHATSAPP
       const whatsappOpened = openWhatsApp(form.nombre, form.telefono, mensajeTexto);
-
-      // 🔹 8. LIMPIAR CARRITO Y MOSTRAR ÉXITO
       clearCart();
+      setRetryCount(0);
 
       Swal.fire({
         title: '✅ ¡Todo listo!',
@@ -382,12 +383,24 @@ ${typeof window !== 'undefined' ? window.location.origin : 'https://elvaquiano.c
       });
 
     } catch (err: any) {
-      // ❌ FALLO CRÍTICO: Cerramos loading y NO abrimos WhatsApp
       Swal.close();
       console.error('Error crítico en pedido:', err);
 
-      // 🔹 Caso 1: Timeout o error de red (AbortError, NetworkError, etc.)
+      // 🔹 Caso 1: Timeout o error de red
       if (err.name === 'AbortError' || err.message?.includes('Network') || err.message?.includes('Failed to fetch') || !navigator.onLine) {
+
+        if (retryCount >= MAX_RETRIES) {
+          Swal.fire({
+            title: '⚠️ Límite de intentos',
+            text: 'No pudimos conectar. Por favor, intentá más tarde o contactanos por WhatsApp.',
+            icon: 'warning',
+            confirmButtonText: 'Ir a WhatsApp'
+          }).then(() => {
+            openWhatsApp('', '', 'Hola, tuve problemas para enviar mi pedido desde la web.');
+          });
+          setIsSubmitting(false);
+          return;
+        }
 
         Swal.fire({
           title: '📡 Conexión inestable',
@@ -411,6 +424,7 @@ ${typeof window !== 'undefined' ? window.location.origin : 'https://elvaquiano.c
           }
         }).then((r) => {
           if (r.isConfirmed) {
+            setRetryCount(prev => prev + 1);
             confirmOrder();
           }
         });
@@ -418,7 +432,7 @@ ${typeof window !== 'undefined' ? window.location.origin : 'https://elvaquiano.c
         return;
       }
 
-      // 🔹 Caso 2: Error del backend (4xx, 5xx)
+      // 🔹 Caso 2: Error del backend
       if (err.message?.includes('Error del servidor')) {
         Swal.fire({
           title: '⚠️ Error del servidor',
@@ -454,7 +468,6 @@ ${typeof window !== 'undefined' ? window.location.origin : 'https://elvaquiano.c
         if (result.isConfirmed) confirmOrder();
       });
     } finally {
-      // ✅ Siempre resetear el estado de submitting
       setIsSubmitting(false);
     }
   };
@@ -554,6 +567,7 @@ ${typeof window !== 'undefined' ? window.location.origin : 'https://elvaquiano.c
               </div>
 
               <div className="flex items-center gap-1.5 ml-2">
+                {/* BOTÓN MENOS */}
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={() => handleDecrement(p._id)}
@@ -564,16 +578,53 @@ ${typeof window !== 'undefined' ? window.location.origin : 'https://elvaquiano.c
                   −
                 </motion.button>
 
-                <motion.span
-                  key={p.qty}
+                {/* ✨ CANTIDAD: Input editable o texto con click */}
+                <motion.div
+                  key={`qty-${p._id}-${editingQtyId === p._id}`}
                   initial={{ scale: 1 }}
                   animate={{ scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                  className="text-xs text-[#A0D2E7] min-w-[18px] text-center font-medium"
+                  className="min-w-[40px] text-center"
                 >
-                  {p.qty}
-                </motion.span>
+                  {editingQtyId === p._id ? (
+                    // 👇 MODO EDICIÓN: Input numérico
+                    <input
+                      type="number"
+                      min="1"
+                      max={p.stockTotal || 999}
+                      value={manualQtyInput}
+                      onChange={(e) => setManualQtyInput(e.target.value)}
+                      onBlur={() => handleConfirmManualQty(p._id, p.stockTotal || 999)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleConfirmManualQty(p._id, p.stockTotal || 999);
+                          (e.target as HTMLInputElement).blur();
+                        }
+                        if (e.key === 'Escape') {
+                          setEditingQtyId(null);
+                          setManualQtyInput('');
+                        }
+                      }}
+                      autoFocus
+                      className="w-12 px-1 py-0.5 text-xs text-center bg-[#1A5A7A] text-white rounded border border-[#2A6A8A] focus:outline-none focus:ring-1 focus:ring-[#FFB81C] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  ) : (
+                    // 👇 MODO NORMAL: Click para editar
+                    <button
+                      onClick={() => {
+                        setEditingQtyId(p._id);
+                        setManualQtyInput(p.qty.toString());
+                      }}
+                      className="text-xs text-[#f5d508] min-w-[18px] text-center font-medium 
+             hover:text-white cursor-pointer transition-colors w-full
+             animate-[pulse_2s_ease-in-out_infinite] hover:animate-none"
+                      title="✏️ Click para editar cantidad"
+                    >
+                      {p.qty}
+                    </button>
+                  )}
+                </motion.div>
 
+                {/* BOTÓN MÁS */}
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={() => handleIncrement(p._id)}
