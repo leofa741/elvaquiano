@@ -78,7 +78,7 @@ async function crearClienteAutomatico(userData: {
   try {
     // Verificar si ya existe un cliente con este email
     const clienteExistente = await ClienteModel.findOne({ email: userData.email });
-    
+
     if (clienteExistente) {
       console.log(`✅ Cliente ya existe para ${userData.email}`);
       return clienteExistente;
@@ -87,7 +87,7 @@ async function crearClienteAutomatico(userData: {
     // ✅ 1. Preparar datos con valores por defecto SEGUROS
     const nombre = userData.name?.trim() || 'Usuario';
     const apellido = userData.lastName?.trim() || 'Google';
-    const razonSocial = `${nombre} ${apellido}`.trim() || userData.email;
+    const razonSocial = `${nombre} ${apellido} ${userData.email}`.trim();
     const telefono = userData.phone?.trim() || '00000000';
 
     // ✅ 2. Normalizar campos explícitamente
@@ -113,18 +113,18 @@ async function crearClienteAutomatico(userData: {
 
     const clienteGuardado = await nuevoCliente.save();
     console.log(`✅ Cliente creado automáticamente para ${userData.email}`);
-    
+
     return clienteGuardado;
   } catch (error: any) {
     console.error('❌ Error creando cliente automático:', error);
-    
+
     // ✅ Log detallado para debugging
     if (error.errors) {
       Object.keys(error.errors).forEach(key => {
         console.error(`  Campo ${key}: ${error.errors[key].message}`);
       });
     }
-    
+
     throw error;
   }
 }
@@ -195,9 +195,9 @@ export const authOptions: NextAuthOptions = {
         }
 
         const token = jwt.sign(
-          { 
-            id: user.id.toString(), 
-            email: user.email, 
+          {
+            id: user.id.toString(),
+            email: user.email,
             role: user.role,
             name: user.name,
             lastName: user.lastName,
