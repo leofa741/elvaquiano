@@ -93,7 +93,7 @@ export default function Navbar() {
         {/* Logo centrado desktop */}
         <div className="hidden lg:block absolute left-1/2 transform -translate-x-1/2">
           <Image
-            src="/img/logo-escolar-1-removebg-preview.png"
+            src="/img/logodemayosinfondo.png"
             alt="Distribuidora El Vaquiano"
             width={120}
             height={35}

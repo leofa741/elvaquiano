@@ -4,12 +4,11 @@ import Banner from "./components/baner/Banner";
 import { Metadata } from "next";
 import Image from "next/image";
 import CategoryResumenCard from "./components/categoryresumencard/CategoryResumenCard";
-
-import BackToSchoolBanner from "./components/backtoschol/BackToSchoolBanner";
-
+import PatriaBanner from "./components/backto25mayo/BackToMayoBanner";
 
 
-export const metadata: Metadata = {
+
+export const metadata: Metadata = { 
   title: "Distribuidora El Vaquiano - Venta Mayorista y Minorista",
   description:
     "Distribuidora mayorista confiable de productos alimenticios frescos y de primera calidad. Precios competitivos, entrega rápida y atención personalizada para comercios y minoristas.",
@@ -28,7 +27,6 @@ const Benefit = ({ icon, title, description }: { icon: string; title: string; de
     <p className="text-gray-500 dark:text-gray-400 text-sm">{description}</p>
   </div>
 );
-
 
 // Datos de categorías destacadas (de base de datos)
 
@@ -58,19 +56,11 @@ export default async function Home() {
       </div>
 
 
-<BackToSchoolBanner
-  title="¡Vuelta al Cole!"
-  subtitle="Precios especiales en productos seleccionados. Equipate con lo mejor para empezar el año escolar."
-  ctaText="Ver Ofertas →"
- // onCtaClick={() => router.push('/ofertas-cole')}
-  logoSrc="/img/logo-escolar-1-removebg-preview.png"
-  gradientColors={{
-    from: '#1e40af',
-    via: '#3b82f6', 
-    to: '#06b6d4'
-  }}
-  accentColor='#1e40af'
-  highlightColor="#10b981"
+<PatriaBanner
+  title="¡Viva la Patria!"
+  subtitle="Celebramos juntos el 25 de Mayo de 1810. Historia, tradición y orgullo argentino."
+  ctaText="Ver Eventos"
+  logoSrc="/img/logodemayosinfondo.png"
 />
 
       {/* Sección: Valor principal + CTAs */}
