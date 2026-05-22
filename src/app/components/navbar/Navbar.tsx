@@ -306,14 +306,14 @@ export default function Navbar() {
                         onClick={closeMenu}
                         className="flex items-center py-2.5 px-4 rounded-lg hover:bg-[#0b3a0b] transition-colors"
                       >
-                        <FontAwesomeIcon icon={faUser} className="mr-3" /> Panel Admin
+                        <FontAwesomeIcon icon={faUser} className="mr-3" /> Admin Usuarios
                       </Link>
                       <Link
-                        href="/admin/categorias"
+                        href="/gestion"
                         onClick={closeMenu}
                         className="flex items-center py-2.5 px-4 rounded-lg hover:bg-[#0b3a0b] transition-colors"
                       >
-                        <FontAwesomeIcon icon={faBoxes} className="mr-3" /> Subir Productos
+                        <FontAwesomeIcon icon={faBoxes} className="mr-3" /> Gestión Operativa
                       </Link>
                     </>
                   )}
