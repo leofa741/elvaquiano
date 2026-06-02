@@ -344,7 +344,7 @@ export default function CuentasCorrientesPage() {
             disabled={loading}
             className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
         >
-            <FaSync className={loading ? 'animate-spin' : ''} /> Recargar
+            <FaSync className={loading ? 'animate-spin' : ''} /> Actualizar
         </button>
     </div>
 </div>
