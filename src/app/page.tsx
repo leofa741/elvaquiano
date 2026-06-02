@@ -5,6 +5,7 @@ import { Metadata } from "next";
 import Image from "next/image";
 import CategoryResumenCard from "./components/categoryresumencard/CategoryResumenCard";
 import PatriaBanner from "./components/backto25mayo/BackToMayoBanner";
+import Mundial2026Banner from "./components/mundialbanner/Mundial2026Banner";
 
 
 
@@ -56,12 +57,12 @@ export default async function Home() {
       </div>
 
 
-<PatriaBanner
-  title="¡Viva la Patria!"
-  subtitle="Celebramos juntos el 25 de Mayo de 1810. Historia, tradición y orgullo argentino."
-  ctaText="Ver Eventos"
-  logoSrc="/img/logodemayosinfondo.png"
-/>
+        <Mundial2026Banner
+        title="¡Apoyamos a la Selección Argentina en el Mundial 2026!"
+        
+     
+       />
+     
 
       {/* Sección: Valor principal + CTAs */}
       <section className="py-16  dark:bg-gray-900">

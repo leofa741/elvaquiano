@@ -1,46 +1,80 @@
-// app/api/gestion/pedidos/[id]/saldo/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongoose';
-import Pedido from '@/app/models/Pedido';
+import CuentaCorriente from '@/app/models/CuentaCorriente';
 import Pago from '@/app/models/Pago';
+import Pedido from '@/app/models/Pedido';
+import mongoose from 'mongoose';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> } // 👈 CORREGIDO: Promise<{ id: string }>
-) {
+const CONCEPTO_MANUAL_ID = '000000000000000000000000';
+
+export async function GET(req: NextRequest, { params }: any) {
   try {
     await connectDB();
-    const { id: pedidoId } = await params; // 👈 CORREGIDO: await params
+    const { id } = await params;
 
-
-    const pedido = await Pedido.findById(pedidoId);
-    if (!pedido) {
+    // ✅ Obtener datos del pedido
+    const pedidoData = await Pedido.findById(id).lean() as any;
+    if (!pedidoData) {
       return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 });
     }
 
-    const pagos = await Pago.find({ pedido: pedidoId });
-    const totalPagado = pagos.reduce((sum, p) => sum + p.monto, 0);
-    const saldoPendiente = pedido.total - totalPagado;
+    // ✅ Calcular total de productos reales (sin conceptos de pago)
+    let totalProductosReales = 0;
+    let totalConceptosPago = 0;
+    
+    if (pedidoData.productos && Array.isArray(pedidoData.productos)) {
+      for (const producto of pedidoData.productos) {
+        const subtotal = Number(producto.subtotal) || 0;
+        const esConceptoPago = producto.producto?.toString() === CONCEPTO_MANUAL_ID && 
+                               producto.nombre?.startsWith('💰 PAGO');
+        
+        if (esConceptoPago) {
+          totalConceptosPago += subtotal;
+        } else {
+          totalProductosReales += subtotal;
+        }
+      }
+    }
 
-    return NextResponse.json({
-      total: pedido.total,
-      totalPagado,
-      saldoPendiente,
-      estadoPago: saldoPendiente <= 0 ? 'pagado' :
-        totalPagado > 0 ? 'parcial' : 'pendiente',
-      pagos: pagos.map(p => ({
-        _id: p._id,
-        monto: p.monto,
-        formaPago: p.formaPago,
-        fechaPago: p.fechaPago,
-        referencia: p.referencia,
-        notas: p.notas,
-        createdAt: p.createdAt
-      }))
+    // ✅ Total del pedido en la BD (incluye conceptos de pago)
+    const totalPedidoCompleto = Number(pedidoData.total) || 0;
+
+    // ✅ Buscar pagos registrados en la tabla Pago
+    const pagosDirectos = await Pago.find({
+      pedido: new mongoose.Types.ObjectId(id)
+    }).sort({ fechaPago: 1 }).lean() as any[];
+
+    const totalPagadoDirecto = pagosDirectos.reduce((sum, p) => sum + (Number(p.monto) || 0), 0);
+
+    // ✅ Buscar movimientos de cuenta corriente vinculados al pedido
+    const movimientosCC = await CuentaCorriente.find({
+      pedido: new mongoose.Types.ObjectId(id),
+      tipo: 'pago'
+    }).sort({ createdAt: 1 }).lean() as any[];
+
+    const totalPagadoCC = movimientosCC.reduce((sum, mov) => sum + (Number(mov.importe) || 0), 0);
+
+    // ✅ Total pagado = Mayor entre pagos directos y CC (evita duplicados)
+    // ⚠️ NO sumar totalConceptosPago porque ya están incluidos en totalPedidoCompleto
+    const totalPagado = Math.max(totalPagadoDirecto, totalPagadoCC);
+    
+    // ✅ SALDO PENDIENTE = Total completo del pedido - Total pagado
+    const saldoPendiente = Math.max(0, totalPedidoCompleto - totalPagado);
+
+    return NextResponse.json({ 
+      saldoPendiente, 
+      totalPagado, 
+      totalPedido: totalProductosReales,
+      totalPedidoCompleto,
+      totalConceptosPago,
+      totalPagadoDirecto,
+      totalPagadoCC,
+      movimientos: movimientosCC,
+      pagos: pagosDirectos
     }, { status: 200 });
 
   } catch (error: any) {
-    console.error('Error al obtener saldo:', error);
-    return NextResponse.json({ error: 'Error al calcular saldo' }, { status: 500 });
+    console.error('Error en GET saldo:', error);
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }

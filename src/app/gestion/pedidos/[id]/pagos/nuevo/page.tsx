@@ -1,10 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
-import { useForm } from 'react-hook-form';
-import { Controller } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { formatARS, parseARS } from '@/app/lib/formatcurrenci';
 
 type FormData = {
@@ -23,26 +22,54 @@ const FORMAS_PAGO = [
   { value: 'otro', label: 'Otro' },
 ];
 
-
 export default function NuevoPagoPage() {
-  const { id } = useParams();
+  const { id } = useParams() as { id: string };
   const router = useRouter();
   const isAuthorized = useAdminAuthorization();
+  
   const {
     register,
     control,
     handleSubmit,
+    setValue, // 👈 Agregado para precargar valores
     formState: { errors }
-  } = useForm<FormData>();
+  } = useForm<FormData>({
+    defaultValues: {
+      formaPago: 'efectivo',
+      referencia: '',
+      notas: ''
+    }
+  });
 
   const [loading, setLoading] = useState(false);
+  const [saldoPendiente, setSaldoPendiente] = useState<number | null>(null);
+
+  // 👈 Cargar el saldo pendiente y precargar el formulario al montar
+  useEffect(() => {
+    if (!id) return;
+    
+    const fetchSaldo = async () => {
+      try {
+        const res = await fetch(`/api/gestion/pedidos/${id}/saldo`);
+        if (res.ok) {
+          const data = await res.json();
+          setSaldoPendiente(data.saldoPendiente);
+          // Precargamos el monto en el formulario
+          setValue('monto', data.saldoPendiente);
+        }
+      } catch (err) {
+        console.error('Error al cargar saldo:', err);
+      }
+    };
+    
+    fetchSaldo();
+  }, [id, setValue]);
 
   const onSubmit = async (data: FormData) => {
     if (!id || !isAuthorized) return;
 
     setLoading(true);
     try {
-      // Obtener clienteId desde el pedido (para validación)
       const pedidoRes = await fetch(`/api/gestion/pedidos/${id}`);
       const pedido = await pedidoRes.json();
 
@@ -78,6 +105,14 @@ export default function NuevoPagoPage() {
     <div className="p-6 max-w-md mx-auto">
       <h2 className="text-xl font-bold text-white mb-4">Registrar pago</h2>
 
+      {/* 👈 Indicador visual del saldo pendiente */}
+      {saldoPendiente !== null && (
+        <div className="mb-4 p-3 bg-gray-750 rounded border border-gray-600">
+          <p className="text-sm text-gray-300">Saldo pendiente del pedido:</p>
+          <p className="text-xl font-bold text-amber-400">{formatARS(saldoPendiente)}</p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
           <label className="block text-gray-300 text-sm mb-1">Monto *</label>
@@ -86,50 +121,58 @@ export default function NuevoPagoPage() {
             control={control}
             rules={{ required: true, min: 0.01 }}
             render={({ field }) => {
+              // Estado local para manejar el enmascaramiento visual
               const [displayValue, setDisplayValue] = useState(
-                field.value ? field.value.toString() : ''
+                field.value ? formatARS(field.value) : ''
               );
+
+              // 👈 Sincronizar el valor visual cuando cambia externamente (ej. al cargar el saldo)
+              useEffect(() => {
+                if (field.value) {
+                  setDisplayValue(formatARS(field.value));
+                } else {
+                  setDisplayValue('');
+                }
+              }, [field.value]);
 
               return (
                 <input
                   type="text"
                   inputMode="decimal"
                   placeholder="$ 0,00"
-                  className="w-full p-2 bg-gray-700 text-white rounded"
-
+                  className="w-full p-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   value={displayValue}
-
-                  // 👉 mientras escribe: LIBRE
                   onChange={(e) => {
-                    // solo números, coma y punto
                     const raw = e.target.value.replace(/[^\d.,]/g, '');
                     setDisplayValue(raw);
+                    const numeric = parseARS(raw);
+                    field.onChange(numeric || 0);
                   }}
-
-                  // 👉 cuando sale del input: FORMATEA
                   onBlur={() => {
                     const numeric = parseARS(displayValue);
-                    field.onChange(numeric);
+                    field.onChange(numeric || 0);
                     setDisplayValue(numeric ? formatARS(numeric) : '');
                   }}
-
-                  // 👉 si vuelve a entrar, muestra número editable
                   onFocus={() => {
                     const numeric = parseARS(displayValue);
-                    setDisplayValue(numeric ? numeric.toString() : '');
+                    // Al enfocar, mostramos el número plano con coma decimal para editar fácil
+                    setDisplayValue(numeric ? numeric.toString().replace('.', ',') : '');
                   }}
                 />
               );
             }}
           />
-
-
+          {errors.monto && (
+            <span className="text-red-400 text-xs mt-1 block">
+              El monto es obligatorio y debe ser mayor a 0
+            </span>
+          )}
         </div>
 
         <div>
           <label className="block text-gray-300 text-sm mb-1">Forma de pago *</label>
           <select
-            className="w-full p-2 bg-gray-700 text-white rounded"
+            className="w-full p-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
             {...register('formaPago', { required: true })}
           >
             {FORMAS_PAGO.map(f => (
@@ -142,7 +185,7 @@ export default function NuevoPagoPage() {
           <label className="block text-gray-300 text-sm mb-1">Referencia (opcional)</label>
           <input
             type="text"
-            className="w-full p-2 bg-gray-700 text-white rounded"
+            className="w-full p-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
             {...register('referencia')}
           />
         </div>
@@ -150,8 +193,9 @@ export default function NuevoPagoPage() {
         <div>
           <label className="block text-gray-300 text-sm mb-1">Notas (opcional)</label>
           <textarea
-            className="w-full p-2 bg-gray-700 text-white rounded"
+            className="w-full p-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
             {...register('notas')}
+            rows={3}
           />
         </div>
 
@@ -159,14 +203,14 @@ export default function NuevoPagoPage() {
           <button
             type="submit"
             disabled={loading}
-            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded disabled:opacity-50"
+            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded disabled:opacity-50 transition flex-1"
           >
             {loading ? 'Guardando...' : 'Registrar pago'}
           </button>
           <button
             type="button"
             onClick={() => router.back()}
-            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded"
+            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded transition"
           >
             Cancelar
           </button>

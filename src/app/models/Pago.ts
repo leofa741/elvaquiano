@@ -1,4 +1,3 @@
-// models/Pago.ts
 import { Schema, model, models } from 'mongoose';
 
 const PagoSchema = new Schema({
@@ -10,7 +9,7 @@ const PagoSchema = new Schema({
   pedido: {
     type: Schema.Types.ObjectId,
     ref: 'Pedido',
-    required: true
+    required: false // ✅ Cambiado a false para permitir pagos sin pedido asociado
   },
   monto: {
     type: Number,
@@ -19,14 +18,14 @@ const PagoSchema = new Schema({
   },
   formaPago: {
     type: String,
-    enum: ['efectivo', 'transferencia', 'qr', 'tarjeta', 'cuenta_corriente', 'otro'],
+    enum: ['efectivo', 'transferencia', 'qr', 'tarjeta', 'cheque', 'cuenta_corriente', 'otro'],
     required: true
   },
   fechaPago: {
     type: Date,
     default: Date.now
   },
-  referencia: { // opcional: comprobante, número de operación, etc.
+  referencia: {
     type: String,
     trim: true
   },
@@ -35,7 +34,7 @@ const PagoSchema = new Schema({
     trim: true
   }
 }, {
-  timestamps: true // createdAt / updatedAt
+  timestamps: true
 });
 
 const Pago = models.Pago || model('Pago', PagoSchema);

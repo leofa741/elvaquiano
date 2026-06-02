@@ -1,4 +1,3 @@
-// app/api/gestion/pedidos/[id]/producto/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import Pedido from '@/app/models/Pedido';
 import Producto from '@/app/models/Product';
@@ -8,22 +7,21 @@ import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClie
 
 connectDB();
 
+// ✅ ID reservado para conceptos manuales / deuda
+const CONCEPTO_MANUAL_ID = '000000000000000000000000';
+
 // ✅ Helper para validar cantidad decimal
 function validarCantidad(cantidad: number): { valido: boolean; error?: string } {
   if (typeof cantidad !== 'number' || isNaN(cantidad)) {
     return { valido: false, error: 'Cantidad debe ser un número' };
   }
-  
   if (cantidad <= 0) {
     return { valido: false, error: 'Cantidad debe ser mayor a 0' };
   }
-  
-  // ✅ Validar máximo 3 decimales (precisión de gramos/mililitros)
   const decimales = cantidad.toString().split('.')[1]?.length || 0;
   if (decimales > 3) {
-    return { valido: false, error: 'Cantidad no puede tener más de 3 decimales (máximo 1 gramo de precisión)' };
+    return { valido: false, error: 'Cantidad no puede tener más de 3 decimales' };
   }
-  
   return { valido: true };
 }
 
@@ -32,17 +30,13 @@ function validarPrecio(precio: number): { valido: boolean; error?: string } {
   if (typeof precio !== 'number' || isNaN(precio)) {
     return { valido: false, error: 'Precio debe ser un número' };
   }
-  
   if (precio <= 0) {
     return { valido: false, error: 'Precio debe ser mayor a 0' };
   }
-  
   return { valido: true };
 }
-
 export async function DELETE(request: NextRequest, { params }: any) {
     try {
-        // ✅ FIX: Await params
         const { id, productoIndex } = await params;
         const index = parseInt(productoIndex, 10);
 
@@ -55,9 +49,8 @@ export async function DELETE(request: NextRequest, { params }: any) {
             return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 });
         }
 
-        // No permitir si ya está entregado o cancelado
-        if (['entregado', 'cancelado'].includes(pedido.estado)) {
-            return NextResponse.json({ error: 'No se puede modificar un pedido entregado o cancelado' }, { status: 400 });
+        if (pedido.estado === 'cancelado') {
+            return NextResponse.json({ error: 'No se puede modificar un pedido cancelado' }, { status: 400 });
         }
 
         if (index < 0 || index >= pedido.productos.length) {
@@ -66,46 +59,32 @@ export async function DELETE(request: NextRequest, { params }: any) {
 
         const productoAEliminar = pedido.productos[index];
 
-        // Si el pedido está en "preparacion", devolver el stock
-        if (pedido.estado === 'preparacion') {
+        // Si el pedido está en "preparacion" y NO es un concepto manual, devolver el stock
+        if (pedido.estado === 'preparacion' && productoAEliminar.producto.toString() !== CONCEPTO_MANUAL_ID) {
             const productoDB = await Producto.findById(productoAEliminar.producto);
             if (productoDB) {
                 const stock = productoDB.stock.find((s: any) => s.deposito === pedido.deposito);
                 if (stock) {
                     stock.cantidad += productoAEliminar.cantidad;
                     await productoDB.save();
-
                     notifyProducts({
                         type: 'stock_modificado',
-                        data: {
-                            producto: productoDB,
-                            motivo: 'producto_eliminado_de_pedido_en_preparacion',
-                            pedidoId: pedido._id,
-                        },
+                        data: { producto: productoDB, motivo: 'producto_eliminado_de_pedido_en_preparacion', pedidoId: pedido._id },
                     });
                 }
             }
         }
 
-        // Eliminar el producto del pedido
         pedido.productos.splice(index, 1);
+        pedido.total = pedido.productos.reduce((sum: any, p: { subtotal: any; }) => sum + Number(p.subtotal), 0);
 
-        // Recalcular total
-        pedido.total = pedido.productos.reduce((sum: any, p: { subtotal: any; }) => sum + p.subtotal, 0);
-
-        // Si no quedan productos, cancelar el pedido
         if (pedido.productos.length === 0) {
             pedido.estado = 'cancelado';
         }
 
         await pedido.save();
 
-        // Notificar actualización
-        notifyPedidoClients({
-            type: 'pedido_actualizado',
-            data: pedido,
-        });
-
+        notifyPedidoClients({ type: 'pedido_actualizado', data: pedido });
         return NextResponse.json(pedido, { status: 200 });
     } catch (error: any) {
         console.error('Error al eliminar producto del pedido:', error);
@@ -115,11 +94,9 @@ export async function DELETE(request: NextRequest, { params }: any) {
 
 export async function POST(request: NextRequest, { params }: any) {
     try {
-        // ✅ FIX: Await params
         const { id } = await params;
-        const { productoId, cantidad, precioPersonalizado, actualizarProducto } = await request.json();
+        const { productoId, cantidad, precioPersonalizado, actualizarProducto, nombrePersonalizado, unidadPersonalizada } = await request.json();
 
-        // ✅ FIX: Validar cantidad con decimales
         const validacion = validarCantidad(cantidad);
         if (!productoId || !validacion.valido) {
             return NextResponse.json({ error: validacion.error || 'Datos inválidos' }, { status: 400 });
@@ -130,18 +107,33 @@ export async function POST(request: NextRequest, { params }: any) {
             return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 });
         }
 
-        if (['entregado', 'cancelado'].includes(pedido.estado)) {
-            return NextResponse.json({ error: 'No se puede modificar un pedido entregado o cancelado' }, { status: 400 });
+        if (pedido.estado === 'cancelado') {
+            return NextResponse.json({ error: 'No se puede modificar un pedido cancelado' }, { status: 400 });
         }
 
-        // Buscar el producto en la base
-        const productoDB = await Producto.findById(productoId);
-        if (!productoDB) {
-            return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
+        // ✅ 1. LÓGICA CLAVE: Si es el ID dummy, creamos un objeto en memoria
+        let productoDB: any;
+        let esConceptoManual = false;
+
+        if (productoId === CONCEPTO_MANUAL_ID) {
+            esConceptoManual = true;
+            productoDB = {
+                _id: CONCEPTO_MANUAL_ID,
+                nombre: nombrePersonalizado || 'CONCEPTO MANUAL',
+                unidad: unidadPersonalizada || 'unidad',
+                precioMayorista: 0,
+                precioOferta: 0,
+                stock: []
+            };
+        } else {
+            productoDB = await Producto.findById(productoId);
+            if (!productoDB) {
+                return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
+            }
         }
 
-        // Verificar stock si el pedido ya está en "preparacion"
-        if (pedido.estado === 'preparacion') {
+        // ✅ 2. Verificar stock SOLO si es un producto real y el pedido está en preparación
+        if (pedido.estado === 'preparacion' && !esConceptoManual) {
             const stock = productoDB.stock.find((s: any) => s.deposito === pedido.deposito);
             if (!stock || stock.cantidad < cantidad) {
                 return NextResponse.json(
@@ -151,42 +143,35 @@ export async function POST(request: NextRequest, { params }: any) {
             }
         }
 
-        // ✅ Determinar precio a aplicar
-        let precioAplicado = productoDB.precioMayorista;
+        // ✅ 3. Determinar precio a aplicar
+        let precioAplicado = productoDB.precioMayorista || 0;
         let tipoPrecio: 'mayorista' | 'oferta' = 'mayorista';
 
-        // Si hay precio de oferta válido, usarlo por defecto
         if (productoDB.precioOferta && productoDB.precioOferta < productoDB.precioMayorista) {
           precioAplicado = productoDB.precioOferta;
           tipoPrecio = 'oferta';
         }
 
-        // ✅ Si se especifica precio personalizado, usarlo
         if (precioPersonalizado !== undefined) {
           const validacionPrecio = validarPrecio(precioPersonalizado);
           if (!validacionPrecio.valido) {
             return NextResponse.json({ error: validacionPrecio.error || 'Precio personalizado inválido' }, { status: 400 });
           }
           precioAplicado = precioPersonalizado;
-          // Mantener el tipo de precio original (mayorista/oferta)
         }
 
-        // ✅ Opcional: Actualizar el producto en la base de datos
-        if (actualizarProducto && precioPersonalizado !== undefined) {
+        // ✅ 4. Opcional: Actualizar el producto en la base de datos (SOLO si es producto real)
+        if (actualizarProducto && precioPersonalizado !== undefined && !esConceptoManual) {
           if (tipoPrecio === 'mayorista') {
             productoDB.precioMayorista = precioPersonalizado;
           } else if (tipoPrecio === 'oferta') {
             productoDB.precioOferta = precioPersonalizado;
           }
           await productoDB.save();
-
-          notifyProducts({
-            type: 'producto_actualizado',
-            data: productoDB,
-          });
+          notifyProducts({ type: 'producto_actualizado', data: productoDB });
         }
 
-        // ✅ Redondear cantidad a 3 decimales para evitar errores de precisión
+        // ✅ 5. Crear el item y agregarlo al pedido
         const cantidadRedondeada = parseFloat(cantidad.toFixed(3));
         const subtotal = parseFloat((cantidadRedondeada * precioAplicado).toFixed(2));
 
@@ -201,41 +186,32 @@ export async function POST(request: NextRequest, { params }: any) {
             deposito: pedido.deposito,
         };
 
-        // Agregar al pedido
         pedido.productos.push(nuevoItem as any);
-        pedido.total = parseFloat((pedido.total + subtotal).toFixed(2));
+        pedido.total = parseFloat((Number(pedido.total) + subtotal).toFixed(2));
 
-        // Si está en "preparacion", descontar stock
-        if (pedido.estado === 'preparacion') {
+        // ✅ 6. Descontar stock SOLO si es un producto real
+        if (pedido.estado === 'preparacion' && !esConceptoManual) {
             const stock = productoDB.stock.find((s: any) => s.deposito === pedido.deposito)!;
             stock.cantidad -= cantidadRedondeada;
             await productoDB.save();
 
             notifyProducts({
                 type: 'stock_modificado',
-                data: {
-                    producto: productoDB,
-                    motivo: 'producto_agregado_a_pedido_en_preparacion',
-                    pedidoId: pedido._id,
-                },
+                data: { producto: productoDB, motivo: 'producto_agregado_a_pedido_en_preparacion', pedidoId: pedido._id },
             });
         }
 
         await pedido.save();
 
-        notifyProducts({
-            type: 'stock_modificado',
-            data: {
-                producto: productoDB,
-                motivo: 'producto_agregado_a_pedido',
-                pedidoId: pedido._id,
-            },
-        });
+        // ✅ 7. Notificaciones
+        if (!esConceptoManual) {
+            notifyProducts({
+                type: 'stock_modificado',
+                data: { producto: productoDB, motivo: 'producto_agregado_a_pedido', pedidoId: pedido._id },
+            });
+        }
 
-        notifyPedidoClients({
-            type: 'pedido_actualizado',
-            data: pedido,
-        });
+        notifyPedidoClients({ type: 'pedido_actualizado', data: pedido });
 
         return NextResponse.json(pedido, { status: 201 });
     } catch (error: any) {

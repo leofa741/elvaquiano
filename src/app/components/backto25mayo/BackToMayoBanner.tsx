@@ -298,32 +298,6 @@ export default function PatriaBanner({
                     </p>
                 )}
 
-                {/* Botón CTA premium 
-                {ctaText && ctaLink && (
-                    <button
-                        onClick={() => window.location.href = ctaLink}
-                        className="cta-button group relative px-10 py-4 bg-gradient-to-r from-[#F4D03F] via-[#E5BE01] to-[#B89E01] hover:from-[#E5BE01] hover:via-[#D4AF37] hover:to-[#A38B00] text-[#1a365d] font-bold rounded-full transition-all duration-500 shadow-[0_12px_35px_-5px_rgba(244,208,63,0.8)] hover:shadow-[0_18px_45px_-5px_rgba(244,208,63,1)] text-base md:text-lg mt-4 overflow-hidden animate-fade-in-up delay-300 hover:scale-105"
-                    >
-                        <span className="button-content relative z-10 flex items-center gap-2">
-                            {ctaText}
-                            <svg
-                                className="button-icon w-4 h-4 group-hover:translate-x-1 transition-transform duration-300"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M13 7l5 5m0 0l-5 5m5-5H6"
-                                />
-                            </svg>
-                        </span>
-                        <div className="button-overlay absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-40 transition-opacity duration-300" />
-                        <div className="button-shimmer absolute inset-0 animate-shimmer" />
-                    </button>
-                )}*/}
 
                 {/* Tags de categorías patrias */}
                 <div className="category-tags flex flex-wrap justify-center gap-2 mt-6 animate-fade-in-up delay-500">

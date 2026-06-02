@@ -237,7 +237,7 @@ export default function CuentasCorrientesPage() {
                           className="text-blue-400 hover:text-blue-300 text-sm"
                           title="Ver perfil"
                         >
-                          Perfil
+                          Perfil de finanzas
                         </Link>
                         {cuenta.telefono && (
                           <a

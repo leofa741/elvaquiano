@@ -12,6 +12,7 @@ import {
     FaTruck,
     FaFileInvoice,
     FaChartLine,
+    FaWallet,
 } from 'react-icons/fa';
 
 // Módulos disponibles
@@ -52,12 +53,19 @@ const modules = [
         href: '/gestion/categorias',
     },
     {
-        id: 'dashboard',
-        title: 'Dashboard',
-        description: 'Cuentas Corrientes, Gestión financiera de clientes con saldo pendiente',
-        icon: <FaChartLine className="text-3xl text-amber-400" />,
-        href: '/gestion/dashboard',
+        id: 'cuentas-corrientes',
+        title: 'Cuentas Corrientes',
+        description: 'Gestionar saldos pendientes y registrar pagos de clientes.',
+        icon: <FaWallet className="text-3xl text-amber-400" />,
+        href: '/gestion/cuentas-corrientes',
     },
+    //  {
+    //     id: 'dashboard',
+    //    title: 'Dashboard',
+    //   description: 'Cuentas Corrientes, Gestión financiera de clientes con saldo pendiente',
+    //   icon: <FaChartLine className="text-3xl text-amber-400" />,
+    //  href: '/gestion/dashboard',
+    // },
     {
         id: 'logs',
         title: 'Auditoria',
@@ -71,7 +79,7 @@ export default function GestiónPage() {
     const { status, data: session } = useSession();
     const router = useRouter();
     const pathname = usePathname();
-    
+
     // ✅ Estado para controlar si ya se validó el rol
     const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
@@ -98,14 +106,14 @@ export default function GestiónPage() {
             try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
                 const allowedRoles = ['superadmin', 'admin', 'vendedor'];
-                
+
                 if (!allowedRoles.includes(payload.role)) {
                     // ✅ Redirigir a página de usuario común (perfil, home, etc.)
                     router.push('/');
                     setIsAuthorized(false);
                     return;
                 }
-                
+
                 // ✅ Autorizado
                 setIsAuthorized(true);
             } catch (err) {
