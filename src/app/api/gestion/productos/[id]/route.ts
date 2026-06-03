@@ -1,6 +1,7 @@
 // app/api/gestion/productos/[id]/route.ts
 import connectDB from '@/app/lib/mongoose';
 import Product from '@/app/models/Product';
+import Presupuesto from '@/app/models/Presupuesto'; // ✅ AGREGAR ESTA LÍNEA
 import { authOptions } from '@/app/lib/auth';
 import { getServerSession } from 'next-auth/next';
 import { NextRequest, NextResponse } from 'next/server';
@@ -28,8 +29,6 @@ export async function GET(
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
-
-
 
 // PUT: actualizar producto
 export async function PUT(
@@ -70,7 +69,6 @@ export async function PUT(
     if (provValue === null || provValue === '' || provValue === undefined) {
       updateData.proveedor = null;
     } else if (typeof provValue === 'string') {
-      // Opcional: validar que el proveedor exista (recomendado)
       const Proveedor = (await import('@/app/models/Proveedor')).default;
       const existe = await Proveedor.findById(provValue);
       if (!existe) {
@@ -104,7 +102,6 @@ export async function PUT(
       }
     }
 
-    // ✅ PERMITIR reset de stock (cantidad = 0)
     if ('stock' in body) {
       if (!Array.isArray(body.stock)) {
         return NextResponse.json({ error: 'Stock debe ser un arreglo' }, { status: 400 });
@@ -120,7 +117,6 @@ export async function PUT(
       updateData.stockReservado = Number(body.stockReservado) || 0;
     }
 
-
   } else {
     // ✅ Actualización completa
     const { nombre, categoria, unidad, cantidadUnidad, stock, lotes } = body;
@@ -132,9 +128,6 @@ export async function PUT(
     const precioLista = body.precioLista;
     const precioMayorista = body.precioMayorista;
     const precioOferta = body.precioOferta;
-
-    // ✅ Validaciones de precios
-    // precioLista es opcional - solo validar si existe
 
     if (precioLista != null) {
       if (typeof precioLista !== 'number' || precioLista < 0) {
@@ -188,17 +181,64 @@ export async function PUT(
       stock,
       lotes: lotes || [],
       imagen: body.imagen || productoExistente.imagen,
-      // 👆 `proveedor` ya se agregó arriba
     };
   }
 
   try {
     // 👇 IMPORTANTE: Poblar el proveedor al devolver
     const productoActualizado = await Product.findByIdAndUpdate(id, updateData, { new: true })
-      .populate('proveedor'); // ← esto devuelve el objeto completo, no solo el ID
+      .populate('proveedor');
 
     if (!productoActualizado) {
       return NextResponse.json({ error: 'No se pudo actualizar el producto' }, { status: 500 });
+    }
+
+    // ✅ NUEVO: Actualizar precios en presupuestos existentes
+    try {
+      // Buscar todos los presupuestos que contengan este producto
+      const presupuestosConProducto = await Presupuesto.find({
+        'productos.producto': id,
+        activo: true
+      });
+
+      if (presupuestosConProducto.length > 0) {
+        console.log(`📝 Actualizando precios en ${presupuestosConProducto.length} presupuestos...`);
+
+        // Actualizar cada presupuesto
+        for (const presupuesto of presupuestosConProducto) {
+          let totalActualizado = 0;
+          let presupuestoModificado = false;
+
+          // Recorrer los productos del presupuesto
+          for (const item of presupuesto.productos) {
+            if (item.producto.toString() === id) {
+              // Actualizar precio según el tipoPrecio
+              const nuevoPrecio = item.tipoPrecio === 'mayorista' 
+                ? productoActualizado.precioMayorista 
+                : productoActualizado.precioOferta ?? productoActualizado.precioMayorista;
+
+              // Solo actualizar si el precio cambió
+              if (item.precioAplicado !== nuevoPrecio) {
+                item.precioAplicado = nuevoPrecio;
+                item.subtotal = nuevoPrecio * item.cantidad;
+                presupuestoModificado = true;
+              }
+            }
+            totalActualizado += item.subtotal;
+          }
+
+          // Si se modificó algún precio, actualizar el presupuesto
+          if (presupuestoModificado) {
+            presupuesto.total = totalActualizado;
+            await presupuesto.save();
+            console.log(`✅ Presupuesto ${presupuesto._id} actualizado`);
+          }
+        }
+      }
+    } catch (error) {
+      // Si falla la actualización de presupuestos, no bloqueamos la respuesta
+      console.error('⚠️ Error al actualizar presupuestos:', error);
+      // Continuamos con la respuesta exitosa del producto
     }
 
     notifyProducts({
@@ -215,10 +255,6 @@ export async function PUT(
     return NextResponse.json({ error: 'Error al guardar los cambios' }, { status: 500 });
   }
 }
-
-
-
-
 
 // DELETE: eliminar producto
 export async function DELETE(

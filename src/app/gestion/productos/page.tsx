@@ -7,7 +7,6 @@ import Link from 'next/link';
 import { FaBox, FaPlus } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import { Suspense } from 'react';
-import StockValueSummary from './StockValueSummary';
 import { formatARS } from '@/app/lib/formatcurrenci';
 import { Pencil, Trash2, Truck } from 'lucide-react';
 
@@ -1052,8 +1051,9 @@ function PageContent() {
               </div>
             )}
 
-            <br />
-            <StockValueSummary />
+         
+         
+
           </>
         ) : null}
       </div>

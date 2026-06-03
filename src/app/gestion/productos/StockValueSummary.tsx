@@ -10,6 +10,31 @@ interface StockTotals {
   totalMayorista: number;
 }
 
+
+
+// ✅ Función blindada para formatear moneda sin ceros infinitos
+const formatCurrency = (value: unknown) => {
+  const num = Number(value);
+
+  if (!Number.isFinite(num) || Number.isNaN(num)) {
+    return '$ 0,00';
+  }
+
+  // Limitar valores absurdos
+  if (Math.abs(num) > 999999999999999) {
+    return '$ 0,00';
+  }
+
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
+};
+
+
+
 export default function StockValueSummary() {
   const [totales, setTotales] = useState<StockTotals>({
     totalLista: 0,
@@ -167,7 +192,7 @@ export default function StockValueSummary() {
             Inversión en Stock (lista)
           </p>
           <p className="text-blue-400 text-lg font-semibold">
-            ${inversion.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+            {formatCurrency(inversion)}
           </p>
         </div>
 
@@ -176,7 +201,7 @@ export default function StockValueSummary() {
             Valor de Venta Potencial
           </p>
           <p className="text-amber-400 text-lg font-semibold">
-            ${valorVenta.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+            {formatCurrency(valorVenta)}
           </p>
         </div>
       </div>
@@ -184,9 +209,7 @@ export default function StockValueSummary() {
       <div className="bg-gray-900 p-3 rounded mb-4">
         <p className="text-gray-400 text-sm">Ganancia Potencial</p>
         <p className="text-green-400 text-lg font-semibold">
-          ${gananciaPotencial.toLocaleString('es-AR', {
-            minimumFractionDigits: 2,
-          })}
+          {formatCurrency(gananciaPotencial)}
         </p>
         <p className="text-xs text-gray-500 mt-1">
           Margen:{' '}

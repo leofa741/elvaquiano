@@ -1,3 +1,4 @@
+// presupuestos/page.tsx
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -407,5 +408,6 @@ export default function PresupuestosPage() {
         )}
       </div>
     </div>
+
   );
 }
