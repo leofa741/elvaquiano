@@ -1,3 +1,6 @@
+
+// API ruta  gestion/cuentas-corrientes/route.ts 
+
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
@@ -30,7 +33,8 @@ function normalizarFormaPago(formaPago: any): string {
 
 // ✅ FUNCIÓN CORREGIDA: Ahora recibe el movimientoCCId para vincularlo al pedido
 
-// ✅ FUNCIÓN CORREGIDA: Crea movimientos separados por cada pedido
+
+// ✅ FUNCIÓN CORREGIDA: Busca pagos en AMBAS tablas (Pago y CuentaCorriente)
 async function actualizarEstadoPagoPedidos(
   clienteId: string, 
   montoPagado: number, 
@@ -38,77 +42,121 @@ async function actualizarEstadoPagoPedidos(
   pedidoIdEspecifico?: string
 ) {
   try {
+    console.log('🔍 [actualizarEstadoPagoPedidos] Iniciando...', {
+      clienteId,
+      montoPagado,
+      movimientoCCId,
+      pedidoIdEspecifico
+    });
+
     // Si hay un pedidoId específico, actualizar solo ese
     if (pedidoIdEspecifico) {
       const pedido = await Pedido.findById(pedidoIdEspecifico);
-      if (pedido) {
-        const pagosDelPedido = await CuentaCorriente.find({
-          cliente: clienteId,
-          pedido: pedidoIdEspecifico,
-          tipo: 'pago'
-        }).sort({ createdAt: 1 });
-
-        const totalPagado = pagosDelPedido.reduce((sum, p) => sum + Number(p.importe), 0);
-
-        const totalPedido = Number(pedido.total) || 0;
-        if (totalPagado >= totalPedido) {
-          pedido.estadoPago = 'pagado';
-        } else if (totalPagado > 0) {
-          pedido.estadoPago = 'parcial';
-        } else {
-          pedido.estadoPago = 'pendiente';
-        }
-        await pedido.save();
+      if (!pedido) {
+        console.warn('⚠️ Pedido específico no encontrado:', pedidoIdEspecifico);
+        return;
       }
+
+      // ✅ BUSCAR EN AMBAS TABLAS
+      const pagosEnPago = await Pago.find({ pedido: pedidoIdEspecifico });
+      const pagosEnCC = await CuentaCorriente.find({
+        cliente: clienteId,
+        pedido: pedidoIdEspecifico,
+        tipo: 'pago'
+      });
+
+      const totalPagadoEnPago = pagosEnPago.reduce((sum, p) => sum + Number(p.monto), 0);
+      const totalPagadoEnCC = pagosEnCC.reduce((sum, p) => sum + Number(p.importe), 0);
+      const totalPagado = totalPagadoEnPago + totalPagadoEnCC;
+
+      const totalPedido = Number(pedido.total) || 0;
+
+      console.log('📊 [Pedido específico]', { 
+        totalPagadoEnPago, 
+        totalPagadoEnCC, 
+        totalPagado, 
+        totalPedido 
+      });
+
+      if (totalPagado >= totalPedido) {
+        pedido.estadoPago = 'pagado';
+      } else if (totalPagado > 0) {
+        pedido.estadoPago = 'parcial';
+      } else {
+        pedido.estadoPago = 'pendiente';
+      }
+      await pedido.save();
+      console.log('✅ [Pedido específico] Actualizado a:', pedido.estadoPago);
       return;
     }
 
     // ✅ Si NO hay pedidoId específico, distribuir el pago entre pedidos pendientes
     const pedidosPendientes = await Pedido.find({
-      cliente: clienteId,
+      cliente: new mongoose.Types.ObjectId(clienteId),
       estadoPago: { $in: ['pendiente', 'parcial'] },
-      activo: true,
+      activo: { $ne: false },
       estado: { $ne: 'cancelado' }
     }).sort({ createdAt: 1 });
 
+    console.log('📋 [Pedidos pendientes encontrados]', pedidosPendientes.length);
+
+    if (pedidosPendientes.length === 0) {
+      console.warn('⚠️ No hay pedidos pendientes para el cliente', clienteId);
+      return;
+    }
+
     let montoRestante = montoPagado;
     
-    // ✅ Obtener el movimiento original para copiar sus datos
     const movimientoOriginal = await CuentaCorriente.findById(movimientoCCId);
-    if (!movimientoOriginal) return;
+    if (!movimientoOriginal) {
+      console.error('❌ Movimiento original no encontrado:', movimientoCCId);
+      return;
+    }
 
-    // ✅ Eliminar el movimiento original (lo reemplazaremos por movimientos específicos por pedido)
     await CuentaCorriente.findByIdAndDelete(movimientoCCId);
 
-    let saldoAcumulado = movimientoOriginal.saldoAnterior;
+    let saldoAcumulado = movimientoOriginal.saldoAnterior || 0;
+    let pedidosActualizados = 0;
 
     for (const pedido of pedidosPendientes) {
       if (montoRestante <= 0) break;
 
       const totalPedido = Number(pedido.total) || 0;
       
-      // Calcular cuánto ya se pagó de este pedido
-      const pagosDelPedido = await CuentaCorriente.find({
-        cliente: clienteId,
+      // ✅ BUSCAR EN AMBAS TABLAS
+      const pagosEnPago = await Pago.find({ pedido: pedido._id });
+      const pagosEnCC = await CuentaCorriente.find({
+        cliente: new mongoose.Types.ObjectId(clienteId),
         pedido: pedido._id,
         tipo: 'pago'
       });
+
+      const totalPagadoEnPago = pagosEnPago.reduce((sum, p) => sum + Number(p.monto), 0);
+      const totalPagadoEnCC = pagosEnCC.reduce((sum, p) => sum + Number(p.importe), 0);
+      const totalPagadoPedido = totalPagadoEnPago + totalPagadoEnCC;
       
-      const totalPagadoPedido = pagosDelPedido.reduce((sum, p) => sum + Number(p.importe), 0);
       const saldoPendientePedido = totalPedido - totalPagadoPedido;
+
+      console.log('💰 [Procesando pedido]', {
+        pedidoId: pedido._id,
+        totalPedido,
+        totalPagadoEnPago,
+        totalPagadoEnCC,
+        totalPagadoPedido,
+        saldoPendientePedido,
+        montoRestante
+      });
 
       if (saldoPendientePedido <= 0) continue;
 
-      // Determinar cuánto se aplica a este pedido
       const montoAplicado = Math.min(montoRestante, saldoPendientePedido);
       montoRestante -= montoAplicado;
 
-      // ✅ Crear un NUEVO movimiento específico para este pedido
       const saldoAnteriorPedido = saldoAcumulado;
       saldoAcumulado = saldoAcumulado - montoAplicado;
 
       const nuevoMovimiento = await CuentaCorriente.create({
-        cliente: clienteId,
+        cliente: new mongoose.Types.ObjectId(clienteId),
         pedido: pedido._id,
         tipo: 'pago',
         referenciaId: pedido._id,
@@ -120,30 +168,38 @@ async function actualizarEstadoPagoPedidos(
         notas: movimientoOriginal.notas
       });
 
-      // ✅ CREAR REGISTRO EN TABLA PAGO para que la API de saldo lo encuentre
       await Pago.create({
         pedido: pedido._id,
-        cliente: clienteId,
+        cliente: new mongoose.Types.ObjectId(clienteId),
         monto: montoAplicado,
         formaPago: movimientoOriginal.formaPago || 'otro',
         fechaPago: new Date(),
         notas: `Pago desde Cuenta Corriente - ${movimientoOriginal.descripcion || 'Pago recibido'}`
       });
 
-      // Actualizar estado del pedido
       const nuevoTotalPagado = totalPagadoPedido + montoAplicado;
+      const estadoAnterior = pedido.estadoPago;
+      
       if (nuevoTotalPagado >= totalPedido) {
         pedido.estadoPago = 'pagado';
       } else if (nuevoTotalPagado > 0) {
         pedido.estadoPago = 'parcial';
       }
+      
       await pedido.save();
+      pedidosActualizados++;
+      
+      console.log('✅ [Pedido actualizado]', {
+        pedidoId: pedido._id,
+        estadoAnterior,
+        nuevoEstado: pedido.estadoPago,
+        montoAplicado
+      });
     }
 
-    // ✅ Si sobró monto (no había suficientes pedidos), crear un movimiento genérico
     if (montoRestante > 0) {
       await CuentaCorriente.create({
-        cliente: clienteId,
+        cliente: new mongoose.Types.ObjectId(clienteId),
         pedido: null,
         tipo: 'pago',
         referenciaId: null,
@@ -154,10 +210,13 @@ async function actualizarEstadoPagoPedidos(
         formaPago: movimientoOriginal.formaPago,
         notas: movimientoOriginal.notas
       });
+      console.log('💵 [Saldo a favor generado]', montoRestante);
     }
 
-  } catch (error) {
-    console.error('Error al actualizar estadoPago de pedidos:', error);
+    console.log('🎉 [actualizarEstadoPagoPedidos] Completado. Pedidos actualizados:', pedidosActualizados);
+
+  } catch (error: any) {
+    console.error('❌ [ERROR CRÍTICO] en actualizarEstadoPagoPedidos:', error);
   }
 }
 
@@ -218,14 +277,29 @@ export async function POST(req: NextRequest) {
     });
 
     // ✅ Si es tipo 'pago', actualizar estado de pedidos (pasando el ID del movimiento)
-    if (tipo === 'pago') {
-      await actualizarEstadoPagoPedidos(
-        clienteId, 
-        importeNumerico, 
-        nuevoMovimientoCC._id.toString(),
-        pedidoId || undefined
-      );
-    }
+  // ✅ Si es tipo 'pago', actualizar estado de pedidos (pasando el ID del movimiento)
+if (tipo === 'pago') {
+  await actualizarEstadoPagoPedidos(
+    clienteId, 
+    importeNumerico, 
+    nuevoMovimientoCC._id.toString(),
+    pedidoId || undefined
+  );
+  
+  // ✅ NUEVO: Recalcular y retornar el estado actualizado de los pedidos
+  const pedidosActualizados = await Pedido.find({
+    cliente: new mongoose.Types.ObjectId(clienteId),
+    activo: { $ne: false },
+    estado: { $ne: 'cancelado' }
+  }).select('_id estadoPago total').lean();
+  
+  return NextResponse.json({ 
+    success: true, 
+    data: nuevoMovimientoCC, 
+    saldoActual,
+    pedidosActualizados // ✅ El frontend puede verificar qué pedidos cambiaron
+  }, { status: 201 });
+}
 
     // Si es tipo 'pedido', también actualizar el pedido a "pendiente"
     if (tipo === 'pedido' && pedidoId) {

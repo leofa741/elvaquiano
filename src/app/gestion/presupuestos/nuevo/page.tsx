@@ -8,7 +8,9 @@ import Link from 'next/link';
 import { FaFileInvoice, FaUser, FaCalendar } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import ProductoLinea from '../../pedidos/nuevo/components/ProductoLinea';
+ 
 import { formatARS } from '@/app/lib/formatcurrenci';
+import ComboSearch from '../../pedidos/nuevo/components/ComboSearch';
 
 // Tipos
 interface ClienteOption {
@@ -17,7 +19,6 @@ interface ClienteOption {
   nombre: string;
   apellido: string;
 }
-
 
 interface ProductoOption {
   _id: string;
@@ -82,7 +83,6 @@ export default function NuevoPresupuestoPage() {
     p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase())
   );
 
-  // ✨ NUEVA LÓGICA: Evita duplicados + agrega al inicio
   const handleAgregarProducto = (producto: ProductoOption) => {
     if (producto.stock.length === 0) {
       Swal.fire('Sin stock', `El producto "${producto.nombre}" no tiene stock disponible.`, 'warning');
@@ -93,7 +93,6 @@ export default function NuevoPresupuestoPage() {
       const existeIndex = prev.findIndex(item => item.producto._id === producto._id);
 
       if (existeIndex !== -1) {
-        // Ya existe: incrementar cantidad
         const nuevo = [...prev];
         nuevo[existeIndex] = {
           ...nuevo[existeIndex],
@@ -101,7 +100,6 @@ export default function NuevoPresupuestoPage() {
         };
         return nuevo;
       } else {
-        // No existe: agregar al inicio
         return [
           {
             producto,
@@ -200,134 +198,170 @@ export default function NuevoPresupuestoPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 sm:p-6 md:p-8">
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/gestion/presupuestos" className="text-amber-500 hover:text-amber-400 flex items-center gap-1">
-          ← Volver a presupuestos
+        <Link href="/gestion/presupuestos" className="text-amber-500 hover:text-amber-400 flex items-center gap-2 transition-colors group" aria-label="Volver a presupuestos">
+          <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          Volver a presupuestos
         </Link>
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Nuevo Presupuesto</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-3">
+          <FaFileInvoice className="text-amber-500" /> Nuevo Presupuesto
+        </h1>
       </div>
 
-      <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 max-w-4xl mx-auto">
+      <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 md:p-8 border border-gray-700/50 shadow-2xl max-w-5xl mx-auto">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-              <FaUser className="text-amber-400" />
-              Cliente *
-            </label>
-            <select
-              value={clienteId}
-              onChange={(e) => setClienteId(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-              required
-            >
-              <option value="">Seleccione un cliente</option>
-              {clientes.map(cliente => (
-                <option key={cliente._id} value={cliente._id}>
-                  {cliente.razonSocial} ({cliente.nombre} {cliente.apellido})
-                </option>
-              ))}
-            </select>
+          {/* ✅ REEMPLAZADO: Select por ComboSearch */}
+          <ComboSearch
+            items={clientes}
+            value={clienteId}
+            onChange={setClienteId}
+            label="Cliente"
+            icon={<FaUser className="text-amber-400" />}
+            required
+            placeholder="Escribe iniciales, razón social o nombre..."
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-200 mb-2 flex items-center gap-2">
+                <FaCalendar className="text-amber-400" /> Válido hasta (opcional)
+              </label>
+              <input
+                type="date"
+                value={validoHasta}
+                onChange={(e) => setValidoHasta(e.target.value)}
+                className="w-full px-4 py-3.5 bg-gray-700/50 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 hover:border-gray-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-200 mb-2">Origen del pedido *</label>
+              <div className="relative">
+                <select
+                  value={origen}
+                  onChange={(e) => setOrigen(e.target.value)}
+                  className="w-full px-4 py-3.5 bg-gray-700/50 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 hover:border-gray-500"
+                  required
+                >
+                  <option value="">Seleccione...</option>
+                  <option value="mostrador">Mostrador</option>
+                  <option value="online">Online</option>
+                </select>
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-              <FaCalendar className="text-amber-400" />
-              Válido hasta (opcional)
-            </label>
-            <input
-              type="date"
-              value={validoHasta}
-              onChange={(e) => setValidoHasta(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Origen del pedido *
-            </label>
-            <select
-              value={origen}
-              onChange={(e) => setOrigen(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-              required
-            >
-              <option value="">Seleccione...</option>
-              <option value="mostrador">Mostrador</option>
-              <option value="online">Online</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Agregar productos
-            </label>
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-200 mb-2">Agregar productos</label>
             <div className="relative">
               <input
                 type="text"
                 value={busquedaProducto}
                 onChange={(e) => setBusquedaProducto(e.target.value)}
                 placeholder="Buscar producto por nombre..."
-                className="w-full px-4 py-3 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full px-4 py-3.5 pl-10 bg-gray-700/50 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 hover:border-gray-500"
               />
               <FaFileInvoice className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             </div>
 
             {busquedaProducto && productosFiltrados.length > 0 && (
-              <div className="mt-2 bg-gray-750 rounded-lg max-h-60 overflow-y-auto border border-gray-600">
-                {productosFiltrados.map(producto => (
-                  <div
-                    key={producto._id}
-                    onClick={() => handleAgregarProducto(producto)}
-                    className="p-3 hover:bg-gray-700 cursor-pointer border-b border-gray-700 last:border-0"
-                  >
-                    <div className="font-medium text-white">{producto.nombre}</div>
-                    <div className="text-sm text-gray-300">
-                      {producto.unidad} • {formatARS(producto.precioOferta)} (oferta) • {formatARS(producto.precioMayorista)} (mayorista)
+              <div className="mt-2 bg-gray-700/90 rounded-xl max-h-72 overflow-y-auto border border-gray-600 shadow-lg animate-fade-in">
+                {productosFiltrados.map(producto => {
+                  const hasStock = producto.stock.some(s => s.cantidad > 0);
+                  return (
+                    <div
+                      key={producto._id}
+                      onClick={() => handleAgregarProducto(producto)}
+                      className="p-4 cursor-pointer transition-all duration-200 hover:bg-amber-500/20 border-b border-gray-600 last:border-0"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-white">{producto.nombre}</span>
+                            {!hasStock && <span className="text-xs bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full">Sin stock</span>}
+                          </div>
+                          <div className="text-sm text-gray-300 mt-1 flex gap-4">
+                            <span className="flex items-center gap-1">
+                              <span className="text-gray-400">Unidad:</span>
+                              <span className="font-medium">{producto.unidad}</span>
+                            </span>
+                            {producto.precioOferta > 0 && (
+                              <span className="flex items-center gap-1">
+                                <span className="text-gray-400">Oferta:</span>
+                                <span className="font-bold text-green-400">{formatARS(producto.precioOferta)}</span>
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <span className="text-gray-400">Mayorista:</span>
+                              <span className="font-medium text-amber-400">{formatARS(producto.precioMayorista)}</span>
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-400 bg-gray-800 px-3 py-1 rounded-full whitespace-nowrap">
+                          Click para agregar
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
 
           {productosEnPresupuesto.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium text-amber-400">Productos seleccionados</h3>
-              {productosEnPresupuesto.map((item, index) => (
-                <ProductoLinea
-                  key={`${item.producto._id}-${index}`}
-                  producto={item.producto}
-                  deposito={item.deposito}
-                  cantidad={item.cantidad}
-                  tipoPrecio={item.tipoPrecio}
-                  onRemove={() => handleEliminarProducto(index)}
-                  onChange={(field, value) => handleActualizarProducto(index, field, value)}
-                />
-              ))}
+            <div className="space-y-3">
+              <h3 className="text-lg font-bold text-amber-400 flex items-center gap-2">
+                <FaFileInvoice /> Productos seleccionados ({productosEnPresupuesto.length})
+              </h3>
+              <div className="space-y-2">
+                {productosEnPresupuesto.map((item, index) => (
+                  <ProductoLinea
+                    key={`${item.producto._id}-${index}`}
+                    producto={item.producto}
+                    deposito={item.deposito}
+                    cantidad={item.cantidad}
+                    tipoPrecio={item.tipoPrecio}
+                    onRemove={() => handleEliminarProducto(index)}
+                    onChange={(field, value) => handleActualizarProducto(index, field, value)}
+                  />
+                ))}
+              </div>
             </div>
           )}
 
           <div className="border-t border-gray-700 pt-4">
             <div className="flex justify-between items-center text-lg">
-              <span className="text-gray-300">Total:</span>
-              <span className="text-white font-bold">{formatARS(total)}</span>
+              <span className="text-gray-200 font-semibold">Total:</span>
+              <span className="text-white font-bold text-xl">{formatARS(total)}</span>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-medium py-3 rounded-lg transition disabled:opacity-70 shadow"
+              className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold py-4 rounded-xl transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg hover:shadow-amber-500/30 flex items-center justify-center gap-2"
             >
-              {loading ? 'Creando...' : 'Crear Presupuesto'}
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Creando...
+                </>
+              ) : (
+                <>📄 Crear Presupuesto</>
+              )}
             </button>
             <Link
               href="/gestion/presupuestos"
-              className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-medium py-3 rounded-lg text-center transition"
+              className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 rounded-xl text-center transition-all duration-200 flex items-center justify-center gap-2"
             >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               Cancelar
             </Link>
           </div>

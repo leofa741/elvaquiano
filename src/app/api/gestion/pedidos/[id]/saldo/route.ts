@@ -1,3 +1,4 @@
+// API ruta para obtener el saldo pendiente de un pedido
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongoose';
 import CuentaCorriente from '@/app/models/CuentaCorriente';
@@ -36,7 +37,6 @@ export async function GET(req: NextRequest, { params }: any) {
       }
     }
 
-    // ✅ Total del pedido en la BD (incluye conceptos de pago)
     const totalPedidoCompleto = Number(pedidoData.total) || 0;
 
     // ✅ Buscar pagos registrados en la tabla Pago
@@ -54,12 +54,22 @@ export async function GET(req: NextRequest, { params }: any) {
 
     const totalPagadoCC = movimientosCC.reduce((sum, mov) => sum + (Number(mov.importe) || 0), 0);
 
-    // ✅ Total pagado = Mayor entre pagos directos y CC (evita duplicados)
-    // ⚠️ NO sumar totalConceptosPago porque ya están incluidos en totalPedidoCompleto
+    // ✅ CORRECCIÓN CLAVE: Usar Math.max para evitar duplicados
+    // Como el mismo pago se registra en AMBAS tablas (Pago y CuentaCorriente),
+    // tomamos el mayor valor en lugar de sumar ambos
     const totalPagado = Math.max(totalPagadoDirecto, totalPagadoCC);
     
     // ✅ SALDO PENDIENTE = Total completo del pedido - Total pagado
     const saldoPendiente = Math.max(0, totalPedidoCompleto - totalPagado);
+
+    console.log('📊 [Saldo del pedido]', {
+      pedidoId: id,
+      totalPedidoCompleto,
+      totalPagadoDirecto,
+      totalPagadoCC,
+      totalPagadoFinal: totalPagado,
+      saldoPendiente
+    });
 
     return NextResponse.json({ 
       saldoPendiente, 

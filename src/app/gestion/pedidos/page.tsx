@@ -20,6 +20,7 @@ import { formatARS } from '@/app/lib/formatcurrenci';
 /* =======================
    TIPOS
 ======================= */
+
 interface ClientePedido {
   _id?: string;
   razonSocial: string;

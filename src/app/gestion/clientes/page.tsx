@@ -1,3 +1,5 @@
+// Página principal de gestión de clientes con búsqueda, paginación y acciones rápidas - src/app/gestion/clientes/page.tsx
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -120,7 +122,7 @@ export default function ClientesPage() {
       cliente.apellido.toLowerCase().includes(termino) ||
       (cliente.dni && cliente.dni.includes(termino)) ||
       cliente.telefono.includes(termino) ||
-      (cliente.email && cliente.email.toLowerCase().includes(termino))||
+      (cliente.email && cliente.email.toLowerCase().includes(termino)) ||
       (cliente.formaPago && cliente.formaPago.toLowerCase().includes(termino))
 
     );
@@ -282,6 +284,147 @@ export default function ClientesPage() {
       actualizarUmbral(cliente._id, Number(nuevoUmbral));
     }
   };
+
+
+  // -------------------------------
+  // 💰 Función para agregar deuda inicial desde anotador
+  // -------------------------------
+  const handleAgregarDeudaInicial = async (cliente: Cliente) => {
+    const { value: formValues } = await Swal.fire({
+      title: `Agregar Deuda Inicial - ${cliente.razonSocial}`,
+      html: `
+      <div style="text-align: left; padding: 10px 0;">
+        <div style="margin-bottom: 15px; padding: 10px; background: #1f2937; border-radius: 8px; border: 1px solid #374151;">
+          <div style="font-size: 12px; color: #9ca3af; margin-bottom: 4px;">⚠️ Atención</div>
+          <div style="font-size: 13px; color: #fbbf24;">
+            Esta función es para <strong>migrar deudas antiguas</strong> desde anotadores al sistema digital.
+          </div>
+        </div>
+        
+        <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">
+          Monto de la deuda *
+        </label>
+        <input id="swal-monto" type="number" step="0.01" min="0.01" 
+          style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" 
+          placeholder="0.00" />
+        
+        <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">
+          Descripción / Origen *
+        </label>
+        <input id="swal-descripcion" type="text" 
+          style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" 
+          placeholder="Ej: Deuda anotador Enero 2026, Saldo pendiente anterior, etc." />
+        
+        <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">
+          Fecha de origen (opcional)
+        </label>
+        <input id="swal-fecha" type="date" 
+          style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px;" />
+      </div>
+    `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Agregar Deuda',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#f59e0b',
+      cancelButtonColor: '#6b7280',
+      background: '#1f2937',
+      color: '#fff',
+      preConfirm: () => {
+        const monto = parseFloat((document.getElementById('swal-monto') as HTMLInputElement).value);
+        const descripcion = (document.getElementById('swal-descripcion') as HTMLInputElement).value.trim();
+        const fecha = (document.getElementById('swal-fecha') as HTMLInputElement).value;
+
+        if (!monto || monto <= 0) {
+          Swal.showValidationMessage('El monto debe ser mayor a 0');
+          return false;
+        }
+
+        if (!descripcion) {
+          Swal.showValidationMessage('La descripción es obligatoria');
+          return false;
+        }
+
+        return { monto, descripcion, fecha };
+      }
+    });
+
+    if (!formValues) return;
+
+    // Confirmación final
+    const confirmacion = await Swal.fire({
+      title: '¿Confirmar carga de deuda?',
+      html: `
+      <div style="text-align: left; padding: 10px 0;">
+        <p style="color: #d1d5db; margin-bottom: 10px;">Se agregará la siguiente deuda a la cuenta corriente:</p>
+        <div style="padding: 12px; background: #1f2937; border-radius: 8px; border: 1px solid #374151; margin-bottom: 10px;">
+          <div style="font-size: 12px; color: #9ca3af;">Cliente</div>
+          <div style="font-size: 14px; color: white; font-weight: 600;">${cliente.razonSocial}</div>
+        </div>
+        <div style="padding: 12px; background: #1f2937; border-radius: 8px; border: 1px solid #374151; margin-bottom: 10px;">
+          <div style="font-size: 12px; color: #9ca3af;">Descripción</div>
+          <div style="font-size: 14px; color: white;">${formValues.descripcion}</div>
+        </div>
+        <div style="padding: 12px; background: #1f2937; border-radius: 8px; border: 1px solid #374151;">
+          <div style="font-size: 12px; color: #9ca3af;">Importe a sumar como deuda</div>
+          <div style="font-size: 20px; color: #f59e0b; font-weight: bold;">$${formValues.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</div>
+        </div>
+      </div>
+    `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#f59e0b',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, cargar deuda',
+      cancelButtonText: 'Cancelar',
+      background: '#1f2937',
+      color: '#fff'
+    });
+
+    if (!confirmacion.isConfirmed) return;
+
+    try {
+      const res = await fetch('/api/gestion/cuentas-corrientes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clienteId: cliente._id,
+          tipo: 'ajuste', // ✅ Tipo 'ajuste' suma al saldo
+          importe: formValues.monto,
+          formaPago: 'saldo_pendiente',
+          descripcion: `📓 MIGRACIÓN ANOTADOR: ${formValues.descripcion}${formValues.fecha ? ` (fecha origen: ${new Date(formValues.fecha).toLocaleDateString('es-AR')})` : ''}`,
+          notas: `Deuda inicial migrada desde anotador - ${new Date().toLocaleString('es-AR')}`
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+
+        Swal.fire({
+          icon: 'success',
+          title: '¡Deuda Registrada!',
+          html: `
+          <div style="text-align: left; padding: 10px 0;">
+            <p style="color: #d1d5db; margin-bottom: 8px;">Se agregó la deuda a la cuenta corriente de:</p>
+            <div style="font-size: 16px; font-weight: bold; color: white; margin-bottom: 12px;">${cliente.razonSocial}</div>
+            <p style="color: #d1d5db; margin-bottom: 4px;">Importe cargado: <strong style="color: #f59e0b;">$${formValues.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</strong></p>
+            <p style="color: #d1d5db; margin-bottom: 4px;">Nuevo saldo: <strong style="color: #f59e0b;">$${(data.saldoActual || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</strong></p>
+          </div>
+        `,
+          confirmButtonColor: '#f59e0b',
+          background: '#1f2937',
+          color: '#fff'
+        });
+      } else {
+        const err = await res.json();
+        Swal.fire('Error', err.error || 'No se pudo registrar la deuda', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', 'Error de conexión con el servidor', 'error');
+    }
+  };
+
   // -------------------------------
   // 🚨 Render condicional de aut
   // -------------------------------
@@ -379,13 +522,24 @@ export default function ClientesPage() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-
                       <Link href={`/gestion/clientes/editar/${cliente._id}`} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center gap-1">
                         Editar
                       </Link>
                       <Link href={`/gestion/pedidos/nuevo?clienteId=${cliente._id}`} className="text-blue-400 hover:text-blue-300 text-sm font-medium flex items-center gap-1">
                         Pedido rápido
                       </Link>
+
+                      {/* ✅ NUEVO BOTÓN: Agregar deuda inicial */}
+                      {cliente.formaPago === 'cuenta_corriente' && cliente.activo && (
+                        <button
+                          onClick={() => handleAgregarDeudaInicial(cliente)}
+                          className="text-orange-400 hover:text-orange-300 text-sm font-medium flex items-center gap-1"
+                          title="Migrar deuda desde anotador al sistema"
+                        >
+                          📓 Agregar deuda CC
+                        </button>
+                      )}
+
                       {cliente.activo ? (
                         <button onClick={() => handleDesactivar(cliente)} className="text-red-400 hover:text-red-300 text-sm font-medium flex items-center gap-1">
                           Eliminar
@@ -404,10 +558,14 @@ export default function ClientesPage() {
                         </button>
                       )}
                     </div>
+
                   </div>
                 </div>
               ))}
             </div>
+
+
+
 
             {/* Paginación */}
             {totalPaginas > 1 && (

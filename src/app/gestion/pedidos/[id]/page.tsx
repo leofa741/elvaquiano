@@ -1,3 +1,5 @@
+// Página de detalle de pedido con edición de productos, registro de pagos e importes manuales - src/app/gestion/pedidos/[id]/page.tsx
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -18,6 +20,7 @@ interface Cliente {
   _id: string; razonSocial: string; nombre: string; apellido: string;
   direccion?: string; telefono?: string; tipoCliente?: 'minorista' | 'mayorista';
 }
+
 
 interface Producto {
   _id: string; nombre: string; unidad: string; cantidad: number;

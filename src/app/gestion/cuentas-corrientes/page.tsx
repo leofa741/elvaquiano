@@ -1,3 +1,4 @@
+// Página de gestión de cuentas corrientes - src/app/gestion/cuentas-corrientes/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -74,6 +75,9 @@ export default function CuentasCorrientesPage() {
     const interval = setInterval(fetchCuentas, 30000);
     return () => clearInterval(interval);
   }, [isAuthorized]);
+
+
+
 
   const handleRegistrarPago = async (cuenta: CuentaCorriente) => {
     const { value: formValues } = await Swal.fire({
@@ -305,6 +309,8 @@ export default function CuentasCorrientesPage() {
       }
     }
   };
+
+  
   if (!isAuthorized) return null;
 
   return (
@@ -365,7 +371,7 @@ export default function CuentasCorrientesPage() {
           <div className="text-sm text-gray-400 mb-1 flex items-center gap-1">
             <FaExclamationTriangle className="text-red-400" /> Alertas Activas
           </div>
-          <div className="text-2xl font-bold text-red-400">{alertasActivas}</div>
+          <div className="text-2xl font-bold text-red-400">{alertasActivas} Umbral de Cta. Cte.</div>
         </div>
       </div>
 
@@ -389,7 +395,7 @@ export default function CuentasCorrientesPage() {
                       <span className="font-medium text-white text-lg">{cuenta.razonSocial}</span>
                       {cuenta.tieneAlerta && (
                         <span className="px-2 py-0.5 text-xs bg-red-600 text-white rounded-full flex items-center gap-1">
-                          <FaExclamationTriangle size={10} /> Alerta
+                          <FaExclamationTriangle size={10} /> Alerta Umbral
                         </span>
                       )}
                     </div>

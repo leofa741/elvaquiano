@@ -469,6 +469,7 @@ export default function NuevoPedidoClient({
               </div>
             </div>
           )}
+          
 
              
             {totalMayorista > 0 && (

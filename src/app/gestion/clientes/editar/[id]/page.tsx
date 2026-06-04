@@ -193,81 +193,56 @@ export default function EditarClientePage() {
   };
 
   // VALIDACIÓN COMPLETA
-  const validateForm = (): boolean => {
-    const newErrors: FormErrors = {};
+// VALIDACIÓN COMPLETA
+const validateForm = (): boolean => {
+  const newErrors: FormErrors = {};
 
-    // razón social
-    if (
-      !form.razonSocial.trim()
-    ) {
-      newErrors.razonSocial =
-        'Debe ingresar la razón social';
+  // razón social
+  if (!form.razonSocial.trim()) {
+    newErrors.razonSocial = 'Debe ingresar la razón social';
+  }
+
+  // nombre
+  if (!form.nombre.trim()) {
+    newErrors.nombre = 'Debe ingresar el nombre';
+  }
+
+  // apellido
+  if (!form.apellido.trim()) {
+    newErrors.apellido = 'Debe ingresar el apellido';
+  }
+
+  // ✅ DNI: OPCIONAL - solo valida formato si se ingresa algo
+  if (form.dni.trim()) {
+    if (!/^\d{7,8}$/.test(form.dni.replace(/\D/g, ''))) {
+      newErrors.dni = 'El DNI debe tener 7 u 8 números';
     }
+  }
 
-    // nombre
-    if (!form.nombre.trim()) {
-      newErrors.nombre =
-        'Debe ingresar el nombre';
+  // teléfono
+  if (!form.telefono.trim()) {
+    newErrors.telefono = 'Debe ingresar el teléfono';
+  }
+
+  // ✅ EMAIL: OPCIONAL - solo valida formato si se ingresa algo
+  if (form.email.trim()) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      newErrors.email = 'El email no es válido';
     }
+  }
 
-    // apellido
-    if (!form.apellido.trim()) {
-      newErrors.apellido =
-        'Debe ingresar el apellido';
-    }
+  setErrors(newErrors);
 
-    // dni obligatorio
-    if (!form.dni.trim()) {
-      newErrors.dni =
-        'Debe ingresar el DNI';
-    } else if (
-      !/^\d{7,8}$/.test(
-        form.dni.replace(/\D/g, '')
-      )
-    ) {
-      newErrors.dni =
-        'El DNI debe tener 7 u 8 números';
-    }
+  // mostrar toast general
+  if (Object.keys(newErrors).length > 0) {
+    toast.error('⚠️ Completá todos los campos obligatorios', {
+      autoClose: 4000,
+    });
+    return false;
+  }
 
-    // teléfono
-    if (
-      !form.telefono.trim()
-    ) {
-      newErrors.telefono =
-        'Debe ingresar el teléfono';
-    }
-
-    // email obligatorio
-    if (!form.email.trim()) {
-      newErrors.email =
-        'Debe ingresar el email';
-    } else if (
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-        form.email
-      )
-    ) {
-      newErrors.email =
-        'El email no es válido';
-    }
-
-    setErrors(newErrors);
-
-    // mostrar toast general
-    if (
-      Object.keys(newErrors).length > 0
-    ) {
-      toast.error(
-        '⚠️ Completá todos los campos obligatorios',
-        {
-          autoClose: 4000,
-        }
-      );
-
-      return false;
-    }
-
-    return true;
-  };
+  return true;
+};
 
   const handleSubmit = async (
     e: React.FormEvent

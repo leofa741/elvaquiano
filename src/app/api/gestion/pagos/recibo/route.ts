@@ -1,3 +1,4 @@
+// API ruta gestion/pagos/recibo/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongoose';
 import ReciboPago from '@/app/models/ReciboPago';

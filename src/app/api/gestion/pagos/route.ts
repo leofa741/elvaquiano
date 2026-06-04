@@ -4,12 +4,14 @@ import connectDB from '@/app/lib/mongoose';
 import Pago from '@/app/models/Pago';
 import Pedido from '@/app/models/Pedido';
 import Cliente from '@/app/models/Cliente';
+import CuentaCorriente from '@/app/models/CuentaCorriente';
 
 // Registrar modelos (evita errores de populate)
 (() => {
   void Cliente.modelName;
   void Pedido.modelName;
   void Pago.modelName;
+  void CuentaCorriente.modelName;
 })();
 
 connectDB();
@@ -35,6 +37,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'El pedido no pertenece al cliente.' }, { status: 400 });
     }
 
+    // ✅ PASO 1: Crear el registro del pago
     const pago = new Pago({
       cliente: clienteId,
       pedido: pedidoId,
@@ -46,8 +49,18 @@ export async function POST(request: NextRequest) {
 
     const pagoGuardado = await pago.save();
 
-    // Opcional: actualizar estado del pedido (abajo te explico cómo)
-    await actualizarEstadoPagoPorPedido(pedidoId); // ✅ Correcto
+    // ✅ PASO 2: Crear movimiento en CuentaCorriente para actualizar el saldo del cliente
+    await crearMovimientoCuentaCorriente(
+      clienteId,
+      pedidoId,
+      monto,
+      formaPago,
+      pagoGuardado._id.toString(),
+      notas
+    );
+
+    // ✅ PASO 3: Actualizar estado del pedido
+    await actualizarEstadoPagoPorPedido(pedidoId);
 
     return NextResponse.json(pagoGuardado, { status: 201 });
 
@@ -57,7 +70,63 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// app/api/gestion/pagos/route.ts 
+// ✅ NUEVA FUNCIÓN: Crear movimiento en CuentaCorriente
+async function crearMovimientoCuentaCorriente(
+  clienteId: string,
+  pedidoId: string,
+  monto: number,
+  formaPago: string,
+  pagoId: string,
+  notas?: string
+) {
+  try {
+    // ✅ Verificar si ya existe un movimiento con este pagoId (evita duplicados)
+    const yaExiste = await CuentaCorriente.findOne({ 
+      referenciaId: pagoId,
+      tipo: 'pago'
+    });
+    
+    if (yaExiste) {
+      console.log('⚠️ Movimiento ya existe para este pago:', pagoId);
+      return;
+    }
+
+    // Obtener el último movimiento para calcular el saldo anterior
+    const ultimoMovimiento = await CuentaCorriente.findOne({ cliente: clienteId })
+      .sort({ createdAt: -1, _id: -1 })
+      .lean() as any;
+
+    const saldoAnterior = ultimoMovimiento ? (ultimoMovimiento.saldoActual || 0) : 0;
+    const saldoActual = saldoAnterior - monto; // Restamos porque es un pago
+
+    // Crear el movimiento
+    await CuentaCorriente.create({
+      cliente: clienteId,
+      pedido: pedidoId,
+      tipo: 'pago',
+      referenciaId: pagoId, // ✅ Usamos el ID del pago como referencia única
+      descripcion: `Pago recibido - ${formaPago}`,
+      importe: monto,
+      saldoAnterior,
+      saldoActual,
+      formaPago: formaPago,
+      notas: notas || 'Pago desde detalle de pedido'
+    });
+
+    console.log('✅ Movimiento en CuentaCorriente creado:', {
+      clienteId,
+      pedidoId,
+      monto,
+      saldoAnterior,
+      saldoActual,
+      pagoId
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error al crear movimiento en CuentaCorriente:', error);
+    // No lanzamos error para que el pago se registre aunque falle el movimiento
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,7 +157,6 @@ export async function GET(request: NextRequest) {
 }
 
 // Función auxiliar: recalcula el estado del pedido según los pagos
-// 👇 NUEVA FUNCIÓN: solo toca estadoPago
 async function actualizarEstadoPagoPorPedido(pedidoId: string) {
   const pedido = await Pedido.findById(pedidoId);
   if (!pedido) return;
@@ -96,7 +164,6 @@ async function actualizarEstadoPagoPorPedido(pedidoId: string) {
   const pagos = await Pago.find({ pedido: pedidoId });
   const totalPagado = pagos.reduce((sum, p) => sum + p.monto, 0);
 
-  // ✅ Solo actualizamos estadoPago (financiero)
   if (totalPagado >= pedido.total) {
     pedido.estadoPago = 'pagado';
   } else if (totalPagado > 0) {
