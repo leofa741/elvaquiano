@@ -1,5 +1,3 @@
-// Página de detalle de pedido con edición de productos, registro de pagos e importes manuales - src/app/gestion/pedidos/[id]/page.tsx
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -20,7 +18,6 @@ interface Cliente {
   _id: string; razonSocial: string; nombre: string; apellido: string;
   direccion?: string; telefono?: string; tipoCliente?: 'minorista' | 'mayorista';
 }
-
 
 interface Producto {
   _id: string; nombre: string; unidad: string; cantidad: number;
@@ -50,6 +47,8 @@ const ESTADO_PAGO_CONFIG: Record<string, { label: string; color: string; bgColor
   pagado: { label: 'Pagado', color: 'text-green-400', bgColor: 'bg-green-900/30 border-green-700/50' },
 };
 
+
+// ✅ ARRAY DE FORMAS DE PAGO CON CUENTA CORRIENTE INCLUIDA
 const FORMAS_PAGO = [
   { value: 'efectivo', label: 'Efectivo' },
   { value: 'transferencia', label: 'Transferencia' },
@@ -58,6 +57,8 @@ const FORMAS_PAGO = [
   { value: 'cuenta_corriente', label: 'Cuenta Corriente' },
   { value: 'otro', label: 'Otro' },
 ];
+
+
 
 const formatCantidad = (cantidad: number, unidad: string): string => {
   if (unidad === 'kg' || unidad === 'litro') return cantidad.toFixed(3).replace('.', ',');
@@ -75,17 +76,17 @@ export default function DetallePedidoPage() {
   const isAuthorized = useAdminAuthorization();
   const { id } = useParams() as { id?: string };
   const router = useRouter();
-  
+
   const [loading, setLoading] = useState(true);
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [saldoPendiente, setSaldoPendiente] = useState<number | null>(null);
   const [totalPagado, setTotalPagado] = useState<number>(0);
-  
+
   const [editandoProducto, setEditandoProducto] = useState<number | null>(null);
   const [cantidadTemporal, setCantidadTemporal] = useState<number>(1);
   const [precioTemporal, setPrecioTemporal] = useState<number>(0);
   const [actualizarProductoBase, setActualizarProductoBase] = useState<boolean>(false);
-  
+
   const [productosDisponibles, setProductosDisponibles] = useState<ProductoSimple[]>([]);
   const [mostrarAgregar, setMostrarAgregar] = useState(false);
   const [productoSeleccionado, setProductoSeleccionado] = useState<string>('');
@@ -129,7 +130,7 @@ export default function DetallePedidoPage() {
     init();
   }, [isAuthorized, id, router]);
 
-  // ✅ Cargar saldo pendiente y total pagado del pedido
+
   useEffect(() => {
     if (!id || !pedido) return;
     const fetchSaldo = async () => {
@@ -153,7 +154,6 @@ export default function DetallePedidoPage() {
 
   const productosFiltrados = productosDisponibles.filter(p => p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase().trim()));
   const unidadSeleccionada = productoSeleccionado ? productosDisponibles.find(p => p._id === productoSeleccionado)?.unidad : null;
-  const productoSeleccionadoData = productoSeleccionado ? productosDisponibles.find(p => p._id === productoSeleccionado) : null;
 
   const handleCambiarEstado = async (nuevoEstado: string) => {
     const result = await Swal.fire({ title: '¿Cambiar estado?', text: `¿Seguro que deseas cambiar el estado a "${ESTADO_LABEL[nuevoEstado]}"?`, icon: 'question', showCancelButton: true, confirmButtonColor: '#3b82f6', cancelButtonColor: '#6b7280', confirmButtonText: 'Sí, actualizar', cancelButtonText: 'Cancelar' });
@@ -193,14 +193,16 @@ export default function DetallePedidoPage() {
     } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
   };
 
+
+
   const eliminarProducto = async (idx: number, nombre: string) => {
     const result = await Swal.fire({ title: '¿Eliminar producto?', text: `¿Seguro que deseas eliminar "${nombre}" del pedido?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d32f2f', cancelButtonColor: '#6b7280', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
     if (result.isConfirmed) {
       try {
         const res = await fetch(`/api/gestion/pedidos/${id}/producto/${idx}`, { method: 'DELETE' });
-        if (res.ok) { 
-          await fetchPedidoData(); 
-          Swal.fire('¡Eliminado!', 'El producto fue removido del pedido.', 'success'); 
+        if (res.ok) {
+          await fetchPedidoData();
+          Swal.fire('¡Eliminado!', 'El producto fue removido del pedido.', 'success');
         }
         else { Swal.fire('Error', (await res.json()).error || 'No se pudo eliminar', 'error'); }
       } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
@@ -225,74 +227,77 @@ export default function DetallePedidoPage() {
     } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
   };
 
-const handleRegistrarImporteManual = async () => {
-  if (montoImporteManual <= 0) {
-    Swal.fire('Error', 'El monto debe ser mayor a 0', 'error');
-    return;
-  }
 
-  try {
-    // ✅ PASO 1: Agregar concepto al pedido con precio POSITIVO (para el ticket)
-    const resPedido = await fetch(`/api/gestion/pedidos/${id}/producto`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        productoId: CONCEPTO_MANUAL_ID,
-        nombrePersonalizado: `💰 PAGO EN CONCEPTO DE: ${descImporteManual}`,
-        unidadPersonalizada: 'unidad',
-        cantidad: 1,
-        precioPersonalizado: montoImporteManual, // ✅ POSITIVO para sumar al total
-        actualizarProducto: false
-      }),
-    });
-    
-    if (!resPedido.ok) throw new Error('No se pudo agregar el concepto al pedido');
-    
-    // ✅ PASO 2: Registrar como PAGO (para que reste del saldo pendiente)
-    const resPago = await fetch('/api/gestion/pagos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        clienteId: pedido.cliente._id,
-        pedidoId: id,
-        monto: montoImporteManual,
-        formaPago: 'otro',
-        referencia: descImporteManual,
-        notas: descImporteManual
-      }),
-    });
-    
-    if (!resPago.ok) throw new Error('No se pudo registrar el pago');
-    
-    // ✅ Recargar pedido y saldo
-    await fetchPedidoData();
-    const saldoRes = await fetch(`/api/gestion/pedidos/${id}/saldo`, { cache: 'no-store' });
-    if (saldoRes.ok) {
-      const saldoData = await saldoRes.json();
-      setSaldoPendiente(saldoData.saldoPendiente);
-      setTotalPagado(saldoData.totalPagado || 0);
+
+  const handleRegistrarImporteManual = async () => {
+    if (montoImporteManual <= 0) {
+      Swal.fire('Error', 'El monto debe ser mayor a 0', 'error');
+      return;
     }
 
-    Swal.fire({
-      icon: 'success',
-      title: '¡Registrado!',
-      html: `Se agregó el concepto al ticket y se registró el pago de <strong>${formatARS(montoImporteManual)}</strong>`,
-      confirmButtonColor: '#10b981'
-    });
-    
-    setMostrarImporteManual(false);
-    setMontoImporteManual(0);
-    setDescImporteManual('Importe adeudado');
-      
-  } catch (err: any) {
-    Swal.fire('Error', err.message || 'Error de conexión con el servidor', 'error');
-  }
-};
+    try {
+      const resPedido = await fetch(`/api/gestion/pedidos/${id}/producto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productoId: CONCEPTO_MANUAL_ID,
+          nombrePersonalizado: `💰 PAGO EN CONCEPTO DE: ${descImporteManual}`,
+          unidadPersonalizada: 'unidad',
+          cantidad: 1,
+          precioPersonalizado: montoImporteManual,
+          actualizarProducto: false
+        }),
+      });
+
+      if (!resPedido.ok) throw new Error('No se pudo agregar el concepto al pedido');
+
+      const resPago = await fetch('/api/gestion/pagos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clienteId: pedido.cliente._id,
+          pedidoId: id,
+          monto: montoImporteManual,
+          formaPago: 'otro',
+          referencia: descImporteManual,
+          notas: descImporteManual
+        }),
+      });
+
+      if (!resPago.ok) throw new Error('No se pudo registrar el pago');
+
+      await fetchPedidoData();
+      const saldoRes = await fetch(`/api/gestion/pedidos/${id}/saldo`, { cache: 'no-store' });
+      if (saldoRes.ok) {
+        const saldoData = await saldoRes.json();
+        setSaldoPendiente(saldoData.saldoPendiente);
+        setTotalPagado(saldoData.totalPagado || 0);
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: '¡Registrado!',
+        html: `Se agregó el concepto al ticket y se registró el pago de <strong>${formatARS(montoImporteManual)}</strong>`,
+        confirmButtonColor: '#10b981'
+      });
+
+      setMostrarImporteManual(false);
+      setMontoImporteManual(0);
+      setDescImporteManual('Importe adeudado');
+
+    } catch (err: any) {
+      Swal.fire('Error', err.message || 'Error de conexión con el servidor', 'error');
+    }
+  };
+
+
+
   const handleRegistrarPago = async () => {
     const montoDefault = saldoPendiente && saldoPendiente > 0 ? saldoPendiente : pedido.total;
 
     const { value: formValues } = await Swal.fire({
-      title: 'Registrar Pago',
+      title: 'Registrar Pago - Si el pedido esta en Cta. Cte el metodo de pago es cuenta corriente',
+   
       html: `
         <div style="text-align: left; padding: 10px 0;">
           <div style="margin-bottom: 15px; padding: 10px; background: #1f2937; border-radius: 8px; border: 1px solid #374151;">
@@ -368,8 +373,7 @@ const handleRegistrarImporteManual = async () => {
             timer: 3000,
             showConfirmButton: false
           });
-          
-          // ✅ Recargar todo el pedido y saldo
+
           await fetchPedidoData();
           const saldoRes = await fetch(`/api/gestion/pedidos/${id}/saldo`, { cache: 'no-store' });
           if (saldoRes.ok) {
@@ -412,7 +416,6 @@ const handleRegistrarImporteManual = async () => {
           </div>
         </div>
 
-        {/* ✅ ESTADO DE PAGO VISUAL */}
         <div className={`mb-6 p-4 rounded-lg border ${estadoPagoConfig.bgColor}`}>
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
             <div>
@@ -421,19 +424,18 @@ const handleRegistrarImporteManual = async () => {
                 <span className={`text-lg font-bold ${estadoPagoConfig.color}`}>{estadoPagoConfig.label}</span>
               </div>
               <div className="text-sm text-gray-300">
-                Total: <strong className="text-white">{formatARS(pedido.total)}</strong> • 
-                Pagado: <strong className="text-green-400">{formatARS(totalPagado)}</strong> • 
+                Total: <strong className="text-white">{formatARS(pedido.total)}</strong> •
+                Pagado: <strong className="text-green-400">{formatARS(totalPagado)}</strong> •
                 Pendiente: <strong className="text-amber-400">{formatARS(saldoPendiente ?? pedido.total)}</strong>
               </div>
             </div>
             <div className="w-full sm:w-48">
               <div className="text-xs text-gray-400 mb-1">Progreso de pago</div>
               <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
-                <div 
-                  className={`h-full transition-all duration-500 ${
-                    porcentajePagado >= 100 ? 'bg-green-500' : 
-                    porcentajePagado > 0 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
+                <div
+                  className={`h-full transition-all duration-500 ${porcentajePagado >= 100 ? 'bg-green-500' :
+                      porcentajePagado > 0 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}
                   style={{ width: `${porcentajePagado}%` }}
                 ></div>
               </div>
@@ -453,54 +455,52 @@ const handleRegistrarImporteManual = async () => {
           </div>
         </div>
 
-        {/* Sección de Agregar Producto */}
         {['preparacion', 'enviado', 'entregado'].includes(pedido.estado) && (
-           <div className="mb-4">
-             <button onClick={() => setMostrarAgregar(!mostrarAgregar)} className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 text-sm"><FaPlus size={12} /> Agregar producto al pedido</button>
-             {mostrarAgregar && (
-               <div className="mt-3 p-4 bg-gray-750 rounded-lg border border-gray-600">
-                 <div className="mb-3">
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Buscar producto</label>
-                    <div className="relative">
-                      <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                      <input type="text" value={busquedaProducto} onChange={(e) => setBusquedaProducto(e.target.value)} placeholder="Escribe para buscar..." className="w-full pl-10 pr-10 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500" autoFocus />
-                      {busquedaProducto && <button onClick={() => setBusquedaProducto('')} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"><FaTimes size={16} /></button>}
+          <div className="mb-4">
+            <button onClick={() => setMostrarAgregar(!mostrarAgregar)} className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 text-sm"><FaPlus size={12} /> Agregar producto al pedido</button>
+            {mostrarAgregar && (
+              <div className="mt-3 p-4 bg-gray-750 rounded-lg border border-gray-600">
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Buscar producto</label>
+                  <div className="relative">
+                    <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input type="text" value={busquedaProducto} onChange={(e) => setBusquedaProducto(e.target.value)} placeholder="Escribe para buscar..." className="w-full pl-10 pr-10 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500" autoFocus />
+                    {busquedaProducto && <button onClick={() => setBusquedaProducto('')} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"><FaTimes size={16} /></button>}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Producto</label>
+                    <select value={productoSeleccionado} onChange={(e) => {
+                      setProductoSeleccionado(e.target.value);
+                      const prod = productosDisponibles.find(p => p._id === e.target.value);
+                      if (prod) {
+                        setCantidadNuevo(prod.unidad === 'kg' || prod.unidad === 'litro' ? 0.000 : 1);
+                        setPrecioNuevo(prod.precio.oferta && prod.precio.oferta < prod.precio.mayorista ? prod.precio.oferta : prod.precio.mayorista);
+                      }
+                    }} className="w-full bg-gray-700 text-white rounded px-3 py-2 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500" size={Math.min(5, productosFiltrados.length)}>
+                      <option value="">Seleccionar producto...</option>
+                      {productosFiltrados.map((p) => (<option key={p._id} value={p._id}>{p.nombre} ({p.unidad}) - {formatARS(p.precio.oferta && p.precio.oferta < p.precio.mayorista ? p.precio.oferta : p.precio.mayorista)}</option>))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-300 mb-1 flex items-center gap-1"><FaWeightHanging className="text-amber-400" /> Cantidad ({unidadSeleccionada || 'unidad'})</label>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => setCantidadNuevo(Math.max(0.001, parseFloat((cantidadNuevo - (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3))))} className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg">–</button>
+                      <input type="number" step={unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? "0.001" : "1"} min="0.001" value={cantidadNuevo} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setCantidadNuevo(val); }} className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 py-1.5 text-lg font-mono" />
+                      <button onClick={() => setCantidadNuevo(parseFloat((cantidadNuevo + (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3)))} className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg">+</button>
                     </div>
-                 </div>
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">Producto</label>
-                      <select value={productoSeleccionado} onChange={(e) => {
-                        setProductoSeleccionado(e.target.value);
-                        const prod = productosDisponibles.find(p => p._id === e.target.value);
-                        if (prod) {
-                          setCantidadNuevo(prod.unidad === 'kg' || prod.unidad === 'litro' ? 0.000 : 1);
-                          setPrecioNuevo(prod.precio.oferta && prod.precio.oferta < prod.precio.mayorista ? prod.precio.oferta : prod.precio.mayorista);
-                        }
-                      }} className="w-full bg-gray-700 text-white rounded px-3 py-2 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500" size={Math.min(5, productosFiltrados.length)}>
-                        <option value="">Seleccionar producto...</option>
-                        {productosFiltrados.map((p) => (<option key={p._id} value={p._id}>{p.nombre} ({p.unidad}) - {formatARS(p.precio.oferta && p.precio.oferta < p.precio.mayorista ? p.precio.oferta : p.precio.mayorista)}</option>))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-300 mb-1 flex items-center gap-1"><FaWeightHanging className="text-amber-400" /> Cantidad ({unidadSeleccionada || 'unidad'})</label>
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => setCantidadNuevo(Math.max(0.001, parseFloat((cantidadNuevo - (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3))))} className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg">–</button>
-                        <input type="number" step={unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? "0.001" : "1"} min="0.001" value={cantidadNuevo} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setCantidadNuevo(val); }} className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 py-1.5 text-lg font-mono" />
-                        <button onClick={() => setCantidadNuevo(parseFloat((cantidadNuevo + (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3)))} className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg">+</button>
-                      </div>
-                    </div>
-                 </div>
-                 <div className="flex gap-2 justify-end pt-3 border-t border-gray-600">
-                    <button onClick={() => { setMostrarAgregar(false); setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0); setActualizarProductoNuevo(false); setBusquedaProducto(''); }} className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded hover:bg-gray-600 transition">Cancelar</button>
-                    <button onClick={handleAgregarProducto} disabled={!productoSeleccionado || cantidadNuevo <= 0 || precioNuevo <= 0} className={`px-4 py-2 rounded transition ${productoSeleccionado && cantidadNuevo > 0 && precioNuevo > 0 ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}><FaPlus className="inline mr-1" /> Agregar al pedido</button>
-                 </div>
-               </div>
-             )}
-           </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end pt-3 border-t border-gray-600">
+                  <button onClick={() => { setMostrarAgregar(false); setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0); setActualizarProductoNuevo(false); setBusquedaProducto(''); }} className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded hover:bg-gray-600 transition">Cancelar</button>
+                  <button onClick={handleAgregarProducto} disabled={!productoSeleccionado || cantidadNuevo <= 0 || precioNuevo <= 0} className={`px-4 py-2 rounded transition ${productoSeleccionado && cantidadNuevo > 0 && precioNuevo > 0 ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}><FaPlus className="inline mr-1" /> Agregar al pedido</button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
-        {/* Productos */}
         <div className="mb-6">
           <h3 className="text-lg font-medium text-amber-400 mb-3">Productos</h3>
           <div className="space-y-3">
@@ -560,7 +560,6 @@ const handleRegistrarImporteManual = async () => {
           </div>
         </div>
 
-        {/* ✅ BOTÓN REGISTRAR PAGO DESTACADO */}
         {pedido.estadoPago !== 'pagado' && (
           <div className="mt-6 p-4 bg-gradient-to-r from-emerald-900/30 to-green-900/30 rounded-lg border border-emerald-700/50">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -568,8 +567,8 @@ const handleRegistrarImporteManual = async () => {
                 <div className="text-sm text-gray-300 mb-1">Hacer el pago del pedido:</div>
                 <div className="text-3xl font-bold text-emerald-400">{formatARS(saldoPendiente ?? pedido.total)}</div>
               </div>
-              <button 
-                onClick={handleRegistrarPago} 
+              <button
+                onClick={handleRegistrarPago}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2 transition shadow-lg shadow-emerald-900/30"
               >
                 <FaMoneyBillWave /> Registrar Pago
@@ -578,9 +577,8 @@ const handleRegistrarImporteManual = async () => {
           </div>
         )}
 
-        {/* ✅ INGRESO DE IMPORTE MANUAL */}
         <div className="mt-6 p-4 bg-gray-750 rounded-lg border border-gray-700">
-          <span className="text-sm font-medium text-amber-400 mb-2 flex items-center gap-2"><FaDollarSign /> Ingreso de importe al ticket en concepto de: </span> 
+          <span className="text-sm font-medium text-amber-400 mb-2 flex items-center gap-2"><FaDollarSign /> Ingreso de importe al ticket en concepto de: </span>
           <button
             onClick={() => setMostrarImporteManual(!mostrarImporteManual)}
             className="w-full flex items-center justify-between p-3 rounded-lg border bg-blue-900/20 hover:bg-blue-900/30 border-blue-700/50 transition group text-left cursor-pointer mt-2"
@@ -588,7 +586,7 @@ const handleRegistrarImporteManual = async () => {
             <div className="flex items-center gap-2">
               <FaDollarSign className="text-blue-400" />
               <span className="font-semibold text-sm text-blue-300 group-hover:text-blue-200">
-                Agregar Importe 
+                Agregar Importe
               </span>
             </div>
             <span className="text-xs font-bold text-blue-400 flex items-center gap-1">
@@ -599,10 +597,10 @@ const handleRegistrarImporteManual = async () => {
           {mostrarImporteManual && (
             <div className="p-4 bg-gray-800 rounded-lg border border-blue-900/50 space-y-3 mt-3">
               <div className="flex items-center gap-2 text-blue-400 mb-1">
-                <FaDollarSign /> 
+                <FaDollarSign />
                 <span className="font-semibold text-sm">Ingresar importe</span>
               </div>
-              
+
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1">Descripción del concepto</label>
                 <input
@@ -613,7 +611,7 @@ const handleRegistrarImporteManual = async () => {
                   placeholder="Ej. Cargo adicional, servicio extra"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1">Importe a agregar ($)</label>
                 <input

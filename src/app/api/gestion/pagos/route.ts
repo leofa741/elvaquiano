@@ -1,4 +1,3 @@
-// app/api/gestion/pagos/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongoose';
 import Pago from '@/app/models/Pago';
@@ -20,6 +19,25 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { clienteId, pedidoId, monto, formaPago, referencia, notas } = body;
+
+     // ✅ AGREGAR ESTOS LOGS INMEDIATAMENTE:
+    console.log('═══════════════════════════════════════');
+    console.log('🔍 [DEBUG] VALORES RECIBIDOS:');
+    console.log('  formaPago:', JSON.stringify(formaPago));
+    console.log('  tipo:', typeof formaPago);
+    console.log('  longitud:', formaPago?.length);
+    console.log('  comparación directa:', formaPago === 'cuenta_corriente');
+    console.log('  comparación con trim:', formaPago?.trim() === 'cuenta_corriente');
+    console.log('═══════════════════════════════════════');
+
+    console.log('💰 [POST /api/gestion/pagos] Datos recibidos:', {
+      clienteId,
+      pedidoId,
+      monto,
+      formaPago,
+      referencia,
+      notas
+    });
 
     if (!clienteId || !pedidoId || !monto || !formaPago) {
       return NextResponse.json(
@@ -48,16 +66,22 @@ export async function POST(request: NextRequest) {
     });
 
     const pagoGuardado = await pago.save();
+    console.log('✅ [PASO 1] Pago creado:', pagoGuardado._id);
 
-    // ✅ PASO 2: Crear movimiento en CuentaCorriente para actualizar el saldo del cliente
-    await crearMovimientoCuentaCorriente(
-      clienteId,
-      pedidoId,
-      monto,
-      formaPago,
-      pagoGuardado._id.toString(),
-      notas
-    );
+    // ✅ PASO 2: SOLO crear movimiento en CuentaCorriente si la forma de pago es "cuenta_corriente"
+    if (formaPago === 'cuenta_corriente') {
+      console.log('💳 [PASO 2] Forma de pago es cuenta_corriente, creando movimiento en CC...');
+      await crearMovimientoCuentaCorriente(
+        clienteId,
+        pedidoId,
+        monto,
+        formaPago,
+        pagoGuardado._id.toString(),
+        notas
+      );
+    } else {
+      console.log(`💰 [PASO 2] Forma de pago es ${formaPago}, NO se afecta cuenta corriente`);
+    }
 
     // ✅ PASO 3: Actualizar estado del pedido
     await actualizarEstadoPagoPorPedido(pedidoId);
@@ -65,12 +89,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(pagoGuardado, { status: 201 });
 
   } catch (error: any) {
-    console.error('Error al registrar pago:', error);
+    console.error('❌ Error al registrar pago:', error);
     return NextResponse.json({ error: 'Error al registrar el pago.' }, { status: 500 });
   }
 }
 
-// ✅ NUEVA FUNCIÓN: Crear movimiento en CuentaCorriente
+// ✅ FUNCIÓN: Crear movimiento en CuentaCorriente (solo para pagos con cuenta_corriente)
 async function crearMovimientoCuentaCorriente(
   clienteId: string,
   pedidoId: string,
@@ -80,6 +104,14 @@ async function crearMovimientoCuentaCorriente(
   notas?: string
 ) {
   try {
+    console.log('🔍 [crearMovimientoCuentaCorriente] Iniciando...', {
+      clienteId,
+      pedidoId,
+      monto,
+      formaPago,
+      pagoId
+    });
+
     // ✅ Verificar si ya existe un movimiento con este pagoId (evita duplicados)
     const yaExiste = await CuentaCorriente.findOne({ 
       referenciaId: pagoId,
@@ -99,8 +131,14 @@ async function crearMovimientoCuentaCorriente(
     const saldoAnterior = ultimoMovimiento ? (ultimoMovimiento.saldoActual || 0) : 0;
     const saldoActual = saldoAnterior - monto; // Restamos porque es un pago
 
+    console.log('📊 [crearMovimientoCuentaCorriente] Saldos calculados:', {
+      saldoAnterior,
+      monto,
+      saldoActual
+    });
+
     // Crear el movimiento
-    await CuentaCorriente.create({
+    const nuevoMovimiento = await CuentaCorriente.create({
       cliente: clienteId,
       pedido: pedidoId,
       tipo: 'pago',
@@ -113,7 +151,8 @@ async function crearMovimientoCuentaCorriente(
       notas: notas || 'Pago desde detalle de pedido'
     });
 
-    console.log('✅ Movimiento en CuentaCorriente creado:', {
+    console.log('✅ [crearMovimientoCuentaCorriente] Movimiento creado exitosamente:', {
+      _id: nuevoMovimiento._id,
       clienteId,
       pedidoId,
       monto,
@@ -124,6 +163,7 @@ async function crearMovimientoCuentaCorriente(
 
   } catch (error: any) {
     console.error('❌ Error al crear movimiento en CuentaCorriente:', error);
+    console.error('❌ Stack trace:', error.stack);
     // No lanzamos error para que el pago se registre aunque falle el movimiento
   }
 }

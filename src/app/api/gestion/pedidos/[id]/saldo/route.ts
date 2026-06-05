@@ -44,20 +44,22 @@ export async function GET(req: NextRequest, { params }: any) {
       pedido: new mongoose.Types.ObjectId(id)
     }).sort({ fechaPago: 1 }).lean() as any[];
 
-    const totalPagadoDirecto = pagosDirectos.reduce((sum, p) => sum + (Number(p.monto) || 0), 0);
-
     // ✅ Buscar movimientos de cuenta corriente vinculados al pedido
     const movimientosCC = await CuentaCorriente.find({
       pedido: new mongoose.Types.ObjectId(id),
       tipo: 'pago'
     }).sort({ createdAt: 1 }).lean() as any[];
 
+    // ✅ CORRECCIÓN CLAVE: Calcular total pagado correctamente
+    // 1. Sumar pagos directos que NO son cuenta_corriente
+    const pagosNoCC = pagosDirectos.filter(p => p.formaPago !== 'cuenta_corriente');
+    const totalPagadoNoCC = pagosNoCC.reduce((sum, p) => sum + (Number(p.monto) || 0), 0);
+
+    // 2. Sumar movimientos de cuenta corriente
     const totalPagadoCC = movimientosCC.reduce((sum, mov) => sum + (Number(mov.importe) || 0), 0);
 
-    // ✅ CORRECCIÓN CLAVE: Usar Math.max para evitar duplicados
-    // Como el mismo pago se registra en AMBAS tablas (Pago y CuentaCorriente),
-    // tomamos el mayor valor en lugar de sumar ambos
-    const totalPagado = Math.max(totalPagadoDirecto, totalPagadoCC);
+    // 3. Total pagado = pagos normales + pagos con cuenta corriente
+    const totalPagado = totalPagadoNoCC + totalPagadoCC;
     
     // ✅ SALDO PENDIENTE = Total completo del pedido - Total pagado
     const saldoPendiente = Math.max(0, totalPedidoCompleto - totalPagado);
@@ -65,7 +67,7 @@ export async function GET(req: NextRequest, { params }: any) {
     console.log('📊 [Saldo del pedido]', {
       pedidoId: id,
       totalPedidoCompleto,
-      totalPagadoDirecto,
+      totalPagadoNoCC,
       totalPagadoCC,
       totalPagadoFinal: totalPagado,
       saldoPendiente
@@ -77,7 +79,7 @@ export async function GET(req: NextRequest, { params }: any) {
       totalPedido: totalProductosReales,
       totalPedidoCompleto,
       totalConceptosPago,
-      totalPagadoDirecto,
+      totalPagadoNoCC,
       totalPagadoCC,
       movimientos: movimientosCC,
       pagos: pagosDirectos
