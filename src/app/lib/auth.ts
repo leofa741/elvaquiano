@@ -20,6 +20,7 @@ export interface DecodedToken {
   role: string;
 }
 
+
 type ExtendedUser = {
   id: string;
   email: string;

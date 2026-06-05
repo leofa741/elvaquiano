@@ -72,7 +72,19 @@ const modules = [
         description: 'Ver historial de inicios de sesión de usuarios.',
         icon: <FaFileInvoice className="text-3xl text-amber-400" />,
         href: '/gestion/logs',
-    }
+    },
+       {
+        id: 'logsStock',
+        title: 'Auditoria de Stock',
+        description: 'Ver historial de cambios en el inventario.',
+        icon: <FaFileInvoice className="text-3xl text-amber-400" />,
+        href: '/gestion/logs/stock',
+    },
+
+
+
+
+
 ];
 
 export default function GestiónPage() {

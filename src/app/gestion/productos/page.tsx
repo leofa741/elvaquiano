@@ -1,3 +1,4 @@
+// / 🚀 Página principal de gestión de productos /gestion/productos
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
@@ -17,6 +18,7 @@ interface Proveedor {
   telefono?: string;
   email?: string;
 }
+
 
 interface Product {
   _id: string;
@@ -130,6 +132,10 @@ function PageContent() {
     return () => clearTimeout(handler);
   }, [internalSearch]);
 
+
+   /* =========================
+      Pagination 
+  ========================= */
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -183,6 +189,8 @@ function PageContent() {
     };
     validateAccess();
   }, [status, session, router]);
+
+
 
   // 📥 Cargar productos PAGINADOS (para la tabla principal)
   const loadPaginatedProducts = async () => {
@@ -279,7 +287,6 @@ function PageContent() {
      Delete 
   ========================= */
 
-
   const deleteProduct = async (id: string) => {
     Swal.fire({
       title: '¿Estás seguro?',
@@ -311,7 +318,6 @@ function PageContent() {
   /* =========================
    Formatear cantidad unidad
 ========================= */
-
   function formatCantidadUnidad(cantidad: number, unidad: string): string {
     if (unidad === 'kg') {
       if (cantidad >= 1) return `${cantidad} kg`;
@@ -371,8 +377,9 @@ function PageContent() {
   };
 
 
-  // ===============================
-
+    /* =========================
+    Resetear stock a cantidad personalizada
+  ========================= */
 
   const resetStockToZero = async (product: Product) => {
     Swal.fire({
@@ -437,7 +444,9 @@ function PageContent() {
     });
   };
 
-  //    custom reset stock
+    /* =========================
+    Resetear stock a cantidad personalizada (modal con input)
+  ========================= */
 
   // ✅ Opción personalizada: Resetear stock a una cantidad definida por el admin
   const resetStockToCustom = async (product: Product) => {
@@ -575,6 +584,8 @@ function PageContent() {
       toast.error('Error de conexión con el servidor. Intentá nuevamente.');
     }
   };
+
+
 
   return (
     <>

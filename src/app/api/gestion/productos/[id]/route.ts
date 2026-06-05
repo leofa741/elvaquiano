@@ -1,12 +1,13 @@
 // app/api/gestion/productos/[id]/route.ts
 import connectDB from '@/app/lib/mongoose';
 import Product from '@/app/models/Product';
-import Presupuesto from '@/app/models/Presupuesto'; // ✅ AGREGAR ESTA LÍNEA
+import Presupuesto from '@/app/models/Presupuesto';
 import { authOptions } from '@/app/lib/auth';
 import { getServerSession } from 'next-auth/next';
 import { NextRequest, NextResponse } from 'next/server';
 import { notifyProducts } from '../events/productsNotifier';
 import { normalizeProduct } from '../events/productsNotifier';
+import LogStockModel from '@/app/models/LogStock'; // ✅ NUEVO
 
 connectDB();
 
@@ -57,7 +58,14 @@ export async function PUT(
     return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
   }
 
-  // ✅ 3. Determinar si es actualización parcial
+  // ✅ 3. Capturar stock ANTES del cambio (para auditoría)
+  const stockAnterior = productoExistente.stock.map((s: { deposito: string; cantidad: number }) => ({
+    deposito: s.deposito,
+    cantidad: s.cantidad
+  }));
+  const stockTotalAnterior = stockAnterior.reduce((sum : number, s: { deposito: string; cantidad: number }) => sum + s.cantidad, 0);
+
+  // ✅ 4. Determinar si es actualización parcial
   const camposFormularioCompleto = ['nombre', 'categoria', 'precioLista', 'precioMayorista', 'stock'];
   const esParcial = !camposFormularioCompleto.every(campo => campo in body);
 
@@ -191,6 +199,51 @@ export async function PUT(
 
     if (!productoActualizado) {
       return NextResponse.json({ error: 'No se pudo actualizar el producto' }, { status: 500 });
+    }
+
+    // ✅ NUEVO: Registrar cambio de stock en bitácora
+    if ('stock' in body) {
+      const stockNuevo = productoActualizado.stock.map((s: { deposito: string; cantidad: number }) => ({
+        deposito: s.deposito,
+        cantidad: s.cantidad
+      }));
+      const stockTotalNuevo = stockNuevo.reduce((sum : number, s: { deposito: string; cantidad: number }) => sum + s.cantidad, 0);
+
+      // Determinar tipo de acción
+      let accion = 'otro';
+      if (stockTotalNuevo === 0 && stockTotalAnterior > 0) {
+        accion = 'resetear_cero';
+      } else if (stockTotalAnterior !== stockTotalNuevo) {
+        // Verificar si todos los depósitos tienen la misma cantidad (cantidad personalizada)
+        const cantidadesUnicas: number[] = Array.from(
+          new Set<number>(stockNuevo.map((s: { deposito: string; cantidad: number }) => s.cantidad))
+        );
+        if (cantidadesUnicas.length === 1 && cantidadesUnicas[0] > 0) {
+          accion = 'cantidad_personalizada';
+        } else {
+          accion = 'edicion_manual';
+        }
+      }
+
+      // Solo registrar si hubo cambio real en el stock
+      if (JSON.stringify(stockAnterior) !== JSON.stringify(stockNuevo)) {
+        try {
+          await LogStockModel.create({
+            usuario: session.user.email,
+            productoId: productoActualizado._id.toString(),
+            productoNombre: productoActualizado.nombre,
+            stockAnterior,
+            stockNuevo,
+            stockTotalAnterior,
+            stockTotalNuevo,
+            accion
+          });
+          console.log(`📝 Log de stock registrado: ${accion} por ${session.user.email}`);
+        } catch (logError) {
+          console.error('⚠️ Error al registrar log de stock:', logError);
+          // No bloqueamos la respuesta si falla el log
+        }
+      }
     }
 
     // ✅ NUEVO: Actualizar precios en presupuestos existentes
