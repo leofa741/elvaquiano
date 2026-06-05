@@ -98,6 +98,7 @@ export default function DetallePedidoPage() {
   const [mostrarImporteManual, setMostrarImporteManual] = useState(false);
   const [montoImporteManual, setMontoImporteManual] = useState<number>(0);
   const [descImporteManual, setDescImporteManual] = useState<string>('Importe adeudado');
+  const [formaPagoImporteManual, setFormaPagoImporteManual] = useState<string>('otro');
 
   const fetchProductos = async () => {
     const res = await fetch('/api/gestion/productos/lista-simple');
@@ -251,6 +252,7 @@ export default function DetallePedidoPage() {
 
       if (!resPedido.ok) throw new Error('No se pudo agregar el concepto al pedido');
 
+      // ✅ AHORA USA LA FORMA DE PAGO SELECCIONADA
       const resPago = await fetch('/api/gestion/pagos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -258,7 +260,7 @@ export default function DetallePedidoPage() {
           clienteId: pedido.cliente._id,
           pedidoId: id,
           monto: montoImporteManual,
-          formaPago: 'otro',
+          formaPago: formaPagoImporteManual, // ← CAMBIO CLAVE: usa la forma seleccionada
           referencia: descImporteManual,
           notas: descImporteManual
         }),
@@ -274,16 +276,19 @@ export default function DetallePedidoPage() {
         setTotalPagado(saldoData.totalPagado || 0);
       }
 
+      const formaPagoLabel = FORMAS_PAGO.find(f => f.value === formaPagoImporteManual)?.label || formaPagoImporteManual;
+
       Swal.fire({
         icon: 'success',
         title: '¡Registrado!',
-        html: `Se agregó el concepto al ticket y se registró el pago de <strong>${formatARS(montoImporteManual)}</strong>`,
+        html: `Se agregó el concepto al ticket y se registró el pago de <strong>${formatARS(montoImporteManual)}</strong><br/><small>Forma de pago: ${formaPagoLabel}</small>`,
         confirmButtonColor: '#10b981'
       });
 
       setMostrarImporteManual(false);
       setMontoImporteManual(0);
       setDescImporteManual('Importe adeudado');
+      setFormaPagoImporteManual('otro'); // Resetear al valor por defecto
 
     } catch (err: any) {
       Swal.fire('Error', err.message || 'Error de conexión con el servidor', 'error');
@@ -297,7 +302,7 @@ export default function DetallePedidoPage() {
 
     const { value: formValues } = await Swal.fire({
       title: 'Registrar Pago - Si el pedido esta en Cta. Cte el metodo de pago es cuenta corriente',
-   
+
       html: `
         <div style="text-align: left; padding: 10px 0;">
           <div style="margin-bottom: 15px; padding: 10px; background: #1f2937; border-radius: 8px; border: 1px solid #374151;">
@@ -434,7 +439,7 @@ export default function DetallePedidoPage() {
               <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
                 <div
                   className={`h-full transition-all duration-500 ${porcentajePagado >= 100 ? 'bg-green-500' :
-                      porcentajePagado > 0 ? 'bg-yellow-500' : 'bg-red-500'
+                    porcentajePagado > 0 ? 'bg-yellow-500' : 'bg-red-500'
                     }`}
                   style={{ width: `${porcentajePagado}%` }}
                 ></div>
@@ -625,6 +630,22 @@ export default function DetallePedidoPage() {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">Forma de pago *</label>
+                <select
+                  value={formaPagoImporteManual}
+                  onChange={(e) => setFormaPagoImporteManual(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  {FORMAS_PAGO.map(f => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  💡 Si seleccionás "Cuenta Corriente", se descontará del saldo del cliente
+                </p>
+              </div>
+
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={handleRegistrarImporteManual}
@@ -638,6 +659,7 @@ export default function DetallePedidoPage() {
                     setMostrarImporteManual(false);
                     setMontoImporteManual(0);
                     setDescImporteManual('Importe adeudado');
+                    setFormaPagoImporteManual('otro');
                   }}
                   className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded text-sm transition"
                 >
