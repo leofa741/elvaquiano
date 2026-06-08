@@ -4,7 +4,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation'; // 👈 IMPORTANTE para App Router
 
-const CartContext = createContext<any>(null);
+const CartContext = createContext<any>(null); // Puedes definir una interfaz más específica para el contexto si lo deseas
 
 export function CartProvider({ children }: any) {
   const [cart, setCart] = useState<any[]>([]);
@@ -53,13 +53,13 @@ export function CartProvider({ children }: any) {
   // 4️⃣ Escuchar evento 'storage' para sincronización entre pestañas
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'cart') {
         loadCartFromStorage();
       }
     };
-    
+
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [isLoaded]);
@@ -67,11 +67,11 @@ export function CartProvider({ children }: any) {
   // 5️⃣ 🔥 Bonus: Actualizar cuando el usuario regresa a la pestaña (focus)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     const handleFocus = () => {
       loadCartFromStorage();
     };
-    
+
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [isLoaded]);
@@ -79,25 +79,25 @@ export function CartProvider({ children }: any) {
   // 🔹 Función helper para notificaciones de stock (tu código original)
   const showStockNotification = (message: string, type: 'warning' | 'info' = 'warning') => {
     const toast = document.createElement('div');
-    toast.className = `fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 rounded-lg shadow-lg text-sm font-medium animate-fade-in ${
-      type === 'warning' 
-        ? 'bg-amber-500 text-white' 
+    toast.className = `fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 rounded-lg shadow-lg text-sm font-medium animate-fade-in ${type === 'warning'
+        ? 'bg-amber-500 text-white'
         : 'bg-blue-500 text-white'
-    }`;
+      }`;
     toast.textContent = message;
     document.body.appendChild(toast);
-    
+
     requestAnimationFrame(() => {
       toast.style.opacity = '1';
       toast.style.transform = 'translate(-50%, 0)';
     });
-    
+
     setTimeout(() => {
       toast.style.opacity = '0';
       toast.style.transform = 'translate(-50%, 20px)';
       setTimeout(() => toast.remove(), 300);
     }, 3000);
   };
+
 
   // 🔹 AGREGAR AL CARRITO (tu lógica original, sin cambios)
   const addToCart = (product: any, qtyToAdd: number = 1) => {
@@ -158,12 +158,12 @@ export function CartProvider({ children }: any) {
   const updateQty = (id: string, newQty: number, stockMax: number) => {
     // Validar y limitar la cantidad
     const finalQty = Math.max(1, Math.min(newQty, stockMax));
-    
+
     setCart(prev => {
       // Si el producto existe, actualizamos su cantidad
       const exists = prev.some(p => p._id === id);
       if (exists) {
-        return prev.map(p => 
+        return prev.map(p =>
           p._id === id ? { ...p, qty: finalQty } : p
         );
       }

@@ -12,7 +12,7 @@ import {
 import Swal from 'sweetalert2';
 import { formatARS } from '@/app/lib/formatcurrenci';
 
-const CONCEPTO_MANUAL_ID = '000000000000000000000000';
+const CONCEPTO_MANUAL_ID = '000000000000000000000000';// ID fijo para identificar productos agregados manualmente como conceptos de pago o ajustes, no corresponde a un producto real en la base de datos
 
 interface Cliente {
   _id: string; razonSocial: string; nombre: string; apellido: string;
@@ -124,8 +124,9 @@ export default function DetallePedidoPage() {
     }
   };
 
+  
   useEffect(() => {
-    if (!isAuthorized || !id) return;
+    if (!isAuthorized || !id) return;  // Verificamos autorización y existencia de ID antes de intentar cargar datos
     const init = async () => {
       await fetchPedidoData();
       setLoading(false);
@@ -134,7 +135,7 @@ export default function DetallePedidoPage() {
   }, [isAuthorized, id, router]);
 
 
-  useEffect(() => {
+  useEffect(() => {  //
     if (!id || !pedido) return;
     const fetchSaldo = async () => {
       try {

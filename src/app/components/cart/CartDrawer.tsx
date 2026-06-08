@@ -12,7 +12,7 @@ const NUMERO_RECEPCIONISTA = '5492224492051';
 // ⏱️ TIEMPO DE BLOQUEO PARA PREVENIR DUPLICADOS (3 minutos)
 const DUPLICATE_BLOCK_TIME = 3 * 60 * 1000;
 
-export default function CartDrawer() {
+export default function CartDrawer() { // Componente principal del carrito, ahora con lógica completa de manejo de pedidos, validaciones y conexión a WhatsApp
   const { cart, removeFromCart, incrementQty, decrementQty, clearCart, updateQty } = useCart();
   const [isMobile, setIsMobile] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -27,7 +27,7 @@ export default function CartDrawer() {
   const [editingQtyId, setEditingQtyId] = useState<string | null>(null);
   const [manualQtyInput, setManualQtyInput] = useState<string>('');
 
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : ''; // Para detectar cambios de ruta y sincronizar el carrito
 
   useEffect(() => {
     if (typeof window !== 'undefined') {

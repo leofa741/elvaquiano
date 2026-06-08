@@ -20,7 +20,6 @@ interface Proveedor {
 }
 
 
-
 interface Product {
   _id: string;
   nombre: string;
@@ -47,6 +46,7 @@ interface ProductResponse {
   totalPages: number;
 }
 
+// Suspense para manejar carga de datos y mostrar un fallback mientras se cargan los productos
 export default function ProductosPage() {
   return (
     <Suspense fallback={<div className="text-gray-400">Cargando...</div>}>
@@ -54,6 +54,7 @@ export default function ProductosPage() {
     </Suspense>
   );
 }
+
 
 function PageContent() {
   const searchParams = useSearchParams();
@@ -283,6 +284,9 @@ function PageContent() {
     return `${pathname}?${params.toString()}`;
   };
 
+
+
+
   /* =========================
      Delete 
   ========================= */
@@ -315,6 +319,9 @@ function PageContent() {
     });
   };
 
+
+
+
   /* =========================
    Formatear cantidad unidad
 ========================= */
@@ -342,6 +349,9 @@ function PageContent() {
     }
     return product.stock || 0;
   };
+
+
+
 
   /* =========================
    Llevar stock a cero
@@ -371,6 +381,9 @@ function PageContent() {
       setLoadingProveedores(false);
     }
   };
+
+
+
 
 
   /* =========================
@@ -439,6 +452,9 @@ function PageContent() {
       }
     });
   };
+
+
+
 
   /* =========================
   Resetear stock a cantidad personalizada (modal con input)
@@ -582,6 +598,7 @@ function PageContent() {
 
 
 
+
   return (
     <>
       <div className="p-4 sm:p-6 md:p-8">
@@ -708,6 +725,8 @@ function PageContent() {
                                 : '0'}
                             </div>
                           </td>
+
+
                           <td className="py-3 px-4">
                             <div className="text-amber-400 font-medium">
                               {(formatARS(product.precioMayorista))}
@@ -727,6 +746,8 @@ function PageContent() {
                               <div className="text-xs text-gray-600 italic mt-1">Sin stock</div>
                             )}
                           </td>
+                          {/* // Aquí se muestra el precio de oferta con lógica para mostrar "Sin oferta" si no hay descuento, y cálculos de ingreso total y ganancia potencial basados en precioOferta */}
+
                           <td className="py-3 px-4">
                             {/* Precio de venta / Oferta */}
                             <div className="flex items-baseline gap-1">
@@ -759,7 +780,7 @@ function PageContent() {
                               <div className="text-xs text-gray-600 italic mt-2">Sin stock</div>
                             )}
                           </td>
-
+                          {/* // Aquí se muestra el stock total con alerta visual si está por debajo del mínimo */}
                           <td className="py-3 px-4">
                             {/* STOCK TOTAL */}
                             <div
@@ -887,6 +908,7 @@ function PageContent() {
                             </label>
                           </td>
 
+                          {/* // Proveedor y datos relacionados */}
 
                           <td className="py-3 px-4 text-gray-300">
                             {product.proveedor?.nombre || (
@@ -902,6 +924,7 @@ function PageContent() {
                             )}
                           </td>
 
+                          {/* // ACCIONES: Editar, Borrar, Asignar Proveedor */}
 
                           <td className="py-3 px-4 flex gap-2">
                             <div className="relative group">
@@ -950,15 +973,7 @@ function PageContent() {
                                 Proveedor
                               </span>
                             </div>
-
-
-
-
-
-
                           </td>
-
-
                         </tr>
                       );
                     })}
@@ -1023,6 +1038,8 @@ function PageContent() {
               </div>
             )}
 
+
+
             {/* ✅ Paginación SOLO si no hay búsqueda activa */}
             {!internalSearch.trim() && pagination.totalPages > 1 && (
               <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
@@ -1047,13 +1064,12 @@ function PageContent() {
                 </div>
               </div>
             )}
-
-
-
-
           </>
         ) : null}
       </div>
+
+
+
 
       {/* 👇 MODAL DE PROVEEDOR */}
       {showProveedorModal && selectedProductForProveedor && (
@@ -1095,6 +1111,8 @@ function PageContent() {
                     ))}
                   </select>
                 </div>
+
+
                 {/* O crear nuevo */}
                 <div className="mb-4">
                   <label className="block text-sm text-gray-300 mb-1">
@@ -1128,8 +1146,13 @@ function PageContent() {
                     className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white"
                   />
                 </div>
+
+
+
                 {/* Botones */}
                 <div className="flex gap-3 justify-end mt-4">
+
+                  {/* // El botón de cancelar resetea el formulario y cierra el modal */}
                   <button
                     onClick={() => {
                       resetProveedorForm();
@@ -1139,6 +1162,10 @@ function PageContent() {
                   >
                     Cancelar
                   </button>
+
+
+
+                  {/* // El botón de guardar maneja tanto creación como edición de proveedor, y luego asigna al producto */}
                   <button
                     onClick={async () => {
                       let proveedorIdToAssign = selectedProveedorId;

@@ -47,7 +47,7 @@ interface Pedido {
 }
 
 /* =======================
-   CONFIG ESTADOS
+   CONFIG ESTADOS PARA MANEJO DE CLASES Y LABELS
 ======================= */
 const ESTADO_CONFIG: Record<
   Pedido['estado'],
@@ -59,6 +59,10 @@ const ESTADO_CONFIG: Record<
   entregado: { label: 'Entregado', color: 'bg-green-600', text: 'text-white' },
   cancelado: { label: 'Cancelado', color: 'bg-red-600', text: 'text-white' },
 };
+
+/* ============== =========
+   COMPONENTE PEDIDOS
+======================= */
 
 const ESTADO_PAGO_CONFIG: Record<
   'pendiente' | 'parcial' | 'pagado',

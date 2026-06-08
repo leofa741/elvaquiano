@@ -4,13 +4,14 @@
 import Image from 'next/image';
 import { formatARS } from '@/app/lib/formatcurrenci';
 
-export default function ProductCard({ product, onAdd }: any) {
+export default function ProductCard({ product, onAdd }: any) { // Recibimos la función onAdd como prop para manejar el evento de agregar al carrito
+
   const cantidadUnidadText = `${product.cantidadUnidad} ${product.unidad}`;
 
   const stockTotal = product.stock.reduce(
     (acc: number, s: any) => acc + s.cantidad,
     0
-  );  
+  );
 
   const hasOffer =
     product.precioOferta &&
@@ -67,7 +68,7 @@ export default function ProductCard({ product, onAdd }: any) {
           src={imageSrc}
           alt={product.nombre || 'Producto'}
           width={150}
-          height={150}       
+          height={150}
           className="object-contain p-2"
           unoptimized
         />

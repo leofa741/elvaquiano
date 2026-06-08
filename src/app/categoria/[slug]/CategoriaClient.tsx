@@ -2,10 +2,10 @@
 'use client';
 
 import ProductCard from '@/app/components/productcard/ProductCard';
-import { useCart } from '@/app/context/CartContext';
+import { useCart } from '@/app/context/CartContext'; // Importamos el hook useCart para acceder a la función addToCart
 
 export default function CategoriaClient({ productos }: any) {
-  const { addToCart } = useCart();
+  const { addToCart } = useCart();  // Obtenemos la función addToCart del contexto -> import { useCart } from '@/app/context/CartContext';
 
   return (
     <div className="px-4 py-2">
@@ -14,7 +14,7 @@ export default function CategoriaClient({ productos }: any) {
           <ProductCard
             key={prod._id}
             product={prod}
-            onAdd={addToCart}
+            onAdd={addToCart}  //  Pasamos la función addToCart al ProductCard
           />
         ))}
       </div>
