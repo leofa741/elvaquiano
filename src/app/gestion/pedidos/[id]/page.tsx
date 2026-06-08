@@ -35,6 +35,8 @@ interface Pedido {
   deposito: string; fechaEstimadaEntrega?: string; notas?: string; total: number; createdAt: string;
 }
 
+
+
 const ESTADO_LABEL: Record<string, string> = {
   pendiente: 'Pendiente', preparacion: 'En preparación', enviado: 'Enviado',
   entregado: 'Entregado', cancelado: 'Cancelado',

@@ -18,6 +18,7 @@ const normalizeText = (text: string): string => {
     .replace(/[^a-z0-9]/g, '');
 };
 
+
 const normalizeTelefono = (text: string): string => {
   if (!text) return '';
   return text
@@ -26,20 +27,6 @@ const normalizeTelefono = (text: string): string => {
     .replace(/[^0-9+]/g, '');
 };
 
-async function reservarStockOnline(productos: any[]) {
-  for (const item of productos) {
-    const producto = await Producto.findById(item.producto);
-    if (!producto) continue;
-
-    producto.stockReservado = (producto.stockReservado || 0) + item.cantidad;
-    await producto.save();
-
-    notifyProducts({
-      type: 'stock_reservado',
-      data: producto,
-    });
-  }
-}
 
 export async function POST(req: Request) {
   try {
@@ -161,9 +148,7 @@ export async function POST(req: Request) {
       origen: 'online',
     });
 
-    // ✅ Reservar stock
-    await reservarStockOnline(productos);
-
+ 
     return NextResponse.json({
       _id: presupuesto._id,
       total,

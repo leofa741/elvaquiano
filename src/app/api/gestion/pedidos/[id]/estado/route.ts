@@ -1,3 +1,5 @@
+// Ruta para actualizar el estado de un pedido (pendiente, preparación, enviado, entregado, cancelado)
+
 import { NextRequest, NextResponse } from 'next/server';
 import Pedido from '@/app/models/Pedido';
 import Producto from '@/app/models/Product';
@@ -6,42 +8,6 @@ import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClie
 import { notifyProducts } from '../../../productos/events/productsNotifier';
 
 connectDB();
-
-/* =====================================
-   STOCK RESERVADO (solo online)
-===================================== */
-async function procesarStockReservado(
-  pedido: any,
-  accion: 'liberar' | 'descontar'
-) {
-  if (pedido.origen !== 'online') return;
-
-  for (const item of pedido.productos) {
-    const producto = await Producto.findById(item.producto);
-    if (!producto) continue;
-
-    if (accion === 'liberar') {
-      producto.stockReservado = Math.max(
-        0,
-        (producto.stockReservado || 0) - item.cantidad
-      );
-    }
-
-    if (accion === 'descontar') {
-      producto.stockReservado = Math.max(
-        0,
-        (producto.stockReservado || 0) + item.cantidad
-      );
-    }
-
-    await producto.save();
-
-    notifyProducts({
-      type: 'stock_reservado',
-      data: producto,
-    });
-  }
-}
 
 /* =====================================
    STOCK REAL (físico)
@@ -93,8 +59,6 @@ async function procesarStockFisico(
 ===================================== */
 export async function PATCH(request: NextRequest, { params }: any)  {
 
-
-
   try {
     const { estado } = await request.json();
     const { id } = params;
@@ -125,30 +89,20 @@ export async function PATCH(request: NextRequest, { params }: any)  {
     const estadoAnterior = pedido.estado;
 
     /* =====================================
-       ONLINE: pendiente → cancelado
-    ===================================== */
-    if (estadoAnterior === 'pendiente' && estado === 'cancelado') {
-      if (pedido.origen === 'online') {
-        await procesarStockReservado(pedido, 'liberar');
-      }
-    }
-
-    /* =====================================
        pendiente → preparacion
     ===================================== */
     if (estadoAnterior === 'pendiente' && estado === 'preparacion') {
-      if (pedido.origen === 'online') {
-        await procesarStockReservado(pedido, 'liberar');
-        await procesarStockFisico(pedido, 'descontar');
-      } else {
-        await procesarStockFisico(pedido, 'descontar');
-      }
+      await procesarStockFisico(pedido, 'descontar');
     }
 
     /* =====================================
-       preparacion → cancelado
+       preparacion/enviado/entregado → cancelado
+       (Devolver stock físico si ya se había descontado)
     ===================================== */
-    if (estadoAnterior === 'preparacion' && estado === 'cancelado') {
+    if (
+      ['preparacion', 'enviado', 'entregado'].includes(estadoAnterior) && 
+      estado === 'cancelado'
+    ) {
       await procesarStockFisico(pedido, 'devolver');
     }
 

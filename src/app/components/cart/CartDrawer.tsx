@@ -51,6 +51,7 @@ export default function CartDrawer() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+
   // 🔹 Cargar último pedido registrado al montar el componente
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -176,7 +177,7 @@ export default function CartDrawer() {
   };
 
   /* ===============================
-     ✅ CONFIRMAR PEDIDO - FLUJO COMPLETO Y CORREGIDO
+     ✅ CONFIRMAR PEDIDO - FLUJO COMPLETO 
   =============================== */
   const confirmOrder = async () => {
     if (isSubmitting) {

@@ -20,6 +20,7 @@ interface Proveedor {
 }
 
 
+
 interface Product {
   _id: string;
   nombre: string;
@@ -133,9 +134,9 @@ function PageContent() {
   }, [internalSearch]);
 
 
-   /* =========================
-      Pagination 
-  ========================= */
+  /* =========================
+     Pagination 
+ ========================= */
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -239,8 +240,7 @@ function PageContent() {
         // ➤ Producto actualizado
         if (
           parsed.type === 'producto_actualizado' ||
-          parsed.type === 'stock_modificado' ||
-          parsed.type === 'stock_reservado'
+          parsed.type === 'stock_modificado'
         ) {
           const updatedProduct = parsed.data.producto || parsed.data;
           setProducts(prev =>
@@ -347,11 +347,7 @@ function PageContent() {
    Llevar stock a cero
 ========================= */
 
-  const getStockReservado = (product: any) =>
-    product.stockReservado || 0;
 
-  const getStockDisponible = (product: any) =>
-    getStockTotal(product) - getStockReservado(product);
 
   const loadProveedores = async () => {
     setLoadingProveedores(true);
@@ -377,9 +373,9 @@ function PageContent() {
   };
 
 
-    /* =========================
-    Resetear stock a cantidad personalizada
-  ========================= */
+  /* =========================
+  Resetear stock a cantidad personalizada
+========================= */
 
   const resetStockToZero = async (product: Product) => {
     Swal.fire({
@@ -402,7 +398,7 @@ function PageContent() {
               cantidad: 0  // ← CERO aquí
             })),
             lotes: [],              // ← Limpiar lotes
-            stockReservado: 0       // ← Resetear reservas
+
           };
 
           console.log('Payload enviado:', updatePayload); // 🔍 Debug
@@ -444,9 +440,9 @@ function PageContent() {
     });
   };
 
-    /* =========================
-    Resetear stock a cantidad personalizada (modal con input)
-  ========================= */
+  /* =========================
+  Resetear stock a cantidad personalizada (modal con input)
+========================= */
 
   // ✅ Opción personalizada: Resetear stock a una cantidad definida por el admin
   const resetStockToCustom = async (product: Product) => {
@@ -515,11 +511,10 @@ function PageContent() {
           📉 Stock actual: <strong class="text-gray-600">${stockActual}</strong><br/>
           📈 Nuevo stock: <strong class="text-[#0D4A6B] text-lg">${nuevaCantidad}</strong> en todos los depósitos
         </p>
-        <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800">
+              <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800">
           <strong>⚠️ Esta acción:</strong><br/>
           • Reemplazará el stock en todos los depósitos<br/>
           • Eliminará todos los lotes existentes<br/>
-          • Reseteará el stock reservado a 0<br/>
           • No se puede deshacer
         </div>
       </div>
@@ -544,7 +539,7 @@ function PageContent() {
           cantidad: nuevaCantidad  // ← Cantidad definida por el admin
         })),
         lotes: [],              // ← Limpiar historial de lotes
-        stockReservado: 0       // ← Resetear reservas pendientes
+
       };
 
       console.log('📤 Payload enviado:', updatePayload);
@@ -766,7 +761,7 @@ function PageContent() {
                           </td>
 
                           <td className="py-3 px-4">
-                            {/* STOCK TOTAL (lo que ya tenías) */}
+                            {/* STOCK TOTAL */}
                             <div
                               className={`font-medium ${stockTotal <= (product.stockMinimoAlerta ?? 0)
                                 ? 'text-red-400'
@@ -778,17 +773,8 @@ function PageContent() {
                                 <span className="ml-1 text-xs text-red-400">⚠️ Bajo stock</span>
                               )}
                             </div>
-                            {/* STOCK RESERVADO */}
-                            {product.stockReservado > 0 && (
-                              <div className="text-xs text-amber-400 mt-0.5">
-                                Reservado: {product.stockReservado}
-                              </div>
-                            )}
-                            {/* STOCK DISPONIBLE */}
-                            <div className="text-sm font-semibold text-green-400">
-                              Disponible: {getStockDisponible(product)}
-                            </div>
-                            {/* ALERTA MÍNIMA (no se toca nada) */}
+
+                            {/* ALERTA MÍNIMA */}
                             <div className="mt-1 flex items-center gap-1">
                               <label
                                 htmlFor={`alerta-${product._id}`}
@@ -836,7 +822,7 @@ function PageContent() {
                               />
                             </div>
 
-                            {/* 👇 NUEVO BOTÓN: Resetear Stock */}
+                            {/* BOTÓN: Resetear Stock */}
                             <div className="relative group">
                               <button
                                 className="text-purple-500 hover:text-purple-700 transition-colors focus:outline-none flex items-center gap-1"
@@ -867,9 +853,9 @@ function PageContent() {
                                 </button>
                               </div>
                             </div>
-
-
                           </td>
+
+
                           <td className="py-3 px-4">
                             {product.activo ? (
                               <span className="text-green-500 font-semibold">Sí</span>
@@ -1062,8 +1048,8 @@ function PageContent() {
               </div>
             )}
 
-         
-         
+
+
 
           </>
         ) : null}

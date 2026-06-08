@@ -10,8 +10,7 @@ export default function ProductCard({ product, onAdd }: any) {
   const stockTotal = product.stock.reduce(
     (acc: number, s: any) => acc + s.cantidad,
     0
-  );
-  
+  );  
 
   const hasOffer =
     product.precioOferta &&
