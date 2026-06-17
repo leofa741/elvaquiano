@@ -222,6 +222,8 @@ function PageContent() {
     loadPaginatedProducts();
   }, [currentPage, isAuthorized]);
 
+
+
   // ✨✨✨ SSE: Escuchar eventos de producto en tiempo real ✨✨✨
   useEffect(() => {
     const eventSource = new EventSource('/api/gestion/productos/events');
@@ -318,6 +320,7 @@ function PageContent() {
       }
     });
   };
+
 
 
 
@@ -455,13 +458,20 @@ function PageContent() {
 
 
 
-
   /* =========================
-  Resetear stock a cantidad personalizada (modal con input)
-========================= */
+    Resetear stock a cantidad personalizada (modal con input)
+  ========================= */
 
   // ✅ Opción personalizada: Resetear stock a una cantidad definida por el admin
   const resetStockToCustom = async (product: Product) => {
+    // 🔹 Detectar si es por peso/volumen para permitir decimales
+    const esPesoOVolumen = product.unidad === 'kg' || product.unidad === 'litro';
+    const stepValue = esPesoOVolumen ? '0.001' : '1';
+    const placeholderText = esPesoOVolumen
+      ? (product.unidad === 'kg' ? 'Ej: 1,400 (1kg 400g)' : 'Ej: 1,500 (1L 500ml)')
+      : 'Ej: 50';
+    const unidadTexto = product.unidad === 'kg' ? 'kg' : product.unidad === 'litro' ? 'litros' : 'unidades';
+
     // 🔹 Paso 1: Mostrar modal con input para ingresar la nueva cantidad
     const { value: nuevaCantidad } = await Swal.fire({
       title: '🔄 Resetear stock',
@@ -469,23 +479,31 @@ function PageContent() {
       <div class="text-left">
         <p class="mb-3">
           Producto: <strong class="text-[#0D4A6B]">${product.nombre}</strong><br/>
-          Stock actual: <strong>${product.stock.reduce((acc: number, s: any) => acc + s.cantidad, 0)} unidades</strong>
+          Stock actual: <strong>${product.stock.reduce((acc: number, s: any) => acc + s.cantidad, 0)} ${unidadTexto}</strong>
         </p>
         
         <label for="stockCantidad" class="swal2-input" style="width:100%;text-align:left;font-weight:500;margin-bottom:8px">
           ¿A qué cantidad querés resetear el stock?
         </label>
         
-        <input 
-          id="stockCantidad" 
-          type="number" 
-          class="swal2-input" 
-          placeholder="Ej: 50" 
-          min="0" 
-          step="1"
-          value="0"
-          style="width:100%;margin:0 auto;"
-        >
+   <input 
+  id="stockCantidad" 
+  type="number" 
+  lang="en"
+  inputmode="decimal"
+  class="swal2-input" 
+  placeholder="${placeholderText}" 
+  min="0" 
+  step="${stepValue}"
+  value="0"
+  style="width:100%;margin:0 auto;"
+>
+        
+        ${esPesoOVolumen ? `
+        <p class="text-xs text-blue-600 mt-2" style="text-align:left">
+          💡 Este producto se mide por ${product.unidad === 'kg' ? 'peso' : 'volumen'}. Podés usar decimales (ej: 1,400 = 1${product.unidad === 'kg' ? 'kg 400g' : 'L 500ml'})
+        </p>
+        ` : ''}
         
         <p class="text-xs text-gray-500 mt-3" style="text-align:left">
           ⚠️ Esta acción reemplazará el stock en <strong>todos los depósitos</strong> por el valor ingresado.
@@ -501,7 +519,9 @@ function PageContent() {
       reverseButtons: true,
       preConfirm: () => {
         const input = document.getElementById('stockCantidad') as HTMLInputElement;
-        const valor = parseInt(input?.value, 10);
+        // ✅ Normalizar: reemplazar coma por punto para soportar ambos formatos
+        const rawValue = (input?.value || '').replace(',', '.');
+        const valor = esPesoOVolumen ? parseFloat(rawValue) : parseInt(rawValue, 10);
 
         if (isNaN(valor) || valor < 0) {
           Swal.showValidationMessage('⚠️ Ingresá un número válido mayor o igual a 0');
@@ -518,14 +538,19 @@ function PageContent() {
     // 🔹 Paso 2: Confirmación final antes de ejecutar (doble check para seguridad)
     const stockActual = product.stock.reduce((acc: number, s: any) => acc + s.cantidad, 0);
 
+    // ✅ Formatear el valor para mostrar en la confirmación
+    const cantidadFormateada = esPesoOVolumen
+      ? nuevaCantidad.toFixed(3).replace(/\.?0+$/, '') // Quitar ceros innecesarios
+      : nuevaCantidad.toString();
+
     const { isConfirmed } = await Swal.fire({
       title: '¿Confirmar cambios?',
       html: `
       <div class="text-left">
         <p class="mb-2">
           <strong>Producto:</strong> ${product.nombre}<br/><br/>
-          📉 Stock actual: <strong class="text-gray-600">${stockActual}</strong><br/>
-          📈 Nuevo stock: <strong class="text-[#0D4A6B] text-lg">${nuevaCantidad}</strong> en todos los depósitos
+          📉 Stock actual: <strong class="text-gray-600">${stockActual} ${unidadTexto}</strong><br/>
+          📈 Nuevo stock: <strong class="text-[#0D4A6B] text-lg">${cantidadFormateada} ${unidadTexto}</strong> en todos los depósitos
         </p>
               <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800">
           <strong>⚠️ Esta acción:</strong><br/>
@@ -552,7 +577,7 @@ function PageContent() {
       const updatePayload = {
         stock: product.stock.map((s: any) => ({
           deposito: s.deposito,
-          cantidad: nuevaCantidad  // ← Cantidad definida por el admin
+          cantidad: nuevaCantidad  // ← Cantidad definida por el admin (puede ser decimal)
         })),
         lotes: [],              // ← Limpiar historial de lotes
 
@@ -584,7 +609,7 @@ function PageContent() {
         // 🔔 Notificar a otros componentes que recarguen el resumen de stock
         window.dispatchEvent(new CustomEvent('stockSummaryReload'));
 
-        toast.success(`✅ Stock de "${product.nombre}" actualizado a ${nuevaCantidad} unidades`);
+        toast.success(`✅ Stock de "${product.nombre}" actualizado a ${cantidadFormateada} ${unidadTexto}`);
       } else {
         const errorData = await res.json().catch(() => null);
         console.error('❌ Error API:', errorData || res.statusText);
@@ -595,7 +620,6 @@ function PageContent() {
       toast.error('Error de conexión con el servidor. Intentá nuevamente.');
     }
   };
-
 
 
 
@@ -630,6 +654,9 @@ function PageContent() {
             className="w-full p-3 rounded-lg bg-gray-900 border border-gray-700 text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-amber-500"
           />
         </div>
+
+
+
 
         {/* ✅ FEEDBACK DE BÚSQUEDA */}
         {internalSearch.trim() && (

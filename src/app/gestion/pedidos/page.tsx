@@ -27,7 +27,6 @@ interface ClientePedido {
 }
 
 
-
 interface ProductoPedido {
   nombre?: string;
   cantidad: number;
@@ -45,6 +44,8 @@ interface Pedido {
   total: number;
   createdAt?: string;
 }
+
+
 
 /* =======================
    CONFIG ESTADOS PARA MANEJO DE CLASES Y LABELS

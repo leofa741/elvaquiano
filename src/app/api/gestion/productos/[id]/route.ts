@@ -2,12 +2,13 @@
 import connectDB from '@/app/lib/mongoose';
 import Product from '@/app/models/Product';
 import Presupuesto from '@/app/models/Presupuesto';
+import Pedido from '@/app/models/Pedido'; // ✅ NUEVO
 import { authOptions } from '@/app/lib/auth';
 import { getServerSession } from 'next-auth/next';
 import { NextRequest, NextResponse } from 'next/server';
 import { notifyProducts } from '../events/productsNotifier';
 import { normalizeProduct } from '../events/productsNotifier';
-import LogStockModel from '@/app/models/LogStock'; // ✅ NUEVO
+import LogStockModel from '@/app/models/LogStock';
 
 connectDB();
 
@@ -291,6 +292,54 @@ export async function PUT(
     } catch (error) {
       // Si falla la actualización de presupuestos, no bloqueamos la respuesta
       console.error('⚠️ Error al actualizar presupuestos:', error);
+      // Continuamos con la respuesta exitosa del producto
+    }
+
+    // ✅ NUEVO: Actualizar precios en pedidos existentes
+    try {
+      // Buscar todos los pedidos que contengan este producto
+      const pedidosConProducto = await Pedido.find({
+        'productos.producto': id,
+        activo: true
+      });
+
+      if (pedidosConProducto.length > 0) {
+        console.log(`📝 Actualizando precios en ${pedidosConProducto.length} pedidos...`);
+
+        // Actualizar cada pedido
+        for (const pedido of pedidosConProducto) {
+          let totalActualizado = 0;
+          let pedidoModificado = false;
+
+          // Recorrer los productos del pedido
+          for (const item of pedido.productos) {
+            if (item.producto.toString() === id) {
+              // Actualizar precio según el tipoPrecio
+              const nuevoPrecio = item.tipoPrecio === 'mayorista' 
+                ? productoActualizado.precioMayorista 
+                : productoActualizado.precioOferta ?? productoActualizado.precioMayorista;
+
+              // Solo actualizar si el precio cambió
+              if (item.precioAplicado !== nuevoPrecio) {
+                item.precioAplicado = nuevoPrecio;
+                item.subtotal = nuevoPrecio * item.cantidad;
+                pedidoModificado = true;
+              }
+            }
+            totalActualizado += item.subtotal;
+          }
+
+          // Si se modificó algún precio, actualizar el pedido
+          if (pedidoModificado) {
+            pedido.total = totalActualizado;
+            await pedido.save();
+            console.log(`✅ Pedido ${pedido._id} actualizado`);
+          }
+        }
+      }
+    } catch (error) {
+      // Si falla la actualización de pedidos, no bloqueamos la respuesta
+      console.error('⚠️ Error al actualizar pedidos:', error);
       // Continuamos con la respuesta exitosa del producto
     }
 

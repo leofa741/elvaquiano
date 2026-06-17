@@ -483,6 +483,7 @@ export default function EditProductPage() {
 
     return true;
   };
+  
 
   // === GUARDAR ===
   const handleSubmit = async (e: React.FormEvent) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import Link from 'next/link';
@@ -12,7 +12,7 @@ import {
 import Swal from 'sweetalert2';
 import { formatARS } from '@/app/lib/formatcurrenci';
 
-const CONCEPTO_MANUAL_ID = '000000000000000000000000';// ID fijo para identificar productos agregados manualmente como conceptos de pago o ajustes, no corresponde a un producto real en la base de datos
+const CONCEPTO_MANUAL_ID = '000000000000000000000000';
 
 interface Cliente {
   _id: string; razonSocial: string; nombre: string; apellido: string;
@@ -35,8 +35,6 @@ interface Pedido {
   deposito: string; fechaEstimadaEntrega?: string; notas?: string; total: number; createdAt: string;
 }
 
-
-
 const ESTADO_LABEL: Record<string, string> = {
   pendiente: 'Pendiente', preparacion: 'En preparación', enviado: 'Enviado',
   entregado: 'Entregado', cancelado: 'Cancelado',
@@ -49,8 +47,6 @@ const ESTADO_PAGO_CONFIG: Record<string, { label: string; color: string; bgColor
   pagado: { label: 'Pagado', color: 'text-green-400', bgColor: 'bg-green-900/30 border-green-700/50' },
 };
 
-
-// ✅ ARRAY DE FORMAS DE PAGO CON CUENTA CORRIENTE INCLUIDA
 const FORMAS_PAGO = [
   { value: 'efectivo', label: 'Efectivo' },
   { value: 'transferencia', label: 'Transferencia' },
@@ -59,8 +55,6 @@ const FORMAS_PAGO = [
   { value: 'cuenta_corriente', label: 'Cuenta Corriente' },
   { value: 'otro', label: 'Otro' },
 ];
-
-
 
 const formatCantidad = (cantidad: number, unidad: string): string => {
   if (unidad === 'kg' || unidad === 'litro') return cantidad.toFixed(3).replace('.', ',');
@@ -72,6 +66,16 @@ const getUnidadTexto = (cantidad: number, unidad: string): string => {
   if (unidad === 'litro') return cantidad === 1 ? 'litro' : 'litros';
   if (unidad === 'unidad') return cantidad === 1 ? 'unidad' : 'unidades';
   return unidad;
+};
+
+// ✅ Helper: resaltar coincidencias en el nombre del producto
+const highlightMatch = (text: string, query: string) => {
+  if (!query.trim()) return text;
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = text.split(regex);
+  return parts.map((part, i) =>
+    regex.test(part) ? <mark key={i} className="bg-amber-500/30 text-amber-200 rounded px-0.5">{part}</mark> : part
+  );
 };
 
 export default function DetallePedidoPage() {
@@ -96,6 +100,12 @@ export default function DetallePedidoPage() {
   const [precioNuevo, setPrecioNuevo] = useState<number>(0);
   const [actualizarProductoNuevo, setActualizarProductoNuevo] = useState<boolean>(false);
   const [busquedaProducto, setBusquedaProducto] = useState<string>('');
+
+  // ✅ NUEVOS estados para el autocompletado
+  const [dropdownAbierto, setDropdownAbierto] = useState(false);
+  const [indiceActivo, setIndiceActivo] = useState<number>(-1);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [mostrarImporteManual, setMostrarImporteManual] = useState(false);
   const [montoImporteManual, setMontoImporteManual] = useState<number>(0);
@@ -124,9 +134,8 @@ export default function DetallePedidoPage() {
     }
   };
 
-  
   useEffect(() => {
-    if (!isAuthorized || !id) return;  // Verificamos autorización y existencia de ID antes de intentar cargar datos
+    if (!isAuthorized || !id) return;
     const init = async () => {
       await fetchPedidoData();
       setLoading(false);
@@ -134,8 +143,7 @@ export default function DetallePedidoPage() {
     init();
   }, [isAuthorized, id, router]);
 
-
-  useEffect(() => {  //
+  useEffect(() => {
     if (!id || !pedido) return;
     const fetchSaldo = async () => {
       try {
@@ -152,18 +160,66 @@ export default function DetallePedidoPage() {
     fetchSaldo();
   }, [id, pedido]);
 
+  // ✅ Cerrar dropdown al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownAbierto(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   if (!isAuthorized) return null;
   if (loading) return <div className="p-8 text-center text-gray-400">Cargando pedido...</div>;
   if (!pedido) return null;
 
-  const productosFiltrados = productosDisponibles.filter(p => p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase().trim()));
-  const unidadSeleccionada = productoSeleccionado ? productosDisponibles.find(p => p._id === productoSeleccionado)?.unidad : null;
+  const productosFiltrados = productosDisponibles.filter(p =>
+    p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase().trim())
+  );
+  const unidadSeleccionada = productoSeleccionado
+    ? productosDisponibles.find(p => p._id === productoSeleccionado)?.unidad
+    : null;
+
+  // ✅ Seleccionar un producto desde el dropdown
+  const seleccionarProducto = (prod: ProductoSimple) => {
+    setProductoSeleccionado(prod._id);
+    setBusquedaProducto(prod.nombre); // queda el nombre en el input
+    setDropdownAbierto(false);
+    setIndiceActivo(-1);
+
+    // Autocompletar cantidad y precio
+    setCantidadNuevo(prod.unidad === 'kg' || prod.unidad === 'litro' ? 0.000 : 1);
+    const precioBase = prod.precio.oferta && prod.precio.oferta < prod.precio.mayorista
+      ? prod.precio.oferta
+      : prod.precio.mayorista;
+    setPrecioNuevo(precioBase);
+  };
+
+  // ✅ Limpiar selección
+  const limpiarSeleccion = () => {
+    setProductoSeleccionado('');
+    setBusquedaProducto('');
+    setPrecioNuevo(0);
+    setCantidadNuevo(1);
+    inputRef.current?.focus();
+  };
 
   const handleCambiarEstado = async (nuevoEstado: string) => {
-    const result = await Swal.fire({ title: '¿Cambiar estado?', text: `¿Seguro que deseas cambiar el estado a "${ESTADO_LABEL[nuevoEstado]}"?`, icon: 'question', showCancelButton: true, confirmButtonColor: '#3b82f6', cancelButtonColor: '#6b7280', confirmButtonText: 'Sí, actualizar', cancelButtonText: 'Cancelar' });
+    const result = await Swal.fire({
+      title: '¿Cambiar estado?',
+      text: `¿Seguro que deseas cambiar el estado a "${ESTADO_LABEL[nuevoEstado]}"?`,
+      icon: 'question', showCancelButton: true,
+      confirmButtonColor: '#3b82f6', cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, actualizar', cancelButtonText: 'Cancelar'
+    });
     if (result.isConfirmed) {
       try {
-        const res = await fetch(`/api/gestion/pedidos/${id}/estado`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: nuevoEstado }) });
+        const res = await fetch(`/api/gestion/pedidos/${id}/estado`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: nuevoEstado })
+        });
         if (res.ok) {
           Swal.fire('¡Actualizado!', 'El estado del pedido ha sido actualizado.', 'success');
           await fetchPedidoData();
@@ -197,18 +253,20 @@ export default function DetallePedidoPage() {
     } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
   };
 
-
-
   const eliminarProducto = async (idx: number, nombre: string) => {
-    const result = await Swal.fire({ title: '¿Eliminar producto?', text: `¿Seguro que deseas eliminar "${nombre}" del pedido?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d32f2f', cancelButtonColor: '#6b7280', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar' });
+    const result = await Swal.fire({
+      title: '¿Eliminar producto?', text: `¿Seguro que deseas eliminar "${nombre}" del pedido?`,
+      icon: 'warning', showCancelButton: true,
+      confirmButtonColor: '#d32f2f', cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar'
+    });
     if (result.isConfirmed) {
       try {
         const res = await fetch(`/api/gestion/pedidos/${id}/producto/${idx}`, { method: 'DELETE' });
         if (res.ok) {
           await fetchPedidoData();
           Swal.fire('¡Eliminado!', 'El producto fue removido del pedido.', 'success');
-        }
-        else { Swal.fire('Error', (await res.json()).error || 'No se pudo eliminar', 'error'); }
+        } else { Swal.fire('Error', (await res.json()).error || 'No se pudo eliminar', 'error'); }
       } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
     }
   };
@@ -221,17 +279,22 @@ export default function DetallePedidoPage() {
     try {
       const res = await fetch(`/api/gestion/pedidos/${id}/producto`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productoId: productoSeleccionado, cantidad: cantidadValidada, precioPersonalizado: precioNuevo, actualizarProducto: actualizarProductoNuevo }),
+        body: JSON.stringify({
+          productoId: productoSeleccionado,
+          cantidad: cantidadValidada,
+          precioPersonalizado: precioNuevo,
+          actualizarProducto: actualizarProductoNuevo
+        }),
       });
       if (res.ok) {
         await fetchPedidoData();
-        setMostrarAgregar(false); setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0); setActualizarProductoNuevo(false); setBusquedaProducto('');
+        setMostrarAgregar(false);
+        setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0);
+        setActualizarProductoNuevo(false); setBusquedaProducto('');
         Swal.fire({ icon: 'success', title: '¡Agregado!', timer: 3000 });
       } else { Swal.fire('Error', (await res.json()).error || 'No se pudo agregar', 'error'); }
     } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
   };
-
-
 
   const handleRegistrarImporteManual = async () => {
     if (montoImporteManual <= 0) {
@@ -255,7 +318,6 @@ export default function DetallePedidoPage() {
 
       if (!resPedido.ok) throw new Error('No se pudo agregar el concepto al pedido');
 
-      // ✅ AHORA USA LA FORMA DE PAGO SELECCIONADA
       const resPago = await fetch('/api/gestion/pagos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -263,7 +325,7 @@ export default function DetallePedidoPage() {
           clienteId: pedido.cliente._id,
           pedidoId: id,
           monto: montoImporteManual,
-          formaPago: formaPagoImporteManual, // ← CAMBIO CLAVE: usa la forma seleccionada
+          formaPago: formaPagoImporteManual,
           referencia: descImporteManual,
           notas: descImporteManual
         }),
@@ -291,47 +353,39 @@ export default function DetallePedidoPage() {
       setMostrarImporteManual(false);
       setMontoImporteManual(0);
       setDescImporteManual('Importe adeudado');
-      setFormaPagoImporteManual('otro'); // Resetear al valor por defecto
-
+      setFormaPagoImporteManual('otro');
     } catch (err: any) {
       Swal.fire('Error', err.message || 'Error de conexión con el servidor', 'error');
     }
   };
-
-
 
   const handleRegistrarPago = async () => {
     const montoDefault = saldoPendiente && saldoPendiente > 0 ? saldoPendiente : pedido.total;
 
     const { value: formValues } = await Swal.fire({
       title: 'Registrar Pago - Si el pedido esta en Cta. Cte el metodo de pago es cuenta corriente',
-
       html: `
         <div style="text-align: left; padding: 10px 0;">
           <div style="margin-bottom: 15px; padding: 10px; background: #1f2937; border-radius: 8px; border: 1px solid #374151;">
             <div style="font-size: 12px; color: #9ca3af; margin-bottom: 4px;">Saldo pendiente del pedido:</div>
             <div style="font-size: 20px; font-weight: bold; color: #f59e0b;">${formatARS(montoDefault)}</div>
           </div>
-          
           <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Monto *</label>
-          <input id="swal-monto" type="number" step="0.01" min="0.01" value="${montoDefault}" 
-            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" 
+          <input id="swal-monto" type="number" step="0.01" min="0.01" value="${montoDefault}"
+            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;"
             placeholder="0.00" />
-          
           <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Forma de pago *</label>
-          <select id="swal-forma-pago" 
+          <select id="swal-forma-pago"
             style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;">
             ${FORMAS_PAGO.map(f => `<option value="${f.value}">${f.label}</option>`).join('')}
           </select>
-          
           <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Referencia (opcional)</label>
-          <input id="swal-referencia" type="text" 
-            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" 
+          <input id="swal-referencia" type="text"
+            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;"
             placeholder="Ej: N° de transacción" />
-          
           <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Notas (opcional)</label>
-          <textarea id="swal-notas" rows="2" 
-            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; resize: vertical;" 
+          <textarea id="swal-notas" rows="2"
+            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; resize: vertical;"
             placeholder="Observaciones adicionales"></textarea>
         </div>
       `,
@@ -353,7 +407,6 @@ export default function DetallePedidoPage() {
           Swal.showValidationMessage('El monto debe ser mayor a 0');
           return false;
         }
-
         return { monto, formaPago, referencia, notas };
       }
     });
@@ -465,44 +518,240 @@ export default function DetallePedidoPage() {
 
         {['preparacion', 'enviado', 'entregado'].includes(pedido.estado) && (
           <div className="mb-4">
-            <button onClick={() => setMostrarAgregar(!mostrarAgregar)} className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 text-sm"><FaPlus size={12} /> Agregar producto al pedido</button>
+            <button onClick={() => {
+              setMostrarAgregar(!mostrarAgregar);
+              if (!mostrarAgregar) {
+                // Al abrir, dar foco al input después del render
+                setTimeout(() => inputRef.current?.focus(), 50);
+              }
+            }} className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 text-sm">
+              <FaPlus size={12} /> Agregar producto al pedido
+            </button>
+
             {mostrarAgregar && (
               <div className="mt-3 p-4 bg-gray-750 rounded-lg border border-gray-600">
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Buscar producto</label>
+
+                {/* ✅ NUEVO: Autocompletado de productos */}
+                <div className="mb-3 relative" ref={dropdownRef}>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Buscar y seleccionar producto
+                  </label>
+
                   <div className="relative">
-                    <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                    <input type="text" value={busquedaProducto} onChange={(e) => setBusquedaProducto(e.target.value)} placeholder="Escribe para buscar..." className="w-full pl-10 pr-10 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500" autoFocus />
-                    {busquedaProducto && <button onClick={() => setBusquedaProducto('')} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"><FaTimes size={16} /></button>}
+                    <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={busquedaProducto}
+                      onChange={(e) => {
+                        setBusquedaProducto(e.target.value);
+                        setDropdownAbierto(true);
+                        setIndiceActivo(-1);
+                        // Si el usuario modifica el texto y no coincide con el seleccionado, limpiar selección
+                        if (productoSeleccionado) {
+                          const prodActual = productosDisponibles.find(p => p._id === productoSeleccionado);
+                          if (!prodActual || prodActual.nombre !== e.target.value) {
+                            setProductoSeleccionado('');
+                            setPrecioNuevo(0);
+                          }
+                        }
+                      }}
+                      onFocus={() => setDropdownAbierto(true)}
+                      onKeyDown={(e) => {
+                        if (!dropdownAbierto || productosFiltrados.length === 0) return;
+
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          setIndiceActivo((prev) =>
+                            prev < productosFiltrados.length - 1 ? prev + 1 : 0
+                          );
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setIndiceActivo((prev) =>
+                            prev > 0 ? prev - 1 : productosFiltrados.length - 1
+                          );
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (indiceActivo >= 0 && productosFiltrados[indiceActivo]) {
+                            seleccionarProducto(productosFiltrados[indiceActivo]);
+                          }
+                        } else if (e.key === 'Escape') {
+                          setDropdownAbierto(false);
+                        }
+                      }}
+                      placeholder="Escribí para buscar (ej: harin, pan, fac...)"
+                      className="w-full pl-10 pr-10 py-2.5 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition"
+                      autoComplete="off"
+                    />
+                    {busquedaProducto && (
+                      <button
+                        onClick={limpiarSeleccion}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition"
+                        title="Limpiar"
+                      >
+                        <FaTimes size={14} />
+                      </button>
+                    )}
                   </div>
+
+                  {/* ✅ Dropdown de resultados */}
+                  {dropdownAbierto && (
+                    <div className="absolute z-20 mt-1 w-full bg-gray-800 border border-gray-600 rounded-lg shadow-2xl shadow-black/50 max-h-72 overflow-y-auto">
+                      {productosFiltrados.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          {busquedaProducto.trim()
+                            ? 'Sin resultados para esta búsqueda'
+                            : 'Escribí al menos una letra para buscar'}
+                        </div>
+                      ) : (
+                        <>
+                          <div className="px-3 py-1.5 text-xs text-gray-500 border-b border-gray-700 sticky top-0 bg-gray-800">
+                            {productosFiltrados.length} resultado{productosFiltrados.length !== 1 ? 's' : ''}
+                          </div>
+                          {productosFiltrados.map((p, idx) => {
+                            const precioMostrar = p.precio.oferta && p.precio.oferta < p.precio.mayorista
+                              ? p.precio.oferta
+                              : p.precio.mayorista;
+                            const esActivo = idx === indiceActivo;
+                            const estaSeleccionado = p._id === productoSeleccionado;
+
+                            return (
+                              <button
+                                key={p._id}
+                                type="button"
+                                onClick={() => seleccionarProducto(p)}
+                                onMouseEnter={() => setIndiceActivo(idx)}
+                                className={`w-full text-left px-3 py-2.5 flex items-center justify-between gap-2 transition border-b border-gray-700/50 last:border-0
+                                  ${esActivo ? 'bg-amber-600/20' : 'hover:bg-gray-700/50'}
+                                  ${estaSeleccionado ? 'bg-emerald-900/20' : ''}
+                                `}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-white text-sm font-medium truncate">
+                                    {estaSeleccionado && <FaCheck className="inline text-emerald-400 mr-1.5" size={10} />}
+                                    {highlightMatch(p.nombre, busquedaProducto)}
+                                  </div>
+                                  <div className="text-xs text-gray-400 mt-0.5">
+                                    <span className="capitalize">{p.unidad}</span>
+                                    {p.precio.oferta && p.precio.oferta < p.precio.mayorista && (
+                                      <span className="ml-2 text-amber-400">• oferta</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="text-amber-400 font-semibold text-sm whitespace-nowrap">
+                                    {formatARS(precioMostrar)}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
+
+                {/* ✅ Producto seleccionado (tag visual) */}
+                {productoSeleccionado && (
+                  <div className="mb-3 p-2.5 bg-emerald-900/20 border border-emerald-700/50 rounded-lg flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FaCheck className="text-emerald-400 shrink-0" size={12} />
+                      <div className="min-w-0">
+                        <div className="text-white text-sm font-medium truncate">
+                          {productosDisponibles.find(p => p._id === productoSeleccionado)?.nombre}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          Precio: <span className="text-amber-400 font-semibold">{formatARS(precioNuevo)}</span>
+                          {unidadSeleccionada && <span className="ml-2">• {unidadSeleccionada}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={limpiarSeleccion}
+                      className="text-gray-400 hover:text-red-400 transition shrink-0 ml-2"
+                      title="Quitar selección"
+                    >
+                      <FaTimes size={14} />
+                    </button>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Producto</label>
-                    <select value={productoSeleccionado} onChange={(e) => {
-                      setProductoSeleccionado(e.target.value);
-                      const prod = productosDisponibles.find(p => p._id === e.target.value);
-                      if (prod) {
-                        setCantidadNuevo(prod.unidad === 'kg' || prod.unidad === 'litro' ? 0.000 : 1);
-                        setPrecioNuevo(prod.precio.oferta && prod.precio.oferta < prod.precio.mayorista ? prod.precio.oferta : prod.precio.mayorista);
-                      }
-                    }} className="w-full bg-gray-700 text-white rounded px-3 py-2 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500" size={Math.min(5, productosFiltrados.length)}>
-                      <option value="">Seleccionar producto...</option>
-                      {productosFiltrados.map((p) => (<option key={p._id} value={p._id}>{p.nombre} ({p.unidad}) - {formatARS(p.precio.oferta && p.precio.oferta < p.precio.mayorista ? p.precio.oferta : p.precio.mayorista)}</option>))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-300 mb-1 flex items-center gap-1"><FaWeightHanging className="text-amber-400" /> Cantidad ({unidadSeleccionada || 'unidad'})</label>
+                    <label className="text-sm font-medium text-gray-300 mb-1 flex items-center gap-1">
+                      <FaWeightHanging className="text-amber-400" /> Cantidad ({unidadSeleccionada || 'unidad'})
+                    </label>
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => setCantidadNuevo(Math.max(0.001, parseFloat((cantidadNuevo - (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3))))} className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg">–</button>
-                      <input type="number" step={unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? "0.001" : "1"} min="0.001" value={cantidadNuevo} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setCantidadNuevo(val); }} className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 py-1.5 text-lg font-mono" />
-                      <button onClick={() => setCantidadNuevo(parseFloat((cantidadNuevo + (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3)))} className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg">+</button>
+                      <button
+                        onClick={() => setCantidadNuevo(Math.max(0.001, parseFloat((cantidadNuevo - (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3))))}
+                        className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg"
+                      >–</button>
+                      <input
+                        type="number"
+                        step={unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? "0.001" : "1"}
+                        min="0.001"
+                        value={cantidadNuevo}
+                        onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setCantidadNuevo(val); }}
+                        className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 py-1.5 text-lg font-mono"
+                      />
+                      <button
+                        onClick={() => setCantidadNuevo(parseFloat((cantidadNuevo + (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3)))}
+                        className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg"
+                      >+</button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-300 mb-1 flex items-center gap-1">
+                      <FaDollarSign className="text-amber-400" /> Precio unitario
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-gray-400 text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={precioNuevo}
+                        onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val >= 0) setPrecioNuevo(val); }}
+                        className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 py-1.5 text-lg font-mono"
+                      />
                     </div>
                   </div>
                 </div>
+
+                {/* ✅ Preview del subtotal */}
+                {productoSeleccionado && cantidadNuevo > 0 && precioNuevo > 0 && (
+                  <div className="mb-3 p-2.5 bg-gray-700/50 rounded-lg flex justify-between items-center">
+                    <span className="text-sm text-gray-400">Subtotal estimado:</span>
+                    <span className="text-lg font-bold text-amber-400">
+                      {formatARS(cantidadNuevo * precioNuevo)}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex gap-2 justify-end pt-3 border-t border-gray-600">
-                  <button onClick={() => { setMostrarAgregar(false); setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0); setActualizarProductoNuevo(false); setBusquedaProducto(''); }} className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded hover:bg-gray-600 transition">Cancelar</button>
-                  <button onClick={handleAgregarProducto} disabled={!productoSeleccionado || cantidadNuevo <= 0 || precioNuevo <= 0} className={`px-4 py-2 rounded transition ${productoSeleccionado && cantidadNuevo > 0 && precioNuevo > 0 ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}><FaPlus className="inline mr-1" /> Agregar al pedido</button>
+                  <button
+                    onClick={() => {
+                      setMostrarAgregar(false);
+                      setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0);
+                      setActualizarProductoNuevo(false); setBusquedaProducto('');
+                      setDropdownAbierto(false);
+                    }}
+                    className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded hover:bg-gray-600 transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleAgregarProducto}
+                    disabled={!productoSeleccionado || cantidadNuevo <= 0 || precioNuevo <= 0}
+                    className={`px-4 py-2 rounded transition flex items-center gap-1
+                      ${productoSeleccionado && cantidadNuevo > 0 && precioNuevo > 0
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
+                  >
+                    <FaPlus /> Agregar al pedido
+                  </button>
                 </div>
               </div>
             )}
