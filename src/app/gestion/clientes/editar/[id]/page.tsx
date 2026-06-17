@@ -30,12 +30,12 @@ interface Cliente {
   ciudad: string | null;
   provincia: string | null;
   formaPago:
-    | 'efectivo'
-    | 'transferencia'
-    | 'qr'
-    | 'tarjeta'
-    | 'cuenta_corriente'
-    | 'otro';
+  | 'efectivo'
+  | 'transferencia'
+  | 'qr'
+  | 'tarjeta'
+  | 'cuenta_corriente'
+  | 'otro';
   activo: boolean;
 }
 
@@ -50,12 +50,12 @@ interface ClienteForm {
   ciudad: string;
   provincia: string;
   formaPago:
-    | 'efectivo'
-    | 'transferencia'
-    | 'qr'
-    | 'tarjeta'
-    | 'cuenta_corriente'
-    | 'otro';
+  | 'efectivo'
+  | 'transferencia'
+  | 'qr'
+  | 'tarjeta'
+  | 'cuenta_corriente'
+  | 'otro';
 }
 
 interface FormErrors {
@@ -192,50 +192,49 @@ export default function EditarClientePage() {
     }
   };
 
-  // VALIDACIÓN COMPLETA
-// VALIDACIÓN COMPLETA
+
 const validateForm = (): boolean => {
   const newErrors: FormErrors = {};
 
-  // razón social
+  // razón social - OBLIGATORIO
   if (!form.razonSocial.trim()) {
     newErrors.razonSocial = 'Debe ingresar la razón social';
   }
 
-  // nombre
+  // nombre - OBLIGATORIO
   if (!form.nombre.trim()) {
     newErrors.nombre = 'Debe ingresar el nombre';
   }
 
-  // apellido
+  // apellido - OBLIGATORIO
   if (!form.apellido.trim()) {
     newErrors.apellido = 'Debe ingresar el apellido';
   }
 
-  // ✅ DNI: OPCIONAL - solo valida formato si se ingresa algo
-  if (form.dni.trim()) {
-    if (!/^\d{7,8}$/.test(form.dni.replace(/\D/g, ''))) {
-      newErrors.dni = 'El DNI debe tener 7 u 8 números';
-    }
-  }
-
-  // teléfono
+  // teléfono - OBLIGATORIO
   if (!form.telefono.trim()) {
     newErrors.telefono = 'Debe ingresar el teléfono';
   }
 
+  // ✅ DNI: OPCIONAL - solo valida formato si se ingresa algo
+  if (form.dni.trim()) {
+    const dniLimpio = form.dni.replace(/\D/g, '');
+    if (dniLimpio.length < 7 || dniLimpio.length > 8) {
+      newErrors.dni = 'El DNI debe tener 7 u 8 números';
+    }
+  }
+
   // ✅ EMAIL: OPCIONAL - solo valida formato si se ingresa algo
   if (form.email.trim()) {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
       newErrors.email = 'El email no es válido';
     }
   }
 
   setErrors(newErrors);
 
-  // mostrar toast general
   if (Object.keys(newErrors).length > 0) {
-    toast.error('⚠️ Completá todos los campos obligatorios', {
+    toast.error('⚠️ Revisá los campos marcados', {
       autoClose: 4000,
     });
     return false;
@@ -334,7 +333,7 @@ const validateForm = (): boolean => {
         } else {
           toast.error(
             error.error ||
-              'Error al guardar'
+            'Error al guardar'
           );
         }
       }
@@ -350,10 +349,9 @@ const validateForm = (): boolean => {
   const inputClass = (
     fieldName: keyof FormErrors
   ) =>
-    `w-full px-4 py-3 bg-gray-700 border rounded-lg text-white focus:outline-none focus:ring-2 transition ${
-      errors[fieldName]
-        ? 'border-red-500 focus:ring-red-500'
-        : 'border-gray-600 focus:ring-amber-500 hover:border-gray-500'
+    `w-full px-4 py-3 bg-gray-700 border rounded-lg text-white focus:outline-none focus:ring-2 transition ${errors[fieldName]
+      ? 'border-red-500 focus:ring-red-500'
+      : 'border-gray-600 focus:ring-amber-500 hover:border-gray-500'
     }`;
 
   return (
@@ -379,36 +377,36 @@ const validateForm = (): boolean => {
           {/* ALERTA GENERAL */}
           {Object.keys(errors)
             .length > 0 && (
-            <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 flex gap-3">
-              <FaExclamationCircle className="text-red-400 mt-1" />
+              <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 flex gap-3">
+                <FaExclamationCircle className="text-red-400 mt-1" />
 
-              <div className="text-red-200 text-sm">
-                <p className="font-semibold mb-2">
-                  Revisá los siguientes campos:
-                </p>
+                <div className="text-red-200 text-sm">
+                  <p className="font-semibold mb-2">
+                    Revisá los siguientes campos:
+                  </p>
 
-                <ul className="list-disc list-inside space-y-1">
-                  {Object.entries(
-                    errors
-                  ).map(
-                    ([
-                      field,
-                      message,
-                    ]) => (
-                      <li
-                        key={field}
-                      >
-                        <strong>
-                          {field}
-                        </strong>
-                        : {message}
-                      </li>
-                    )
-                  )}
-                </ul>
+                  <ul className="list-disc list-inside space-y-1">
+                    {Object.entries(
+                      errors
+                    ).map(
+                      ([
+                        field,
+                        message,
+                      ]) => (
+                        <li
+                          key={field}
+                        >
+                          <strong>
+                            {field}
+                          </strong>
+                          : {message}
+                        </li>
+                      )
+                    )}
+                  </ul>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* razón social */}
           <div>
@@ -512,11 +510,9 @@ const validateForm = (): boolean => {
           {/* dni telefono */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
+
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                DNI{' '}
-                <span className="text-red-400">
-                  *
-                </span>
+                DNI <span className="text-xs text-gray-500">(opcional)</span>
               </label>
 
               <input
@@ -573,11 +569,9 @@ const validateForm = (): boolean => {
 
           {/* email */}
           <div>
+          
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Email{' '}
-              <span className="text-red-400">
-                *
-              </span>
+              Email <span className="text-xs text-gray-500">(opcional)</span>
             </label>
 
             <input

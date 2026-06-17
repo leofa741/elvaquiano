@@ -27,23 +27,24 @@ const normalizeTelefono = (text: string): string => {
 // GET: obtener cliente por id
 export async function GET(
   request: NextRequest,
-  { params }: { params: any }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cliente = await Cliente.findById(params.id);
+    const { id } = await params; // ✅ await params
+    const cliente = await Cliente.findById(id);
     if (!cliente) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
     return NextResponse.json(cliente);
   } catch (error) {
     return NextResponse.json({ error: 'Error al buscar cliente' }, { status: 500 });
   }
 }
+
 // PUT: actualizar cliente
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // ✅ NUEVO
     const { id } = await params;
 
     const body = await request.json();
@@ -70,7 +71,7 @@ export async function PUT(
 
       const duplicado = await Cliente.findOne({
         razonSocialNormalized,
-        _id: { $ne: id } // ✅ usar id
+        _id: { $ne: id }
       });
 
       if (duplicado) {
@@ -104,7 +105,7 @@ export async function PUT(
 
       const duplicado = await Cliente.findOne({
         telefonoNormalized,
-        _id: { $ne: id } // ✅ usar id
+        _id: { $ne: id }
       });
 
       if (duplicado) {
@@ -127,86 +128,87 @@ export async function PUT(
     }
 
     // 🔧 Normalizar DNI si cambió
-    if (
-      body.dni &&
-      body.dni.trim() !== clienteExistente.dni
-    ) {
-      const dniLimpio =
-        body.dni.replace(/\D/g, '');
+    if (body.dni !== undefined) {
+      // Si está vacío o es null, guardarlo como null
+      if (!body.dni || !body.dni.trim()) {
+        body.dni = null;
+      } else {
+        // Si tiene valor, validar formato
+        const dniLimpio = body.dni.replace(/\D/g, '');
 
-      if (
-        dniLimpio &&
-        !/^\d{7,8}$/.test(dniLimpio)
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              'DNI debe tener 7 u 8 dígitos.'
-          },
-          { status: 400 }
-        );
+        if (!/^\d{7,8}$/.test(dniLimpio)) {
+          return NextResponse.json(
+            {
+              error: 'DNI debe tener 7 u 8 dígitos.'
+            },
+            { status: 400 }
+          );
+        }
+
+        // Verificar duplicados solo si cambió
+        if (dniLimpio !== clienteExistente.dni) {
+          const duplicado = await Cliente.findOne({
+            dni: dniLimpio,
+            _id: { $ne: id }
+          });
+
+          if (duplicado) {
+            return NextResponse.json(
+              {
+                error: 'Ya existe otro cliente con este DNI.',
+                clienteExistente: {
+                  _id: duplicado._id,
+                  razonSocial: duplicado.razonSocial
+                }
+              },
+              { status: 409 }
+            );
+          }
+        }
+
+        body.dni = dniLimpio;
       }
-
-      const duplicado = await Cliente.findOne({
-        dni: dniLimpio,
-        _id: { $ne: id } // ✅ usar id
-      });
-
-      if (duplicado) {
-        return NextResponse.json(
-          {
-            error:
-              'Ya existe otro cliente con este DNI.',
-            clienteExistente: {
-              _id: duplicado._id,
-              razonSocial: duplicado.razonSocial
-            }
-          },
-          { status: 409 }
-        );
-      }
-
-      body.dni = dniLimpio || null;
     }
 
     // 🔧 Normalizar email si cambió
-    if (
-      body.email &&
-      body.email.trim() !== clienteExistente.email
-    ) {
-      const emailLimpio =
-        body.email.trim().toLowerCase();
+    if (body.email !== undefined) {
+      // Si está vacío o es null, guardarlo como null
+      if (!body.email || !body.email.trim()) {
+        body.email = null;
+      } else {
+        // Si tiene valor, validar formato
+        const emailLimpio = body.email.trim().toLowerCase();
 
-      if (
-        emailLimpio &&
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLimpio)
-      ) {
-        return NextResponse.json(
-          { error: 'Email inválido.' },
-          { status: 400 }
-        );
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLimpio)) {
+          return NextResponse.json(
+            { error: 'Email inválido.' },
+            { status: 400 }
+          );
+        }
+
+        // Verificar duplicados solo si cambió
+        if (emailLimpio !== clienteExistente.email) {
+          const duplicado = await Cliente.findOne({
+            email: emailLimpio,
+            _id: { $ne: id }
+          });
+
+          if (duplicado) {
+            return NextResponse.json(
+              {
+                error: 'Ya existe otro cliente con este email.',
+                clienteExistente: {
+                  _id: duplicado._id,
+                  razonSocial: duplicado.razonSocial
+                }
+              },
+              { status: 409 }
+            );
+          }
+        }
+
+        body.email = emailLimpio;
       }
-
-      const duplicado = await Cliente.findOne({
-        email: emailLimpio,
-        _id: { $ne: id } // ✅ usar id
-      });
-
-      if (duplicado) {
-        return NextResponse.json(
-          {
-            error:
-              'Ya existe otro cliente con este email.',
-            clienteExistente: {
-              _id: duplicado._id,
-              razonSocial: duplicado.razonSocial
-            }
-          },
-          { status: 409 }
-        );
-      }
-
-      body.email = emailLimpio || null;
     }
 
     // Limpiar textos
@@ -225,11 +227,35 @@ export async function PUT(
     if (body.provincia)
       body.provincia = body.provincia.trim();
 
+    // ✅ NUEVO: Preparar datos de actualización usando $unset para campos null
+    const updateData: any = { ...body };
+    const unsetFields: string[] = [];
+
+    // Si dni está vacío/null, usar $unset para eliminar el campo del documento
+    if (body.dni === null || body.dni === undefined || body.dni === '') {
+      delete updateData.dni;
+      unsetFields.push('dni');
+    }
+
+    // Si email está vacío/null, usar $unset para eliminar el campo
+    if (body.email === null || body.email === undefined || body.email === '') {
+      delete updateData.email;
+      unsetFields.push('email');
+    }
+
+    // Agregar $unset si hay campos para eliminar
+    if (unsetFields.length > 0) {
+      updateData.$unset = unsetFields.reduce((acc, field) => {
+        acc[field] = '';
+        return acc;
+      }, {} as Record<string, string>);
+    }
+
     // Actualizar cliente
     const clienteActualizado =
       await Cliente.findByIdAndUpdate(
-        id, // ✅ usar id
-        body,
+        id,
+        updateData, // ✅ usar updateData en lugar de body
         { new: true }
       );
 
@@ -272,19 +298,20 @@ export async function PUT(
 // PATCH: reactivar cliente
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: any }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params; // ✅ await params
     const cliente = await Cliente.findByIdAndUpdate(
-      params.id, 
-      { activo: true }, 
+      id,
+      { activo: true },
       { new: true }
     );
-    
+
     if (!cliente) {
       return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
     }
-    
+
     notifyClients({ type: 'cliente_reactivado', data: cliente });
     return NextResponse.json(cliente, { status: 200 });
   } catch (error) {
@@ -299,19 +326,20 @@ export async function PATCH(
 // DELETE: desactivar cliente
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: any }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params; // ✅ await params
     const cliente = await Cliente.findByIdAndUpdate(
-      params.id, 
-      { activo: false }, 
+      id,
+      { activo: false },
       { new: true }
     );
-    
+
     if (!cliente) {
       return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
     }
-    
+
     notifyClients({ type: 'cliente_eliminado', data: cliente });
     return NextResponse.json(cliente, { status: 200 });
   } catch (error) {
