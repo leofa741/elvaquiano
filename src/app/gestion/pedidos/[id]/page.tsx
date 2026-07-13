@@ -19,6 +19,7 @@ interface Cliente {
   direccion?: string; telefono?: string; tipoCliente?: 'minorista' | 'mayorista';
 }
 
+
 interface Producto {
   _id: string; nombre: string; unidad: string; cantidad: number;
   tipoPrecio: 'mayorista' | 'oferta'; precioAplicado: number; subtotal: number; producto: string;
@@ -210,24 +211,48 @@ export default function DetallePedidoPage() {
     const result = await Swal.fire({
       title: '¿Cambiar estado?',
       text: `¿Seguro que deseas cambiar el estado a "${ESTADO_LABEL[nuevoEstado]}"?`,
-      icon: 'question', showCancelButton: true,
-      confirmButtonColor: '#3b82f6', cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Sí, actualizar', cancelButtonText: 'Cancelar'
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#3b82f6',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, actualizar',
+      cancelButtonText: 'Cancelar'
     });
+
     if (result.isConfirmed) {
       try {
         const res = await fetch(`/api/gestion/pedidos/${id}/estado`, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ estado: nuevoEstado })
         });
+
         if (res.ok) {
-          Swal.fire('¡Actualizado!', 'El estado del pedido ha sido actualizado.', 'success');
+          // ✅ Leemos la respuesta completa (incluyendo posibles warnings)
+          const data = await res.json();
+          
+          // ✅ Actualizamos la UI sí o sí, porque el estado cambió
           await fetchPedidoData();
+
+          // ✅ Si el backend envió una advertencia, la mostramos en AMARILLO (warning)
+          if (data.warning) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Estado actualizado con advertencia',
+              html: `El pedido pasó a <strong>"${ESTADO_LABEL[nuevoEstado]}"</strong>, pero:<br><br><small style="color:#fbbf24; text-align:left; display:block;">⚠️ ${data.warning}</small>`,
+              confirmButtonColor: '#f59e0b',
+            });
+          } else {
+            // Comportamiento normal si hay stock suficiente
+            Swal.fire('¡Actualizado!', 'El estado del pedido ha sido actualizado.', 'success');
+          }
         } else {
           const error = await res.json();
           Swal.fire('Error', error.error || 'No se pudo actualizar el estado', 'error');
         }
-      } catch (err) { Swal.fire('Error', 'Error de conexión con el servidor', 'error'); }
+      } catch (err) {
+        Swal.fire('Error', 'Error de conexión con el servidor', 'error');
+      }
     }
   };
 

@@ -483,7 +483,7 @@ export default function EditProductPage() {
 
     return true;
   };
-  
+
 
   // === GUARDAR ===
   const handleSubmit = async (e: React.FormEvent) => {
@@ -801,7 +801,7 @@ export default function EditProductPage() {
                       type="text"
                       value={s.cantidad}
                       readOnly
-                      className="w-full px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-gray-300 text-center"
+                      className="w-full min-w-[120px] px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-gray-300 text-center font-mono text-sm sm:text-base"
                     />
                   </div>
 

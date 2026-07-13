@@ -1,14 +1,12 @@
-// app/gestion/presupuestos/nuevo/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import Link from 'next/link';
-import { FaFileInvoice, FaUser, FaCalendar } from 'react-icons/fa';
+import { FaFileInvoice, FaUser, FaCalendar, FaSync } from 'react-icons/fa'; // ✅ Agregado FaSync
 import Swal from 'sweetalert2';
 import ProductoLinea from '../../pedidos/nuevo/components/ProductoLinea';
- 
 import { formatARS } from '@/app/lib/formatcurrenci';
 import ComboSearch from '../../pedidos/nuevo/components/ComboSearch';
 
@@ -36,6 +34,9 @@ interface ProductoEnPresupuesto {
   tipoPrecio: 'mayorista' | 'oferta';
 }
 
+// ✅ Clave única para el borrador en localStorage
+const STORAGE_KEY = 'presupuesto_draft_v1';
+
 export default function NuevoPresupuestoPage() {
   const isAuthorized = useAdminAuthorization();
   const router = useRouter();
@@ -43,39 +44,106 @@ export default function NuevoPresupuestoPage() {
   const [clientes, setClientes] = useState<ClienteOption[]>([]);
   const [productos, setProductos] = useState<ProductoOption[]>([]);
   const [busquedaProducto, setBusquedaProducto] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false); // ✅ Para el botón de refresh
 
   const [clienteId, setClienteId] = useState<string>('');
   const [validoHasta, setValidoHasta] = useState<string>('');
   const [origen, setOrigen] = useState<string>('');
   const [productosEnPresupuesto, setProductosEnPresupuesto] = useState<ProductoEnPresupuesto[]>([]);
 
-  // Cargar datos
+  // ✅ CARGAR BORRADOR desde localStorage al iniciar (ANTES de cargar datos de la API)
   useEffect(() => {
     if (!isAuthorized) return;
-
-    const loadData = async () => {
-      try {
-        const [resClientes, resProductos] = await Promise.all([
-          fetch('/api/gestion/clientes'),
-          fetch('/api/gestion/productos?all=true')
-        ]);
-
-        const dataClientes = await resClientes.json();
-        const dataProductos = await resProductos.json();
-
-        setClientes(dataClientes.filter((c: any) => c.activo));
-        setProductos(
-          dataProductos.products?.filter((p: any) =>
-            p.stock?.some((s: any) => s.cantidad > 0)
-          ) || []
-        );
-      } catch (err) {
-        Swal.fire('Error', 'No se pudieron cargar clientes o productos', 'error');
+    
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        setClienteId(data.clienteId || '');
+        setValidoHasta(data.validoHasta || '');
+        setOrigen(data.origen || '');
+        setProductosEnPresupuesto(data.productosEnPresupuesto || []);
       }
-    };
-
-    loadData();
+    } catch (err) {
+      console.error('Error al cargar borrador:', err);
+      localStorage.removeItem(STORAGE_KEY);
+    }
   }, [isAuthorized]);
+
+  // ✅ GUARDAR BORRADOR automáticamente cada vez que cambia algo
+  useEffect(() => {
+    if (!isAuthorized) return;
+    
+    // Solo guardar si hay algo que valga la pena (evita guardar estados vacíos al inicio)
+    const tieneContenido = clienteId || productosEnPresupuesto.length > 0 || validoHasta || origen;
+    
+    if (tieneContenido) {
+      const data = {
+        clienteId,
+        validoHasta,
+        origen,
+        productosEnPresupuesto,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }, [clienteId, validoHasta, origen, productosEnPresupuesto, isAuthorized]);
+
+  // ✅ Función para cargar datos desde la API (reutilizable)
+  const cargarDatos = async () => {
+    try {
+      const [resClientes, resProductos] = await Promise.all([
+        fetch('/api/gestion/clientes', { cache: 'no-store' }),
+        fetch('/api/gestion/productos?all=true', { cache: 'no-store' })
+      ]);
+
+      const dataClientes = await resClientes.json();
+      const dataProductos = await resProductos.json();
+
+      setClientes(dataClientes.filter((c: any) => c.activo));
+      setProductos(
+        dataProductos.products?.filter((p: any) =>
+          p.stock?.some((s: any) => s.cantidad > 0)
+        ) || []
+      );
+    } catch (err) {
+      Swal.fire('Error', 'No se pudieron cargar clientes o productos', 'error');
+    }
+  };
+
+  // Cargar datos inicial
+  useEffect(() => {
+    if (!isAuthorized) return;
+    cargarDatos();
+  }, [isAuthorized]);
+
+  // ✅ NUEVO: Botón para refrescar SOLO los productos (sin perder el presupuesto)
+  const handleRefrescarProductos = async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch('/api/gestion/productos?all=true', { cache: 'no-store' });
+      const data = await res.json();
+      setProductos(
+        data.products?.filter((p: any) =>
+          p.stock?.some((s: any) => s.cantidad > 0)
+        ) || []
+      );
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Lista de productos actualizada',
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      Swal.fire('Error', 'No se pudieron actualizar los productos', 'error');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   if (!isAuthorized) return null;
 
@@ -184,6 +252,9 @@ export default function NuevoPresupuestoPage() {
 
       if (res.ok) {
         const data = await res.json();
+        // ✅ LIMPIAR el borrador al crear exitosamente
+        localStorage.removeItem(STORAGE_KEY);
+        
         Swal.fire('¡Éxito!', 'Presupuesto creado con éxito.', 'success');
         router.push(`/gestion/presupuestos/imprimir/${data._id}`);
       } else {
@@ -211,7 +282,6 @@ export default function NuevoPresupuestoPage() {
 
       <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 md:p-8 border border-gray-700/50 shadow-2xl max-w-5xl mx-auto">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* ✅ REEMPLAZADO: Select por ComboSearch */}
           <ComboSearch
             items={clientes}
             value={clienteId}
@@ -262,9 +332,20 @@ export default function NuevoPresupuestoPage() {
                 value={busquedaProducto}
                 onChange={(e) => setBusquedaProducto(e.target.value)}
                 placeholder="Buscar producto por nombre..."
-                className="w-full px-4 py-3.5 pl-10 bg-gray-700/50 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 hover:border-gray-500"
+                className="w-full px-4 py-3.5 pl-10 pr-12 bg-gray-700/50 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 hover:border-gray-500"
               />
               <FaFileInvoice className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              
+              {/* ✅ BOTÓN DE REFRESCAR PRODUCTOS */}
+              <button
+                type="button"
+                onClick={handleRefrescarProductos}
+                disabled={isRefreshing}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-amber-400 transition-colors disabled:opacity-50"
+                title="Actualizar lista de productos (si agregaste stock recientemente)"
+              >
+                <FaSync className={isRefreshing ? 'animate-spin' : ''} />
+              </button>
             </div>
 
             {busquedaProducto && productosFiltrados.length > 0 && (
@@ -359,6 +440,7 @@ export default function NuevoPresupuestoPage() {
             </button>
             <Link
               href="/gestion/presupuestos"
+              onClick={() => localStorage.removeItem(STORAGE_KEY)}
               className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 rounded-xl text-center transition-all duration-200 flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>

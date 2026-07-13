@@ -11,11 +11,14 @@ connectDB();
 
 /* =====================================
    STOCK REAL (físico)
+   ✅ MODIFICADO: Ahora devuelve un array de advertencias en lugar de lanzar error
 ===================================== */
 async function procesarStockFisico(
   pedido: any,
   accion: 'descontar' | 'devolver'
-) {
+): Promise<string[]> {
+  const advertencias: string[] = [];
+
   for (const item of pedido.productos) {
     const producto = await Producto.findById(item.producto);
     if (!producto) continue;
@@ -26,12 +29,15 @@ async function procesarStockFisico(
     if (!stock) continue;
 
     if (accion === 'descontar') {
+      // ✅ Si no alcanza, guardamos el mensaje de advertencia pero NO tiramos error
       if (stock.cantidad < item.cantidad) {
-        throw new Error(
-          `Stock insuficiente para "${item.nombre}" en ${pedido.deposito}`
+        advertencias.push(
+          `Stock insuficiente para "${item.nombre}" en ${pedido.deposito}. Disponible: ${stock.cantidad}, solicitado: ${item.cantidad}.`
         );
       }
-      stock.cantidad -= item.cantidad;
+      
+      // ✅ "Que lo lleve a cero": Restamos, pero nunca permitimos que baje de 0
+      stock.cantidad = Math.max(0, stock.cantidad - item.cantidad);
     }
 
     if (accion === 'devolver') {
@@ -52,13 +58,15 @@ async function procesarStockFisico(
       },
     });
   }
+  
+  // ✅ Devolvemos el array (vacío si todo salió perfecto, con mensajes si hubo faltantes)
+  return advertencias;
 }
 
 /* =====================================
    PATCH ESTADO PEDIDO
 ===================================== */
-export async function PATCH(request: NextRequest, { params }: any)  {
-
+export async function PATCH(request: NextRequest, { params }: any) {
   try {
     const { estado } = await request.json();
     const { id } = params;
@@ -87,12 +95,13 @@ export async function PATCH(request: NextRequest, { params }: any)  {
     }
 
     const estadoAnterior = pedido.estado;
+    let advertenciasStock: string[] = []; // ✅ Array para capturar las warnings
 
     /* =====================================
        pendiente → preparacion
     ===================================== */
     if (estadoAnterior === 'pendiente' && estado === 'preparacion') {
-      await procesarStockFisico(pedido, 'descontar');
+      advertenciasStock = await procesarStockFisico(pedido, 'descontar');
     }
 
     /* =====================================
@@ -117,12 +126,22 @@ export async function PATCH(request: NextRequest, { params }: any)  {
       data: pedido,
     });
 
+    /* =====================================
+       ✅ RESPUESTA: Si hay advertencias, las enviamos con status 200 (Éxito)
+    ===================================== */
+    if (advertenciasStock.length > 0) {
+      return NextResponse.json({
+        ...pedido.toObject(),
+        warning: advertenciasStock.join(' | ') // Unimos todas las advertencias en un solo texto
+      }, { status: 200 });
+    }
+
     return NextResponse.json(pedido, { status: 200 });
 
   } catch (error: any) {
     console.error(error);
     return NextResponse.json(
-      { error: error.message },
+      { error: error.message || 'Error interno del servidor' },
       { status: 500 }
     );
   }
