@@ -4,8 +4,9 @@ import Banner from "./components/baner/Banner";
 import { Metadata } from "next";
 import Image from "next/image";
 import CategoryResumenCard from "./components/categoryresumencard/CategoryResumenCard";
-import PatriaBanner from "./components/backto25mayo/BackToMayoBanner";
+
 import Mundial2026Banner from "./components/mundialbanner/Mundial2026Banner";
+import BannerHotSale from "./components/bannerhotsale/BannerHotSale";
 
 
 
@@ -57,11 +58,7 @@ export default async function Home() {
       </div>
 
 
-        <Mundial2026Banner
-        title="¡Apoyamos a la Selección Argentina en el Mundial 2026!"
-        
-     
-       />
+      <BannerHotSale />
      
 
       {/* Sección: Valor principal + CTAs */}
