@@ -19,7 +19,6 @@ interface Proveedor {
   email?: string;
 }
 
-
 interface Product {
   _id: string;
   nombre: string;
@@ -54,7 +53,6 @@ export default function ProductosPage() {
     </Suspense>
   );
 }
-
 
 function PageContent() {
   const searchParams = useSearchParams();
@@ -223,7 +221,6 @@ function PageContent() {
   }, [currentPage, isAuthorized]);
 
 
-
   // ✨✨✨ SSE: Escuchar eventos de producto en tiempo real ✨✨✨
   useEffect(() => {
     const eventSource = new EventSource('/api/gestion/productos/events');
@@ -287,8 +284,6 @@ function PageContent() {
   };
 
 
-
-
   /* =========================
      Delete 
   ========================= */
@@ -322,9 +317,6 @@ function PageContent() {
   };
 
 
-
-
-
   /* =========================
    Formatear cantidad unidad
 ========================= */
@@ -354,12 +346,9 @@ function PageContent() {
   };
 
 
-
-
   /* =========================
    Llevar stock a cero
 ========================= */
-
 
 
   const loadProveedores = async () => {
@@ -384,10 +373,6 @@ function PageContent() {
       setLoadingProveedores(false);
     }
   };
-
-
-
-
 
   /* =========================
   Resetear stock a cantidad personalizada
@@ -455,7 +440,6 @@ function PageContent() {
       }
     });
   };
-
 
 
   /* =========================

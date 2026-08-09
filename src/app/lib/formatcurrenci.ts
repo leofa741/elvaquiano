@@ -1,3 +1,4 @@
+// src/app/lib/formatcurrenci.ts
 export const formatARS = (value: number) => {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',

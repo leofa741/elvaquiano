@@ -6,7 +6,6 @@ import Product from '@/app/models/Product';
 export async function GET(req: Request) {
   try {
     await connectDB();
-
     const { searchParams } = new URL(req.url);
     const q = searchParams.get('q')?.trim();
 
@@ -17,6 +16,7 @@ export async function GET(req: Request) {
         hint: 'Ingresá al menos 2 caracteres para buscar',
       });
     }
+    
 
     // Normalizar texto (espacios múltiples)
     const normalized = q.replace(/\s+/g, ' ');

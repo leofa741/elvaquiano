@@ -59,13 +59,6 @@ const modules = [
         icon: <FaWallet className="text-3xl text-amber-400" />,
         href: '/gestion/cuentas-corrientes',
     },
-    //  {
-    //     id: 'dashboard',
-    //    title: 'Dashboard',
-    //   description: 'Cuentas Corrientes, Gestión financiera de clientes con saldo pendiente',
-    //   icon: <FaChartLine className="text-3xl text-amber-400" />,
-    //  href: '/gestion/dashboard',
-    // },
     {
         id: 'logs',
         title: 'Auditoria',
@@ -73,18 +66,20 @@ const modules = [
         icon: <FaFileInvoice className="text-3xl text-amber-400" />,
         href: '/gestion/logs',
     },
-       {
+    {
         id: 'logsStock',
         title: 'Auditoria de Stock',
         description: 'Ver historial de cambios en el inventario.',
         icon: <FaFileInvoice className="text-3xl text-amber-400" />,
         href: '/gestion/logs/stock',
     },
-
-
-
-
-
+    {
+        id: 'precios-masivos',
+        title: 'Precios Masivos',
+        description: 'Editar precios de múltiples productos por nombre o categoría.',
+        icon: <FaChartLine className="text-3xl text-amber-400" />,
+        href: '/gestion/precios-masivos',
+    }
 ];
 
 export default function GestiónPage() {

@@ -64,7 +64,7 @@ export async function PUT(
     deposito: s.deposito,
     cantidad: s.cantidad
   }));
-  const stockTotalAnterior = stockAnterior.reduce((sum : number, s: { deposito: string; cantidad: number }) => sum + s.cantidad, 0);
+  const stockTotalAnterior = stockAnterior.reduce((sum: number, s: { deposito: string; cantidad: number }) => sum + s.cantidad, 0);
 
   // ✅ 4. Determinar si es actualización parcial
   const camposFormularioCompleto = ['nombre', 'categoria', 'precioLista', 'precioMayorista', 'stock'];
@@ -98,6 +98,7 @@ export async function PUT(
       }
       updateData.lotes = body.lotes;
     }
+
     if ('stockMinimoAlerta' in body) {
       const valor = body.stockMinimoAlerta;
       if (valor === null || valor === '' || valor === undefined) {
@@ -125,6 +126,52 @@ export async function PUT(
     if ('stockReservado' in body) {
       updateData.stockReservado = Number(body.stockReservado) || 0;
     }
+
+
+    // 👇 NUEVO: Manejo de precios en actualización parcial
+    if ('precioLista' in body) {
+      const precioLista = body.precioLista;
+      if (precioLista != null) {
+        if (typeof precioLista !== 'number' || precioLista < 0) {
+          return NextResponse.json({ error: 'Precio de lista inválido (debe ser número ≥ 0 o null)' }, { status: 400 });
+        }
+      }
+      updateData.precioLista = precioLista;
+    }
+
+    if ('precioMayorista' in body) {
+      const precioMayorista = body.precioMayorista;
+      if (precioMayorista != null) {
+        if (typeof precioMayorista !== 'number' || precioMayorista <= 0) {
+          return NextResponse.json({ error: 'Precio mayorista inválido (debe ser número > 0 o null)' }, { status: 400 });
+        }
+      }
+      updateData.precioMayorista = precioMayorista;
+    }
+
+
+    if ('precioOferta' in body) {
+      const precioOferta = body.precioOferta;
+      if (precioOferta != null) {
+        if (typeof precioOferta !== 'number' || precioOferta < 0) {
+          return NextResponse.json({ error: 'Precio de oferta inválido (debe ser número ≥ 0 o null)' }, { status: 400 });
+        }
+      }
+      updateData.precioOferta = precioOferta;
+    }
+
+
+    // 👇 Validación cruzada de precios si se actualizan múltiples precios
+    if ('precioLista' in body || 'precioMayorista' in body) {
+      const precioLista = body.precioLista ?? productoExistente.precioLista;
+      const precioMayorista = body.precioMayorista ?? productoExistente.precioMayorista;
+
+      if (precioLista != null && precioMayorista != null && precioLista > precioMayorista) {
+        return NextResponse.json({ error: 'El precio mayorista no puede ser menor que el precio de lista.' }, { status: 400 });
+      }
+    }
+
+
 
   } else {
     // ✅ Actualización completa
@@ -208,7 +255,7 @@ export async function PUT(
         deposito: s.deposito,
         cantidad: s.cantidad
       }));
-      const stockTotalNuevo = stockNuevo.reduce((sum : number, s: { deposito: string; cantidad: number }) => sum + s.cantidad, 0);
+      const stockTotalNuevo = stockNuevo.reduce((sum: number, s: { deposito: string; cantidad: number }) => sum + s.cantidad, 0);
 
       // Determinar tipo de acción
       let accion = 'otro';
@@ -267,8 +314,8 @@ export async function PUT(
           for (const item of presupuesto.productos) {
             if (item.producto.toString() === id) {
               // Actualizar precio según el tipoPrecio
-              const nuevoPrecio = item.tipoPrecio === 'mayorista' 
-                ? productoActualizado.precioMayorista 
+              const nuevoPrecio = item.tipoPrecio === 'mayorista'
+                ? productoActualizado.precioMayorista
                 : productoActualizado.precioOferta ?? productoActualizado.precioMayorista;
 
               // Solo actualizar si el precio cambió
@@ -315,8 +362,8 @@ export async function PUT(
           for (const item of pedido.productos) {
             if (item.producto.toString() === id) {
               // Actualizar precio según el tipoPrecio
-              const nuevoPrecio = item.tipoPrecio === 'mayorista' 
-                ? productoActualizado.precioMayorista 
+              const nuevoPrecio = item.tipoPrecio === 'mayorista'
+                ? productoActualizado.precioMayorista
                 : productoActualizado.precioOferta ?? productoActualizado.precioMayorista;
 
               // Solo actualizar si el precio cambió
@@ -357,6 +404,10 @@ export async function PUT(
     return NextResponse.json({ error: 'Error al guardar los cambios' }, { status: 500 });
   }
 }
+
+
+
+
 
 // DELETE: eliminar producto
 export async function DELETE(

@@ -539,6 +539,7 @@ export default function EditProductPage() {
         lotes: lotesFiltrados,
         imagen: imageUrl,
       };
+      
 
       const res = await fetch(`/api/gestion/productos/${id}`, {
         method: 'PUT',
