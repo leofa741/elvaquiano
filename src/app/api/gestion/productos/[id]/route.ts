@@ -2,7 +2,7 @@
 import connectDB from '@/app/lib/mongoose';
 import Product from '@/app/models/Product';
 import Presupuesto from '@/app/models/Presupuesto';
-import Pedido from '@/app/models/Pedido'; // ✅ NUEVO
+import Pedido from '@/app/models/Pedido';
 import { authOptions } from '@/app/lib/auth';
 import { getServerSession } from 'next-auth/next';
 import { NextRequest, NextResponse } from 'next/server';
@@ -13,6 +13,8 @@ import LogStockModel from '@/app/models/LogStock';
 connectDB();
 
 const isAdmin = (role: string) => ['admin', 'superadmin'].includes(role);
+
+
 
 // GET: obtener producto por ID
 export async function GET(
@@ -31,6 +33,10 @@ export async function GET(
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
+
+
+
+
 
 // PUT: actualizar producto
 export async function PUT(
@@ -149,7 +155,6 @@ export async function PUT(
       updateData.precioMayorista = precioMayorista;
     }
 
-
     if ('precioOferta' in body) {
       const precioOferta = body.precioOferta;
       if (precioOferta != null) {
@@ -160,7 +165,6 @@ export async function PUT(
       updateData.precioOferta = precioOferta;
     }
 
-
     // 👇 Validación cruzada de precios si se actualizan múltiples precios
     if ('precioLista' in body || 'precioMayorista' in body) {
       const precioLista = body.precioLista ?? productoExistente.precioLista;
@@ -170,8 +174,6 @@ export async function PUT(
         return NextResponse.json({ error: 'El precio mayorista no puede ser menor que el precio de lista.' }, { status: 400 });
       }
     }
-
-
 
   } else {
     // ✅ Actualización completa
