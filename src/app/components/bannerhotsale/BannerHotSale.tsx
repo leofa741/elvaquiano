@@ -124,12 +124,8 @@ export default function BannerElVaquiano() {
               <p className="text-xs font-semibold text-red-900 mt-2">En productos seleccionados</p>
             </div>
 
-            {/* Temporizador */}
-            <CountdownTimer />
-            
-            <p className="text-xs text-white/80 text-center font-medium">
-              *Stock limitado. Precios válidos hasta agotar existencias.
-            </p>
+         
+           
           </div>
 
         </div>

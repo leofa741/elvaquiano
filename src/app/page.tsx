@@ -59,6 +59,7 @@ export default async function Home() {
 
 
       <BannerHotSale />
+      <br />
      
 
       {/* Sección: Valor principal + CTAs */}
