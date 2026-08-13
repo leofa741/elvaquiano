@@ -42,7 +42,6 @@ const parseArgentineNumber = (input: string): number | null => {
   return isNaN(num) ? null : num;
 };
 
-
 // ✅ Formateo visual mientras escribe
 const formatArgentineInput = (input: string): string => {
   if (!input.trim()) return '';
@@ -63,8 +62,6 @@ const formatArgentineFinal = (value: number | null): string => {
     maximumFractionDigits: 2,
   });
 };
-
-
 
 interface Product {
   _id: string;
@@ -110,6 +107,8 @@ export default function PreciosMasivosPage() {
   const [bulkPriceField, setBulkPriceField] = useState<PriceField>('precioMayorista');
   const [showBulkPanel, setShowBulkPanel] = useState(false);
   const [isApplyingBulk, setIsApplyingBulk] = useState(false);
+  // 🆕 Después de los otros estados
+  const [applyToOriginal, setApplyToOriginal] = useState(true);
 
 
 
@@ -393,7 +392,7 @@ export default function PreciosMasivosPage() {
     (id) => Object.keys(editingPrices[id]).length > 0
   );
 
-  // 🆕 Preview de cambios masivos (calcular sin aplicar)
+
   const bulkPreview = useMemo(() => {
     if (!bulkValue.trim() || selectedIds.size === 0) return null;
 
@@ -411,12 +410,11 @@ export default function PreciosMasivosPage() {
       const product = products.find((p) => p._id === id);
       if (!product) return;
 
-      // Usar el valor ya editado si existe, sino el original
-      const currentEdited = editingPrices[id]?.[bulkPriceField];
-      const basePrice =
-        currentEdited !== undefined && currentEdited !== null
-          ? currentEdited
-          : ((product[bulkPriceField] as number | null) ?? 0);
+      // 🆕 Si applyToOriginal es true, SIEMPRE usar el precio original del producto
+      // Si es false, usar el valor editado (comportamiento actual)
+      const basePrice = applyToOriginal
+        ? ((product[bulkPriceField] as number | null) ?? 0)
+        : (editingPrices[id]?.[bulkPriceField] ?? ((product[bulkPriceField] as number | null) ?? 0));
 
       if (basePrice === null) return;
 
@@ -431,7 +429,6 @@ export default function PreciosMasivosPage() {
             : Math.round((basePrice - numValue) * 100) / 100;
       }
 
-      // No permitir negativos
       if (newPrice < 0) newPrice = 0;
 
       preview.push({
@@ -443,7 +440,7 @@ export default function PreciosMasivosPage() {
     });
 
     return preview;
-  }, [bulkValue, bulkMode, bulkOperation, bulkPriceField, selectedIds, products, editingPrices]);
+  }, [bulkValue, bulkMode, bulkOperation, bulkPriceField, selectedIds, products, editingPrices, applyToOriginal]);
 
   // 🆕 Aplicar cambios masivos (los pone en editingPrices, NO los guarda aún)
   const applyBulkChanges = () => {
@@ -560,8 +557,8 @@ export default function PreciosMasivosPage() {
             <li>
               <strong>Edición masiva:</strong> seleccioná varios productos con los checkboxes y
               <strong className="text-amber-400">  presioná<span className="text-yellow-300 text-xl font-bold drop-shadow-[0_0_6px_rgba(253,224,71,0.5)]">
-  "Aplicar cambio masivo"
-</span></strong> para aplicar un porcentaje o importe a todos
+                "Aplicar cambio masivo"
+              </span></strong> para aplicar un porcentaje o importe a todos
             </li>
             <li>Los cambios se muestran en verde (aumento) o rojo (disminución)</li>
             <li>El precio mayorista NO puede ser menor que el precio de lista</li>
@@ -590,6 +587,8 @@ export default function PreciosMasivosPage() {
             </p>
           )}
         </div>
+
+
 
         {/* 🆕 Panel de acciones masivas - SOLO cuando hay productos seleccionados */}
         {selectedIds.size > 0 && (
@@ -708,6 +707,21 @@ export default function PreciosMasivosPage() {
                       </button>
                     </div>
                   </div>
+
+                  {/* 🆕 Checkbox para aplicar sobre precio original */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      type="checkbox"
+                      id="applyToOriginal"
+                      checked={applyToOriginal}
+                      onChange={(e) => setApplyToOriginal(e.target.checked)}
+                      className="w-4 h-4 text-amber-600 bg-gray-700 border-gray-600 rounded focus:ring-amber-500"
+                    />
+                    <label htmlFor="applyToOriginal" className="text-sm text-amber-200">
+                      Aplicar sobre precio original (ignorar cambios manuales pendientes)
+                    </label>
+                  </div>
+                  
 
                   <div>
                     <label className="block text-sm font-medium text-amber-200 mb-2">
@@ -1008,7 +1022,7 @@ export default function PreciosMasivosPage() {
           </div>
         ) : null}
 
-     
+
 
       </div>
     </div>

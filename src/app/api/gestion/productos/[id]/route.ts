@@ -165,6 +165,22 @@ export async function PUT(
       updateData.precioOferta = precioOferta;
     }
 
+        // 👇 NUEVO: Sincronizar precio de oferta cuando cambia el mayorista
+    if ('precioMayorista' in body && !('precioOferta' in body)) {
+      const nuevoMayorista = updateData.precioMayorista;
+      
+      // OPCIÓN 1: Poner oferta = mayorista (sin descuento) ← RECOMENDADO
+     // updateData.precioOferta = nuevoMayorista;
+      
+      // OPCIÓN 2: Desactivar oferta (null)
+      // updateData.precioOferta = null;
+      
+      // OPCIÓN 3: Poner oferta en cero
+       updateData.precioOferta = 0;
+      
+      console.log(`🔄 Precio de oferta sincronizado con mayorista: ${nuevoMayorista}`);
+    }
+
     // 👇 Validación cruzada de precios si se actualizan múltiples precios
     if ('precioLista' in body || 'precioMayorista' in body) {
       const precioLista = body.precioLista ?? productoExistente.precioLista;
