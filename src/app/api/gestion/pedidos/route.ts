@@ -143,35 +143,86 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ---------------------------------------------
-// GET: Listar pedidos
-// ---------------------------------------------
-// /app/api/gestion/pedidos/route.ts
 
-
+// ---------------------------------------------
+// GET: Listar pedidos (CON FILTROS PREMIUM)
+// ---------------------------------------------
 export async function GET(req: NextRequest) {
   try {
+    await connectDB(); // Aseguramos la conexión
+
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const skip = (page - 1) * limit;
 
+    // 🆕 Extraemos los parámetros de búsqueda del frontend
+    const cliente = searchParams.get('cliente');
+    const fechaInicio = searchParams.get('fechaInicio');
+    const fechaFin = searchParams.get('fechaFin');
+
+    const query: any = {};
+
+    // 1️⃣ FILTRADO POR CLIENTE (Búsqueda inteligente por nombre/razón social)
+    if (cliente && cliente.trim() !== '') {
+      const clientesEncontrados = await Cliente.find({
+        $or: [
+          { razonSocial: { $regex: cliente.trim(), $options: 'i' } },
+          { nombre: { $regex: cliente.trim(), $options: 'i' } },
+          { apellido: { $regex: cliente.trim(), $options: 'i' } }
+        ]
+      }).select('_id');
+
+      const clienteIds = clientesEncontrados.map(c => c._id);
+
+      // Si no hay clientes que coincidan, devolvemos vacío inmediatamente (ahorra recursos)
+      if (clienteIds.length === 0) {
+        return NextResponse.json({ data: [], totalPages: 0, totalItems: 0 });
+      }
+
+      query.cliente = { $in: clienteIds };
+    }
+
+    // 2️⃣ FILTRADO POR FECHAS (Rango preciso)
+    if (fechaInicio || fechaFin) {
+      query.createdAt = {};
+      
+      if (fechaInicio) {
+        query.createdAt.$gte = new Date(fechaInicio);
+      }
+      
+      if (fechaFin) {
+        // Aseguramos que incluya todo el día final hasta las 23:59:59.999
+        const finDelDia = new Date(fechaFin);
+        finDelDia.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = finDelDia;
+      }
+    }
+
+    // 3️⃣ EJECUCIÓN EN PARALELO (Mismo query para datos y conteo)
     const [data, totalItems] = await Promise.all([
-      Pedido.find()
-        .populate('cliente', 'razonSocial')
+      Pedido.find(query)
+        .populate('cliente', 'razonSocial nombre apellido telefono')
+        .populate({
+          path: 'productos.producto',
+          model: 'Product',
+          select: 'nombre unidad precioMayorista precioOferta'
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
-      Pedido.countDocuments(),
+      
+      // ⚠️ CRÍTICO: Contar con el mismo filtro para que la paginación sea real
+      Pedido.countDocuments(query),
     ]);
 
     return NextResponse.json({
       data,
       totalPages: Math.ceil(totalItems / limit),
-      totalItems, // 👈 Este es el que usa el frontend
+      totalItems,
     });
   } catch (error) {
-    console.error('Error al listar pedidos:', error);
+    console.error('❌ Error al listar pedidos:', error);
     return NextResponse.json(
       { error: 'Error al cargar pedidos' },
       { status: 500 }
