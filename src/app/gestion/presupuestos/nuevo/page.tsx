@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import Link from 'next/link';
-import { FaFileInvoice, FaUser, FaCalendar, FaSync } from 'react-icons/fa'; // ✅ Agregado FaSync
+import { FaFileInvoice, FaUser, FaCalendar, FaSync } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import ProductoLinea from '../../pedidos/nuevo/components/ProductoLinea';
 import { formatARS } from '@/app/lib/formatcurrenci';
@@ -34,7 +34,7 @@ interface ProductoEnPresupuesto {
   tipoPrecio: 'mayorista' | 'oferta';
 }
 
-// ✅ Clave única para el borrador en localStorage
+// ✅ Clave única para el borrador en sessionStorage (aislado por pestaña)
 const STORAGE_KEY = 'presupuesto_draft_v1';
 
 export default function NuevoPresupuestoPage() {
@@ -44,19 +44,19 @@ export default function NuevoPresupuestoPage() {
   const [clientes, setClientes] = useState<ClienteOption[]>([]);
   const [productos, setProductos] = useState<ProductoOption[]>([]);
   const [busquedaProducto, setBusquedaProducto] = useState('');
-  const [isRefreshing, setIsRefreshing] = useState(false); // ✅ Para el botón de refresh
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [clienteId, setClienteId] = useState<string>('');
   const [validoHasta, setValidoHasta] = useState<string>('');
   const [origen, setOrigen] = useState<string>('');
   const [productosEnPresupuesto, setProductosEnPresupuesto] = useState<ProductoEnPresupuesto[]>([]);
 
-  // ✅ CARGAR BORRADOR desde localStorage al iniciar (ANTES de cargar datos de la API)
+  // ✅ CARGAR BORRADOR desde sessionStorage al iniciar
   useEffect(() => {
     if (!isAuthorized) return;
     
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = sessionStorage.getItem(STORAGE_KEY);
       if (saved) {
         const data = JSON.parse(saved);
         setClienteId(data.clienteId || '');
@@ -66,7 +66,7 @@ export default function NuevoPresupuestoPage() {
       }
     } catch (err) {
       console.error('Error al cargar borrador:', err);
-      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
     }
   }, [isAuthorized]);
 
@@ -74,7 +74,6 @@ export default function NuevoPresupuestoPage() {
   useEffect(() => {
     if (!isAuthorized) return;
     
-    // Solo guardar si hay algo que valga la pena (evita guardar estados vacíos al inicio)
     const tieneContenido = clienteId || productosEnPresupuesto.length > 0 || validoHasta || origen;
     
     if (tieneContenido) {
@@ -85,13 +84,13 @@ export default function NuevoPresupuestoPage() {
         productosEnPresupuesto,
         timestamp: Date.now(),
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } else {
-      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
     }
   }, [clienteId, validoHasta, origen, productosEnPresupuesto, isAuthorized]);
 
-  // ✅ Función para cargar datos desde la API (reutilizable)
+  // ✅ Función para cargar datos desde la API
   const cargarDatos = async () => {
     try {
       const [resClientes, resProductos] = await Promise.all([
@@ -102,24 +101,27 @@ export default function NuevoPresupuestoPage() {
       const dataClientes = await resClientes.json();
       const dataProductos = await resProductos.json();
 
-      setClientes(dataClientes.filter((c: any) => c.activo));
+      // Extraemos el array correctamente
+      const listaClientes = dataClientes.clientes || dataClientes;
+      
+      setClientes(listaClientes.filter((c: any) => c.activo === true || c.activo === undefined));
+      
       setProductos(
         dataProductos.products?.filter((p: any) =>
           p.stock?.some((s: any) => s.cantidad > 0)
         ) || []
       );
     } catch (err) {
+      console.error('Error cargando datos:', err);
       Swal.fire('Error', 'No se pudieron cargar clientes o productos', 'error');
     }
   };
 
-  // Cargar datos inicial
   useEffect(() => {
     if (!isAuthorized) return;
     cargarDatos();
   }, [isAuthorized]);
 
-  // ✅ NUEVO: Botón para refrescar SOLO los productos (sin perder el presupuesto)
   const handleRefrescarProductos = async () => {
     setIsRefreshing(true);
     try {
@@ -224,15 +226,13 @@ export default function NuevoPresupuestoPage() {
 
     try {
       const productosParaGuardar = productosEnPresupuesto.map(p => {
-        const unidadesFisicas = p.cantidad;
-
         return {
           producto: p.producto._id,
           nombre: p.producto.nombre,
           unidad: p.producto.unidad,
           deposito: p.deposito,
           cantidad: p.cantidad,
-          unidadesFisicas,
+          unidadesFisicas: p.cantidad,
           tipoPrecio: p.tipoPrecio,
           origen: origen,
           precioAplicado: p.tipoPrecio === 'mayorista' ? p.producto.precioMayorista : p.producto.precioOferta,
@@ -252,8 +252,9 @@ export default function NuevoPresupuestoPage() {
 
       if (res.ok) {
         const data = await res.json();
-        // ✅ LIMPIAR el borrador al crear exitosamente
-        localStorage.removeItem(STORAGE_KEY);
+        
+        // ✅ LIMPIAR el borrador SOLO de esta pestaña al crear exitosamente
+        sessionStorage.removeItem(STORAGE_KEY);
         
         Swal.fire('¡Éxito!', 'Presupuesto creado con éxito.', 'success');
         router.push(`/gestion/presupuestos/imprimir/${data._id}`);
@@ -305,7 +306,7 @@ export default function NuevoPresupuestoPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-200 mb-2">Origen del pedido *</label>
+              <label className="block text-sm font-semibold text-gray-200 mb-2">Origen del presupuesto *</label>
               <div className="relative">
                 <select
                   value={origen}
@@ -336,13 +337,12 @@ export default function NuevoPresupuestoPage() {
               />
               <FaFileInvoice className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               
-              {/* ✅ BOTÓN DE REFRESCAR PRODUCTOS */}
               <button
                 type="button"
                 onClick={handleRefrescarProductos}
                 disabled={isRefreshing}
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-amber-400 transition-colors disabled:opacity-50"
-                title="Actualizar lista de productos (si agregaste stock recientemente)"
+                title="Actualizar lista de productos"
               >
                 <FaSync className={isRefreshing ? 'animate-spin' : ''} />
               </button>
@@ -440,7 +440,7 @@ export default function NuevoPresupuestoPage() {
             </button>
             <Link
               href="/gestion/presupuestos"
-              onClick={() => localStorage.removeItem(STORAGE_KEY)}
+              onClick={() => sessionStorage.removeItem(STORAGE_KEY)}
               className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 rounded-xl text-center transition-all duration-200 flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>

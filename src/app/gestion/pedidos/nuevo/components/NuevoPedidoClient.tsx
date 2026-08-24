@@ -81,20 +81,27 @@ export default function NuevoPedidoClient({
     const loadData = async () => {
       try {
         const [resClientes, resProductos] = await Promise.all([
-          fetch('/api/gestion/clientes'),
-          fetch('/api/gestion/productos?all=true')
+          fetch('/api/gestion/clientes', { cache: 'no-store' }),
+          fetch('/api/gestion/productos?all=true', { cache: 'no-store' })
         ]);
+        
         const dataClientes = await resClientes.json();
         const dataProductos = await resProductos.json();
-        setClientes(dataClientes.filter((c: any) => c.activo));
+
+        // ✅ CORRECCIÓN: Extraer el array del objeto { clientes: [...] }
+        const listaClientes = dataClientes.clientes || dataClientes;
+        
+        // Filtramos solo los activos (usamos !== false para incluir datos antiguos sin el campo)
+        setClientes(Array.isArray(listaClientes) ? listaClientes.filter((c: any) => c.activo !== false) : []);
+        
         setProductos(dataProductos.products?.filter((p: any) => p.stock?.some((s: any) => s.cantidad > 0)) || []);
       } catch (err) {
+        console.error('Error cargando datos iniciales:', err);
         setToastQueue(prev => [...prev, { type: 'error', message: 'No se pudieron cargar clientes o productos' }]);
       }
     };
     loadData();
   }, [isAuthorized]);
-
   useEffect(() => {
     if (toastQueue.length > 0) {
       const { type, message } = toastQueue[0];

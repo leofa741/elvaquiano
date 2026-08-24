@@ -93,7 +93,10 @@ export default function ClientesPage() {
         const res = await fetch('/api/gestion/clientes', { cache: 'no-store' });
         if (!res.ok) throw new Error('Error al cargar clientes');
         const data = await res.json();
-        setClientes(data);
+        
+        // ✅ CORRECCIÓN: Extraer el array del objeto { clientes: [...] }
+        const listaClientes = data.clientes || data;
+        setClientes(Array.isArray(listaClientes) ? listaClientes : []);
       } catch (err) {
         Swal.fire({
           icon: 'error',
@@ -109,7 +112,6 @@ export default function ClientesPage() {
 
     fetchClientes();
   }, [isAuthorized]);
-
   // -------------------------------
   // 🔍 Filtrado y paginación
   // -------------------------------

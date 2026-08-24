@@ -1,4 +1,3 @@
-// app/api/gestion/clientes/route.ts
 import connectDB from '@/app/lib/mongoose';
 import Cliente from '@/app/models/Cliente';
 import { NextRequest, NextResponse } from 'next/server';
@@ -6,11 +5,38 @@ import { notifyClients } from './events/clientsNotifier';
 
 connectDB();
 
-// GET: Listar todos los clientes
-export async function GET() {
+// GET: Listar clientes (con soporte para búsqueda)
+export async function GET(request: NextRequest) {
   try {
-    const clientes = await Cliente.find({}).sort({ createdAt: -1 });
-    return NextResponse.json(clientes, { status: 200 });
+    const searchParams = request.nextUrl.searchParams;
+    const search = searchParams.get('search');
+
+    let query: any = {};
+
+    if (search && search.trim().length > 0) {
+      // Si hay búsqueda, buscamos por texto (sin filtrar por 'activo' para encontrarlo aunque esté inactivo)
+      const regex = new RegExp(search.trim(), 'i');
+      query = {
+        $or: [
+          { razonSocial: regex },
+          { nombre: regex },
+          { apellido: regex },
+          { email: regex },
+          { dni: regex }
+        ]
+      };
+    } else {
+      // Si NO hay búsqueda (carga inicial), solo traemos los que están activos o no tienen el campo definido
+      query.activo = { $ne: false };
+    }
+
+    // ✅ CORRECCIÓN: Límite de 15 para búsqueda rápida, 500 para la lista completa
+    const clientes = await Cliente.find(query)
+      .select('_id razonSocial nombre apellido telefono email activo') 
+      .sort({ razonSocial: 1 })
+      .limit(search ? 15 : 500); 
+
+    return NextResponse.json({ clientes }, { status: 200 });
   } catch (error) {
     console.error('Error al listar clientes:', error);
     return NextResponse.json({ error: 'Error al cargar clientes' }, { status: 500 });
@@ -45,33 +71,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Razón social, nombre, apellido y teléfono son obligatorios.' }, { status: 400 });
     }
 
-    // 🔧 Normalizar datos
     const razonSocialOriginal = razonSocial.trim();
     const razonSocialNormalized = normalizeRazonSocial(razonSocialOriginal);
     const telefonoOriginal = telefono.trim();
     const telefonoNormalized = normalizeTelefono(telefonoOriginal);
 
-    // 🔍 Verificar si ya existe por razón social normalizada
     const razonSocialExistente = await Cliente.findOne({ razonSocialNormalized });
     if (razonSocialExistente) {
       return NextResponse.json({ 
         error: 'Ya existe un cliente con esta razón social.',
-        clienteExistente: {
-          _id: razonSocialExistente._id,
-          razonSocial: razonSocialExistente.razonSocial
-        }
+        clienteExistente: { _id: razonSocialExistente._id, razonSocial: razonSocialExistente.razonSocial }
       }, { status: 409 });
     }
 
-    // 🔍 Verificar si ya existe por teléfono normalizado
     const telefonoExistente = await Cliente.findOne({ telefonoNormalized });
     if (telefonoExistente) {
       return NextResponse.json({ 
         error: 'Ya existe un cliente con este teléfono.',
-        clienteExistente: {
-          _id: telefonoExistente._id,
-          razonSocial: telefonoExistente.razonSocial
-        }
+        clienteExistente: { _id: telefonoExistente._id, razonSocial: telefonoExistente.razonSocial }
       }, { status: 409 });
     }
 
@@ -85,10 +102,7 @@ export async function POST(request: NextRequest) {
       if (dniExistente) {
         return NextResponse.json({ 
           error: 'Ya existe un cliente con ese DNI.',
-          clienteExistente: {
-            _id: dniExistente._id,
-            razonSocial: dniExistente.razonSocial
-          }
+          clienteExistente: { _id: dniExistente._id, razonSocial: dniExistente.razonSocial }
         }, { status: 409 });
       }
     }
@@ -103,15 +117,11 @@ export async function POST(request: NextRequest) {
       if (emailExistente) {
         return NextResponse.json({ 
           error: 'Ya existe un cliente con ese email.',
-          clienteExistente: {
-            _id: emailExistente._id,
-            razonSocial: emailExistente.razonSocial
-          }
+          clienteExistente: { _id: emailExistente._id, razonSocial: emailExistente.razonSocial }
         }, { status: 409 });
       }
     }
 
-    // ✅ Crear cliente con campos normalizados
     const nuevoCliente = new Cliente({
       razonSocial: razonSocialOriginal,
       razonSocialNormalized,
@@ -130,7 +140,6 @@ export async function POST(request: NextRequest) {
     });
 
     const clienteGuardado = await nuevoCliente.save();
-
     notifyClients({ type: 'nuevo_cliente', data: clienteGuardado });
 
     return NextResponse.json(clienteGuardado, { status: 201 });

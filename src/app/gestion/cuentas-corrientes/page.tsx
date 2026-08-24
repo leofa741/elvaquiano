@@ -1,4 +1,3 @@
-// Página de gestión de cuentas corrientes - src/app/gestion/cuentas-corrientes/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -14,10 +13,11 @@ import {
   FaCheck,
   FaSync,
   FaPrint,
-  FaHistory
+  FaHistory,
+  FaSearch,
+  FaTimes,
+  FaFileInvoiceDollar
 } from 'react-icons/fa';
-
-
 
 import Swal from 'sweetalert2';
 import { formatARS } from '@/app/lib/formatcurrenci';
@@ -35,6 +35,14 @@ interface CuentaCorriente {
   umbralUsado: number;
 }
 
+interface ClienteBuscado {
+  _id: string;
+  razonSocial: string;
+  nombre?: string;
+  apellido?: string;
+  email?: string;
+}
+
 const FORMAS_PAGO = [
   { value: 'efectivo', label: 'Efectivo' },
   { value: 'transferencia', label: 'Transferencia' },
@@ -50,6 +58,12 @@ export default function CuentasCorrientesPage() {
   const [cuentas, setCuentas] = useState<CuentaCorriente[]>([]);
   const [totalAdeudado, setTotalAdeudado] = useState(0);
   const [alertasActivas, setAlertasActivas] = useState(0);
+
+  // 🆕 Estados para la Búsqueda Rápida
+  const [busquedaCliente, setBusquedaCliente] = useState('');
+  const [resultadosBusqueda, setResultadosBusqueda] = useState<ClienteBuscado[]>([]);
+  const [mostrarDropdown, setMostrarDropdown] = useState(false);
+  const [buscando, setBuscando] = useState(false);
 
   const fetchCuentas = async () => {
     try {
@@ -70,15 +84,135 @@ export default function CuentasCorrientesPage() {
   useEffect(() => {
     if (!isAuthorized) return;
     fetchCuentas();
-
-    // ✅ Auto-refresh cada 30 segundos
     const interval = setInterval(fetchCuentas, 30000);
     return () => clearInterval(interval);
   }, [isAuthorized]);
 
+  // 🆕 Efecto Debounce para la búsqueda de clientes (400ms)
+  useEffect(() => {
+    if (busquedaCliente.length < 2) {
+      setResultadosBusqueda([]);
+      setMostrarDropdown(false);
+      return;
+    }
 
+    const timer = setTimeout(async () => {
+      setBuscando(true);
+      try {
+        const res = await fetch(`/api/gestion/clientes?search=${encodeURIComponent(busquedaCliente)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setResultadosBusqueda(data.clientes || []);
+          setMostrarDropdown(true);
+        }
+      } catch (err) {
+        console.error('Error buscando cliente:', err);
+      } finally {
+        setBuscando(false);
+      }
+    }, 400);
 
+    return () => clearTimeout(timer);
+  }, [busquedaCliente]);
 
+  // 🆕 Handler para AGREGAR DEUDA / AJUSTE MANUAL
+  const handleAgregarDeudaRapida = async (cliente: ClienteBuscado) => {
+    setMostrarDropdown(false);
+    setBusquedaCliente('');
+
+    const { value: formValues } = await Swal.fire({
+      title: `Agregar Deuda / Ajuste Manual`,
+      html: `
+        <div style="text-align: left; padding: 10px 0;">
+          <div style="margin-bottom: 15px; padding: 10px; background: #1f2937; border-radius: 8px; border: 1px solid #374151;">
+            <div style="font-size: 12px; color: #9ca3af; margin-bottom: 4px;">Cliente seleccionado:</div>
+            <div style="font-size: 16px; font-weight: bold; color: white;">${cliente.razonSocial}</div>
+          </div>
+          
+          <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Monto a cargar a la deuda *</label>
+          <input id="swal-monto-cargo" type="number" step="0.01" min="0.01" 
+            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" 
+            placeholder="0.00" />
+          
+          <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Concepto / Descripción *</label>
+          <input id="swal-concepto-cargo" type="text" 
+            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" 
+            placeholder="Ej: Mercadería entregada, Servicio extra" />
+            
+          <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Nota interna (opcional)</label>
+          <input id="swal-nota-cargo" type="text" 
+            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px;" 
+            placeholder="Detalles adicionales..." />
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Agregar a la Deuda',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#f59e0b',
+      cancelButtonColor: '#6b7280',
+      background: '#1f2937',
+      color: '#fff',
+      preConfirm: () => {
+        const monto = parseFloat((document.getElementById('swal-monto-cargo') as HTMLInputElement).value);
+        const concepto = (document.getElementById('swal-concepto-cargo') as HTMLInputElement).value.trim();
+        const nota = (document.getElementById('swal-nota-cargo') as HTMLInputElement).value.trim();
+
+        if (!monto || monto <= 0) {
+          Swal.showValidationMessage('El monto debe ser mayor a 0');
+          return false;
+        }
+        if (!concepto) {
+          Swal.showValidationMessage('Debes ingresar un concepto o descripción');
+          return false;
+        }
+
+        return { monto, concepto, nota };
+      }
+    });
+
+    if (formValues) {
+      try {
+        const res = await fetch('/api/gestion/cuentas-corrientes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clienteId: cliente._id,
+            tipo: 'ajuste',
+            importe: formValues.monto,
+            descripcion: formValues.concepto,
+            notas: formValues.nota || undefined
+          })
+        });
+
+        if (res.ok) {
+          Swal.fire({
+            icon: 'success',
+            title: '¡Deuda Registrada!',
+            html: `
+              <div style="text-align: left; padding: 10px 0;">
+                <p style="color: #d1d5db; margin-bottom: 8px;">Se agregó un cargo a la cuenta de <strong>${cliente.razonSocial}</strong> por:</p>
+                <div style="font-size: 24px; font-weight: bold; color: #f59e0b; margin-bottom: 12px;">${formatARS(formValues.monto)}</div>
+                <p style="color: #d1d5db;">Concepto: <strong style="color: white;">${formValues.concepto}</strong></p>
+              </div>
+            `,
+            confirmButtonColor: '#f59e0b',
+            background: '#1f2937',
+            color: '#fff'
+          });
+          await fetchCuentas();
+        } else {
+          const err = await res.json();
+          Swal.fire('Error', err.error || 'No se pudo registrar el cargo', 'error');
+        }
+      } catch (err) {
+        console.error(err);
+        Swal.fire('Error', 'Error de conexión con el servidor', 'error');
+      }
+    }
+  };
+
+  // ✅ FUNCIONES ORIGINALES COMPLETAS Y FUNCIONALES
   const handleRegistrarPago = async (cuenta: CuentaCorriente) => {
     const { value: formValues } = await Swal.fire({
       title: `Registrar Pago - ${cuenta.razonSocial}`,
@@ -186,7 +320,6 @@ export default function CuentasCorrientesPage() {
             color: '#fff'
           });
 
-          // ✅ Recargar inmediatamente después del pago
           await fetchCuentas();
         } else {
           const err = await res.json();
@@ -197,8 +330,6 @@ export default function CuentasCorrientesPage() {
       }
     }
   };
-
-
 
   const handleGenerarRecibo = async (cuenta: CuentaCorriente) => {
     const { value: formValues } = await Swal.fire({
@@ -254,7 +385,6 @@ export default function CuentasCorrientesPage() {
 
     if (formValues) {
       try {
-        // ✅ 1. Crear el recibo
         const resRecibo = await fetch('/api/gestion/pagos/recibo', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -270,7 +400,6 @@ export default function CuentasCorrientesPage() {
         if (!resRecibo.ok) throw new Error('No se pudo generar el recibo');
         const recibo = await resRecibo.json();
 
-        // ✅ 2. Registrar el pago en cuenta corriente
         const resCC = await fetch('/api/gestion/cuentas-corrientes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -294,12 +423,10 @@ export default function CuentasCorrientesPage() {
             color: '#fff'
           });
 
-          // ✅ 3. Abrir ticket en nueva ventana
           setTimeout(() => {
             window.open(`/gestion/pagos/recibo/${recibo._id}/imprimir`, '_blank');
           }, 1000);
 
-          // Recargar cuentas
           fetchCuentas();
         } else {
           throw new Error('No se pudo registrar el pago');
@@ -310,7 +437,6 @@ export default function CuentasCorrientesPage() {
     }
   };
 
-  
   if (!isAuthorized) return null;
 
   return (
@@ -328,33 +454,80 @@ export default function CuentasCorrientesPage() {
             <FaWallet className="text-amber-400" />
             Cuentas Corrientes
           </h1>
-          <p className="text-gray-400 mt-1">
-            Gestión de saldos pendientes y pagos de clientes.
-          </p>
+          <p className="text-gray-400 mt-1">Gestión de saldos pendientes, cargos y pagos de clientes.</p>
         </div>
 
-        {/* ✅ BOTÓN RECARGAR */}
-        <div className="flex flex-col sm:flex-row sm:justify-between gap-4 mb-6">
-   
-    
-    <div className="flex gap-2">
-        <Link
-            href="/gestion/pagos/recibos"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition"
-        >
+        <div className="flex gap-2">
+          <Link href="/gestion/pagos/recibos" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition">
             <FaHistory /> Ver Historial de Recibos
-        </Link>
-        
-        <button
-            onClick={fetchCuentas}
-            disabled={loading}
-            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
-        >
+          </Link>
+          <button onClick={fetchCuentas} disabled={loading} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition disabled:opacity-50">
             <FaSync className={loading ? 'animate-spin' : ''} /> Actualizar
-        </button>
-    </div>
-</div>
-      
+          </button>
+        </div>
+      </div>
+
+      {/* 🆕 SECCIÓN DE BÚSQUEDA RÁPIDA PARA AGREGAR DEUDA */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 mb-6 shadow-lg relative">
+        <h3 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+          <FaFileInvoiceDollar className="text-amber-400" /> Registro Rápido de Deuda / Ajuste Manual
+        </h3>
+        <div className="relative">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <FaUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input
+                type="text"
+                placeholder="Buscar cliente para agregarle una deuda..."
+                value={busquedaCliente}
+                onChange={(e) => setBusquedaCliente(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 text-white pl-10 pr-10 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-all placeholder-gray-500"
+              />
+              {buscando && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <FaSync className="animate-spin text-amber-400 text-sm" />
+                </div>
+              )}
+              {busquedaCliente.length >= 2 && !buscando && (
+                <button 
+                  onClick={() => { setBusquedaCliente(''); setResultadosBusqueda([]); setMostrarDropdown(false); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                >
+                  <FaTimes />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {mostrarDropdown && resultadosBusqueda.length > 0 && (
+            <div className="absolute z-50 w-full mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-h-64 overflow-y-auto">
+              {resultadosBusqueda.map((cliente) => (
+                <button
+                  key={cliente._id}
+                  onClick={() => handleAgregarDeudaRapida(cliente)}
+                  className="w-full text-left px-4 py-3 hover:bg-gray-800 border-b border-gray-800 last:border-0 transition-colors flex justify-between items-center group"
+                >
+                  <div>
+                    <div className="font-medium text-white group-hover:text-amber-400 transition-colors">
+                      {cliente.razonSocial}
+                    </div>
+                    {(cliente.nombre || cliente.apellido) && (
+                      <div className="text-xs text-gray-400">{cliente.nombre} {cliente.apellido}</div>
+                    )}
+                    {cliente.email && <div className="text-xs text-gray-500">{cliente.email}</div>}
+                  </div>
+                  <FaCheck className="text-gray-600 group-hover:text-amber-400 transition-colors" />
+                </button>
+              ))}
+            </div>
+          )}
+          
+          {mostrarDropdown && busquedaCliente.length >= 2 && resultadosBusqueda.length === 0 && !buscando && (
+            <div className="absolute z-50 w-full mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 text-center text-gray-400 text-sm">
+              No se encontraron clientes con ese término.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* RESUMEN */}
@@ -380,15 +553,12 @@ export default function CuentasCorrientesPage() {
         {loading ? (
           <div className="p-6 text-center text-gray-300">Cargando cuentas corrientes...</div>
         ) : cuentas.length === 0 ? (
-          <div className="p-6 text-center text-gray-400">
-            No hay clientes con saldo pendiente.
-          </div>
+          <div className="p-6 text-center text-gray-400">No hay clientes con saldo pendiente.</div>
         ) : (
           <div className="divide-y divide-gray-700">
             {cuentas.map((cuenta) => (
               <div key={cuenta.clienteId} className="p-4 hover:bg-gray-750 transition-colors">
                 <div className="flex flex-col md:flex-row md:justify-between gap-4">
-                  {/* Info del cliente */}
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <FaUser className="text-amber-400 text-sm" />
@@ -400,23 +570,15 @@ export default function CuentasCorrientesPage() {
                       )}
                     </div>
                     {(cuenta.nombre || cuenta.apellido) && (
-                      <div className="text-gray-400 text-sm ml-5">
-                        {cuenta.nombre} {cuenta.apellido}
-                      </div>
+                      <div className="text-gray-400 text-sm ml-5">{cuenta.nombre} {cuenta.apellido}</div>
                     )}
                     <div className="flex flex-wrap gap-4 mt-2 ml-5 text-sm text-gray-400">
                       {cuenta.telefono && (
-                        <span className="flex items-center gap-1">
-                          <FaPhone size={12} /> {cuenta.telefono}
-                        </span>
+                        <span className="flex items-center gap-1"><FaPhone size={12} /> {cuenta.telefono}</span>
                       )}
-                      <span>
-                        {cuenta.pedidosDeudores} pedido(s) pendiente(s)
-                      </span>
+                      <span>{cuenta.pedidosDeudores} pedido(s) pendiente(s)</span>
                     </div>
                   </div>
-
-                  {/* Deuda y acción */}
                   <div className="flex flex-col sm:items-end gap-2">
                     <div className="text-right">
                       <div className="text-xs text-gray-400">Saldo Pendiente</div>
@@ -428,7 +590,6 @@ export default function CuentasCorrientesPage() {
                     >
                       <FaMoneyBillWave /> Registrar Pago
                     </button>
-
                     <button
                       onClick={() => handleGenerarRecibo(cuenta)}
                       className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"

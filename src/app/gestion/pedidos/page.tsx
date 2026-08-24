@@ -289,6 +289,7 @@ export default function PedidosPage() {
           <FaPlus /> Nuevo Pedido
         </Link>
       </div>
+      
 
       {/* 🆕 BARRA DE BÚSQUEDA PREMIUM */}
       <div className="bg-gray-800/50 backdrop-blur-md border border-gray-700 rounded-xl p-4 shadow-xl">
