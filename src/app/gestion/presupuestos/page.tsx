@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
-import { FaFileInvoice, FaPlus, FaEye, FaChevronLeft, FaChevronRight, FaTrash } from 'react-icons/fa';
+import { FaFileInvoice, FaPlus, FaEye, FaChevronLeft, FaChevronRight, FaTrash, FaEdit } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatARS } from '@/app/lib/formatcurrenci';
@@ -256,8 +256,19 @@ export default function PresupuestosPage() {
 
           <h1 className="text-3xl font-bold text-white flex items-center gap-2">
             <FaFileInvoice className="text-amber-400" />
-            Gestión de Presupuestos
+            Presupuestos
           </h1>
+        </div>
+        <div  className='border border-red-400 rounded-lg p-2'
+        >
+          <p
+          className="text-red-400 text-sm mb-4"
+          >
+           <strong>se pueden agregar productos a los presupuestos creados en el icono <FaEdit className="text-amber-400" />  </strong> 
+           <br /> si ya fue convertido a pedido no se puede agregar productos .
+           <br /> y en pedidos si se puede agregar productos .
+          </p>
+
         </div>
 
         <Link
@@ -325,6 +336,15 @@ export default function PresupuestosPage() {
                         <span className="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded">
                           {ESTADO_LABEL[p.estado] || p.estado}
                         </span>
+
+                        <Link
+                          href={`/gestion/presupuestos/${p._id}`}
+                          onClick={() => marcarComoVisto(p._id)}
+                          className="text-blue-400 hover:text-blue-300 text-sm flex items-center gap-1 transition-colors"
+                          title="Editar / Gestionar productos"
+                        >
+                          <FaEdit size={16} />
+                        </Link>
 
                         {/* 👁️ Ver */}
                         <Link

@@ -55,12 +55,12 @@ export default function ProductCard({ product, onAdd }: any) { // Recibimos la f
         </div>
       )}
 
-      {/* 🔹 Badge de stock con cantidad (esquina superior derecha) */}
+      {/* 🔹 Badge de stock con cantidad (esquina superior derecha) 
       <div className="absolute top-2 right-2 z-10">
         <span className={`text-[10px] font-semibold px-2 py-1 rounded-full border ${stockBadgeClasses}`}>
           {stockBadgeText}
         </span>
-      </div>
+      </div>*/}
 
       {/* Imagen */}
       <div className="h-40 w-full flex items-center justify-center bg-gray-50">
@@ -94,7 +94,7 @@ export default function ProductCard({ product, onAdd }: any) { // Recibimos la f
             {formatARS(finalPrice)}
           </p>
 
-          {/* Badge de stock en el cuerpo (refuerzo visual) */}
+          {/* Badge de stock en el cuerpo (refuerzo visual) 
           <div className="mt-2">
             {isOutOfStock ? (
               <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded border border-red-200">
@@ -109,7 +109,7 @@ export default function ProductCard({ product, onAdd }: any) { // Recibimos la f
                 ✅  en stock
               </span>
             )}
-          </div>
+          </div>*/}
         </div>
 
         <button

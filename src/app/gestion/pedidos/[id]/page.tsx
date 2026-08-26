@@ -19,7 +19,6 @@ interface Cliente {
   direccion?: string; telefono?: string; tipoCliente?: 'minorista' | 'mayorista';
 }
 
-
 interface Producto {
   _id: string; nombre: string; unidad: string; cantidad: number;
   tipoPrecio: 'mayorista' | 'oferta'; precioAplicado: number; subtotal: number; producto: string;
