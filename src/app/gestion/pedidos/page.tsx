@@ -153,6 +153,7 @@ export default function PedidosPage() {
   /* =======================
      SSE (Sin cambios, sigue funcionando)
   ======================= */
+  
   useEffect(() => {
     if (!isAuthorized) return;
     const es = new EventSource('/api/gestion/pedidos/events');

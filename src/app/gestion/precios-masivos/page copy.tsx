@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { toast } from 'react-toastify';
-import Swal from 'sweetalert2';
+import Swal from 'sweetalert2'; // ✅ Agregado SweetAlert2
 import Link from 'next/link';
 import {
   FaChartLine,
@@ -12,12 +12,14 @@ import {
   FaSave,
   FaUndo,
   FaBox,
+  FaPercent,
   FaDollarSign,
   FaCheckSquare,
   FaSquare,
   FaMinusSquare,
   FaPlusSquare,
   FaCalculator,
+  FaSync,
 } from 'react-icons/fa';
 import { formatARS } from '@/app/lib/formatcurrenci';
 
@@ -76,13 +78,8 @@ interface EditedPrice {
 }
 
 type BulkOperation = 'add' | 'subtract';
-type BulkMode = 'amount'; 
+type BulkMode = 'percentage' | 'amount';
 type PriceField = 'precioLista' | 'precioMayorista' | 'precioOferta';
-
-// ✅ NUEVO: Tipo discriminado para que TypeScript sepa exactamente qué propiedades existen
-type BulkPreviewItem = 
-  | { mode: 'assign'; product: Product; changes: { lista?: number; mayorista?: number; oferta?: number } }
-  | { mode: 'adjust'; product: Product; originalPrice: number | null; newPrice: number; diff: number };
 
 export default function PreciosMasivosPage() {
   const { data: session, status } = useSession();
@@ -100,19 +97,12 @@ export default function PreciosMasivosPage() {
   const [savingAll, setSavingAll] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  // ✅ Por defecto, siempre aparece seleccionado "precioLista"
-  const [bulkPriceField, setBulkPriceField] = useState<PriceField>('precioLista');
-  
-  // ✅ Nuevos estados para los dos inputs de asignación directa
-  const [bulkPrecioLista, setBulkPrecioLista] = useState<string>('');
-  const [bulkPrecioMayorista, setBulkPrecioMayorista] = useState<string>('');
-  const [bulkSetOfertaCero, setBulkSetOfertaCero] = useState<boolean>(true);
-
-  // Estados de respaldo para la lógica de sumar/restar en otros campos
+  const [bulkMode, setBulkMode] = useState<BulkMode>('percentage');
   const [bulkValue, setBulkValue] = useState<string>('');
   const [bulkOperation, setBulkOperation] = useState<BulkOperation>('add');
+  const [bulkPriceField, setBulkPriceField] = useState<PriceField>('precioMayorista');
   const [showBulkPanel, setShowBulkPanel] = useState(false);
+  const [isApplyingBulk, setIsApplyingBulk] = useState(false);
   const [applyToOriginal, setApplyToOriginal] = useState(true);
 
   // 🔒 Validación de acceso
@@ -204,35 +194,51 @@ export default function PreciosMasivosPage() {
     }
   };
 
-  // ✅ LÓGICA INDEPENDIENTE: Cada campo se edita por separado en la tabla.
+  // ✅ 🆕 LOGICA NUEVA: Mientras escribe, si es Precio Lista, sincroniza Mayorista y pone Oferta en 0
   const handlePriceChange = (productId: string, field: keyof EditedPrice, rawValue: string) => {
     const cleaned = formatArgentineInput(rawValue);
     const numericValue = parseArgentineNumber(cleaned);
 
-    setDisplayPrices((prev) => ({
-      ...prev,
-      [productId]: {
-        ...prev[productId],
-        [field]: cleaned,
-      },
-    }));
+    if (field === 'precioLista') {
+      setDisplayPrices((prev) => ({
+        ...prev,
+        [productId]: {
+          ...prev[productId],
+          precioLista: cleaned,
+          precioMayorista: cleaned,
+          precioOferta: numericValue === 0 ? '0,00' : '0,00',
+        },
+      }));
 
-    setEditingPrices((prev) => {
-      const currentEdits = prev[productId] || {};
-      const newEdits = { ...currentEdits, [field]: numericValue ?? undefined };
+      setEditingPrices((prev) => ({
+        ...prev,
+        [productId]: {
+          ...prev[productId],
+          precioLista: numericValue ?? undefined,
+          precioMayorista: numericValue ?? undefined,
+          precioOferta: 0,
+        },
+      }));
+    } else {
+      setDisplayPrices((prev) => ({
+        ...prev,
+        [productId]: {
+          ...prev[productId],
+          [field]: cleaned,
+        },
+      }));
 
-      if (field === 'precioLista') {
-        newEdits.precioOferta = 0;
-        setDisplayPrices((dPrev) => ({
-          ...dPrev,
-          [productId]: { ...dPrev[productId], precioOferta: '0,00' },
-        }));
-      }
-
-      return { ...prev, [productId]: newEdits };
-    });
+      setEditingPrices((prev) => ({
+        ...prev,
+        [productId]: {
+          ...prev[productId],
+          [field]: numericValue ?? undefined,
+        },
+      }));
+    }
   };
 
+  // ✅ Al salir del campo
   const handlePriceBlur = (productId: string, field: keyof EditedPrice) => {
     const editedPrice = editingPrices[productId]?.[field];
     const product = products.find((p) => p._id === productId);
@@ -257,6 +263,7 @@ export default function PreciosMasivosPage() {
     }
   };
 
+  // 💾 Guardar cambios de un producto
   const saveProductPrice = async (product: Product) => {
     setSavingIds((prev) => new Set(prev).add(product._id));
     try {
@@ -264,6 +271,14 @@ export default function PreciosMasivosPage() {
       if (!changes || Object.keys(changes).length === 0) {
         toast.info('No hay cambios para guardar');
         return;
+      }
+
+      const precioLista = changes.precioLista ?? product.precioLista;
+      const precioMayorista = changes.precioMayorista ?? product.precioMayorista;
+
+      if (precioLista != null && precioMayorista != null && precioLista > precioMayorista) {
+        toast.error(`"${product.nombre}": El precio mayorista no puede ser menor que el precio de lista`);
+        throw new Error('Validación fallida');
       }
 
       const res = await fetch(`/api/gestion/productos/${product._id}`, {
@@ -307,6 +322,7 @@ export default function PreciosMasivosPage() {
     }
   };
 
+  // 💾💾 Guardar todos los cambios (✅ AHORA CON SWEETALERT2)
   const saveAllChanges = async () => {
     const productsToSave = products.filter(
       (p) => editingPrices[p._id] && Object.keys(editingPrices[p._id]).length > 0
@@ -316,18 +332,19 @@ export default function PreciosMasivosPage() {
       return;
     }
 
+    // ✅ Reemplazo del confirm() nativo por SweetAlert2
     const result = await Swal.fire({
       title: '¿Guardar todos los cambios?',
       html: `Estás a punto de actualizar <strong>${productsToSave.length}</strong> producto(s).<br/><span class="text-gray-400 text-sm">Esta acción sincronizará los precios en toda la plataforma.</span>`,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#d97706',
-      cancelButtonColor: '#4b5563',
+      confirmButtonColor: '#d97706', // amber-600
+      cancelButtonColor: '#4b5563', // gray-600
       confirmButtonText: 'Sí, guardar todo',
       cancelButtonText: 'Cancelar',
       reverseButtons: true,
-      background: '#1f2937',
-      color: '#f3f4f6',
+      background: '#1f2937', // gray-800
+      color: '#f3f4f6', // gray-100
     });
 
     if (!result.isConfirmed) return;
@@ -364,6 +381,7 @@ export default function PreciosMasivosPage() {
     }
   };
 
+  // 🔄 Descartar cambios de un producto
   const discardChanges = (productId: string) => {
     const product = products.find((p) => p._id === productId);
     if (!product) return;
@@ -395,39 +413,17 @@ export default function PreciosMasivosPage() {
     (id) => Object.keys(editingPrices[id]).length > 0
   );
 
-  // ✅ PREVIEW ACTUALIZADO: Ahora usa el tipo discriminado BulkPreviewItem
   const bulkPreview = useMemo(() => {
-    if (selectedIds.size === 0) return null;
-
-    if (bulkPriceField === 'precioLista') {
-      const newLista = parseArgentineNumber(bulkPrecioLista);
-      const newMayorista = parseArgentineNumber(bulkPrecioMayorista);
-      
-      if (newLista === null && newMayorista === null) return null;
-
-      const preview: BulkPreviewItem[] = [];
-
-      selectedIds.forEach((id) => {
-        const product = products.find((p) => p._id === id);
-        if (!product) return;
-
-        const changes: { lista?: number; mayorista?: number; oferta?: number } = {};
-        if (newLista !== null) changes.lista = newLista;
-        if (newMayorista !== null) changes.mayorista = newMayorista;
-        if (bulkSetOfertaCero) changes.oferta = 0;
-
-        preview.push({ mode: 'assign', product, changes });
-      });
-
-      return preview;
-    }
-
-    // Lógica de respaldo para sumar/restar en otros campos
-    if (!bulkValue.trim()) return null;
+    if (!bulkValue.trim() || selectedIds.size === 0) return null;
     const numValue = parseArgentineNumber(bulkValue);
     if (numValue === null || numValue < 0) return null;
 
-    const preview: BulkPreviewItem[] = [];
+    const preview: Array<{
+      product: Product;
+      originalPrice: number | null;
+      newPrice: number;
+      diff: number;
+    }> = [];
 
     selectedIds.forEach((id) => {
       const product = products.find((p) => p._id === id);
@@ -439,14 +435,19 @@ export default function PreciosMasivosPage() {
 
       if (basePrice === null) return;
 
-      const newPrice = bulkOperation === 'add'
-        ? Math.round((basePrice + numValue) * 100) / 100
-        : Math.round((basePrice - numValue) * 100) / 100;
+      let newPrice: number;
+      if (bulkMode === 'percentage') {
+        const factor = bulkOperation === 'add' ? 1 + numValue / 100 : 1 - numValue / 100;
+        newPrice = Math.round(basePrice * factor * 100) / 100;
+      } else {
+        newPrice = bulkOperation === 'add'
+          ? Math.round((basePrice + numValue) * 100) / 100
+          : Math.round((basePrice - numValue) * 100) / 100;
+      }
 
-      if (newPrice < 0) return;
+      if (newPrice < 0) newPrice = 0;
 
       preview.push({
-        mode: 'adjust',
         product,
         originalPrice: basePrice,
         newPrice,
@@ -455,84 +456,72 @@ export default function PreciosMasivosPage() {
     });
 
     return preview;
-  }, [bulkPrecioLista, bulkPrecioMayorista, bulkSetOfertaCero, bulkValue, bulkOperation, bulkPriceField, selectedIds, products, editingPrices, applyToOriginal]);
+  }, [bulkValue, bulkMode, bulkOperation, bulkPriceField, selectedIds, products, editingPrices, applyToOriginal]);
 
+  // 🆕 Aplicar cambios masivos con la nueva lógica de sincronización
   const applyBulkChanges = () => {
-    // ✅ LÓGICA PRINCIPAL: Asignación directa de dos precios
-    if (bulkPriceField === 'precioLista') {
-      const newLista = parseArgentineNumber(bulkPrecioLista);
-      const newMayorista = parseArgentineNumber(bulkPrecioMayorista);
-
-      if (newLista === null && newMayorista === null) {
-        toast.info('Ingresá al menos un precio válido');
-        return;
-      }
-
-      setEditingPrices((prev) => {
-        const newEditing = { ...prev };
-        selectedIds.forEach((id) => {
-          newEditing[id] = {
-            ...newEditing[id],
-            ...(newLista !== null ? { precioLista: newLista } : {}),
-            ...(newMayorista !== null ? { precioMayorista: newMayorista } : {}),
-            ...(bulkSetOfertaCero ? { precioOferta: 0 } : {}),
-          };
-        });
-        return newEditing;
-      });
-
-      setDisplayPrices((prev) => {
-        const newDisplay = { ...prev };
-        selectedIds.forEach((id) => {
-          const product = products.find((p) => p._id === id);
-          if (!product) return;
-          
-          const currentLista = newLista !== null ? newLista : (editingPrices[id]?.precioLista ?? product.precioLista);
-          const currentMayorista = newMayorista !== null ? newMayorista : (editingPrices[id]?.precioMayorista ?? product.precioMayorista);
-          const currentOferta = bulkSetOfertaCero ? 0 : (editingPrices[id]?.precioOferta ?? product.precioOferta);
-
-          newDisplay[id] = {
-            precioLista: formatArgentineFinal(currentLista),
-            precioMayorista: formatArgentineFinal(currentMayorista),
-            precioOferta: formatArgentineFinal(currentOferta),
-          };
-        });
-        return newDisplay;
-      });
-
-      toast.success(`✨ Precios aplicados a ${selectedIds.size} producto(s). Revisá y presioná "Guardar todos los cambios"`, { autoClose: 5000 });
-      setBulkPrecioLista('');
-      setBulkPrecioMayorista('');
-      setShowBulkPanel(false);
-      return;
-    }
-
-    // Lógica de respaldo para sumar/restar
     if (!bulkPreview || bulkPreview.length === 0) {
       toast.info('Configurá los valores primero');
       return;
     }
 
+    let validationError = false;
+    bulkPreview.forEach(({ product, newPrice }) => {
+      if (bulkPriceField === 'precioLista') {
+        const precioMayoristaActual = editingPrices[product._id]?.precioMayorista ?? product.precioMayorista;
+        if (newPrice > precioMayoristaActual && precioMayoristaActual !== newPrice) {
+           // Esta validación es informativa, pero al sincronizar se arregla sola
+        }
+      } else if (bulkPriceField === 'precioMayorista') {
+        const precioListaActual = editingPrices[product._id]?.precioLista ?? product.precioLista;
+        if (precioListaActual != null && newPrice < precioListaActual) {
+          toast.error(`"${product.nombre}": El precio mayorista no puede ser menor al de lista`);
+          validationError = true;
+        }
+      }
+    });
+
+    if (validationError) {
+      toast.error('Revisá los conflictos antes de aplicar');
+      return;
+    }
+
+    // Aplicar a editingPrices
     setEditingPrices((prev) => {
       const newEditing = { ...prev };
-      bulkPreview.forEach((item) => {
-        if (item.mode === 'adjust') {
-          newEditing[item.product._id] = {
-            ...newEditing[item.product._id],
-            [bulkPriceField]: item.newPrice,
+      bulkPreview.forEach(({ product, newPrice }) => {
+        if (bulkPriceField === 'precioLista') {
+          newEditing[product._id] = {
+            ...newEditing[product._id],
+            precioLista: newPrice,
+            precioMayorista: newPrice, 
+            precioOferta: 0,            
+          };
+        } else {
+          newEditing[product._id] = {
+            ...newEditing[product._id],
+            [bulkPriceField]: newPrice,
           };
         }
       });
       return newEditing;
     });
 
+    // Aplicar a displayPrices (lo que ve el usuario)
     setDisplayPrices((prev) => {
       const newDisplay = { ...prev };
-      bulkPreview.forEach((item) => {
-        if (item.mode === 'adjust') {
-          newDisplay[item.product._id] = {
-            ...newDisplay[item.product._id],
-            [bulkPriceField]: formatArgentineFinal(item.newPrice),
+      bulkPreview.forEach(({ product, newPrice }) => {
+        if (bulkPriceField === 'precioLista') {
+          newDisplay[product._id] = {
+            ...newDisplay[product._id],
+            precioLista: formatArgentineFinal(newPrice),
+            precioMayorista: formatArgentineFinal(newPrice),
+            precioOferta: formatArgentineFinal(0),
+          };
+        } else {
+          newDisplay[product._id] = {
+            ...newDisplay[product._id],
+            [bulkPriceField]: formatArgentineFinal(newPrice),
           };
         }
       });
@@ -549,6 +538,7 @@ export default function PreciosMasivosPage() {
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <FaChartLine className="text-amber-400 text-2xl" />
@@ -560,16 +550,19 @@ export default function PreciosMasivosPage() {
           </p>
         </div>
 
+        {/* Instrucciones */}
         <div className="mt-6 p-4 bg-blue-900/20 border border-blue-700 rounded-lg">
           <h3 className="text-yellow-300 font-extrabold text-xl mb-3 border-l-4 border-yellow-400 pl-3">💡 Instrucciones:</h3>
           <ul className="text-sm text-blue-200 space-y-1 list-disc list-inside">
-            <li><strong>Edición individual:</strong> Cada precio es independiente. Al modificar el Precio de Lista, la Oferta se establece en $0,00.</li>
-            <li><strong>Edición masiva (Default):</strong> Seleccioná productos e ingresá directamente el <span className="text-amber-400 font-bold">Nuevo Precio Lista</span> y el <span className="text-amber-400 font-bold">Nuevo Precio Mayorista</span>. Se aplicarán esos valores exactos a todos los seleccionados.</li>
-            <li>Los cambios se muestran en verde (aumento) o rojo (disminución) debajo de cada campo.</li>
+            <li><strong>Edición individual:</strong> Si modificás el <span className="text-amber-400 font-bold">Precio de Lista</span>, el Precio Mayorista se igualará automáticamente y la Oferta se pondrá en $0,00.</li>
+            <li><strong>Edición masiva:</strong> seleccioná varios productos y presioná <span className="text-yellow-300 font-bold">"Aplicar cambio masivo"</span>.</li>
+            <li>Los cambios se muestran en verde (aumento) o rojo (disminución).</li>
+            <li>Podés guardar individualmente o todos los cambios con el botón superior.</li>
           </ul>
         </div>
         <br />
 
+        {/* Buscador */}
         <div className="mb-6">
           <div className="relative">
             <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500" />
@@ -588,6 +581,7 @@ export default function PreciosMasivosPage() {
           )}
         </div>
 
+        {/* Panel de acciones masivas */}
         {selectedIds.size > 0 && (
           <div className="mb-6 bg-gradient-to-r from-amber-900/30 to-amber-800/20 border border-amber-700 rounded-xl p-4">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -623,177 +617,124 @@ export default function PreciosMasivosPage() {
                             : 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
                         }`}
                       >
-                        {field === 'precioLista' ? '💰 Precio Lista (y Mayorista)' : field === 'precioMayorista' ? '🏷️ Precio Mayorista' : '🔥 Precio Oferta'}
+                        {field === 'precioLista' && <FaSync size={14} />}
+                        {field === 'precioLista' ? '💰 Precio Lista (Sincroniza)' : field === 'precioMayorista' ? '🏷️ Precio Mayorista' : '🔥 Precio Oferta'}
                       </button>
                     ))}
                   </div>
+                  {bulkPriceField === 'precioLista' && (
+                    <p className="text-xs text-amber-300 mt-2 flex items-center gap-1">
+                      <FaSync size={12} /> Al modificar este, el Precio Mayorista se igualará y la Oferta se pondrá en $0,00.
+                    </p>
+                  )}
                 </div>
 
-                {/* ✅ NUEVA LÓGICA: Si es Precio Lista, mostramos DOS inputs para asignación directa */}
-                {bulkPriceField === 'precioLista' ? (
-                  <div className="space-y-4 bg-gray-800/50 p-4 rounded-lg border border-gray-700">
-                    <p className="text-sm text-amber-300 mb-3">
-                      Ingresá los nuevos valores. Los productos seleccionados se actualizarán con estos precios exactos.
-                    </p>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-amber-200 mb-1">Nuevo Precio Lista ($)</label>
-                        <input
-                          type="text"
-                          value={bulkPrecioLista}
-                          onChange={(e) => setBulkPrecioLista(formatArgentineInput(e.target.value))}
-                          placeholder="Ej: 1000,00"
-                          className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-amber-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-amber-200 mb-1">Nuevo Precio Mayorista ($)</label>
-                        <input
-                          type="text"
-                          value={bulkPrecioMayorista}
-                          onChange={(e) => setBulkPrecioMayorista(formatArgentineInput(e.target.value))}
-                          placeholder="Ej: 2000,00"
-                          className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-amber-500"
-                        />
-                      </div>
-                    </div>
+                <div>
+                  <label className="block text-sm font-medium text-amber-200 mb-2">¿Cómo querés modificarlo?</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setBulkMode('percentage')}
+                      className={`px-4 py-2 rounded-lg border transition flex items-center justify-center gap-2 ${
+                        bulkMode === 'percentage' ? 'bg-amber-600 border-amber-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      <FaPercent /> Porcentaje (%)
+                    </button>
+                    <button
+                      onClick={() => setBulkMode('amount')}
+                      className={`px-4 py-2 rounded-lg border transition flex items-center justify-center gap-2 ${
+                        bulkMode === 'amount' ? 'bg-amber-600 border-amber-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      <FaDollarSign /> Importe fijo ($)
+                    </button>
+                  </div>
+                </div>
 
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="bulkSetOfertaCero"
-                        checked={bulkSetOfertaCero}
-                        onChange={(e) => setBulkSetOfertaCero(e.target.checked)}
-                        className="w-4 h-4 text-amber-600 bg-gray-700 border-gray-600 rounded focus:ring-amber-500"
-                      />
-                      <label htmlFor="bulkSetOfertaCero" className="text-sm text-amber-200">
-                        Establecer automáticamente el Precio de Oferta en $0,00
-                      </label>
-                    </div>
-
-                    <div className="flex items-end pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-amber-200 mb-2">Operación</label>
+                    <div className="grid grid-cols-2 gap-2">
                       <button
-                        onClick={applyBulkChanges}
-                        disabled={!bulkPrecioLista.trim() && !bulkPrecioMayorista.trim()}
-                        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition"
+                        onClick={() => setBulkOperation('add')}
+                        className={`px-3 py-2 rounded-lg border transition flex items-center justify-center gap-1 ${
+                          bulkOperation === 'add' ? 'bg-green-600 border-green-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
+                        }`}
                       >
-                        <FaCheckSquare /> Aplicar a {selectedIds.size} producto(s)
+                        <FaPlusSquare /> Sumar
+                      </button>
+                      <button
+                        onClick={() => setBulkOperation('subtract')}
+                        className={`px-3 py-2 rounded-lg border transition flex items-center justify-center gap-1 ${
+                          bulkOperation === 'subtract' ? 'bg-red-600 border-red-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
+                        }`}
+                      >
+                        <FaMinusSquare /> Restar
                       </button>
                     </div>
                   </div>
-                ) : (
-                  // Lógica de respaldo de Sumar/Restar para Mayorista u Oferta individual
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-amber-200 mb-2">Operación</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => setBulkOperation('add')}
-                          className={`px-3 py-2 rounded-lg border transition flex items-center justify-center gap-1 ${
-                            bulkOperation === 'add' ? 'bg-green-600 border-green-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
-                          }`}
-                        >
-                          <FaPlusSquare /> Sumar
-                        </button>
-                        <button
-                          onClick={() => setBulkOperation('subtract')}
-                          className={`px-3 py-2 rounded-lg border transition flex items-center justify-center gap-1 ${
-                            bulkOperation === 'subtract' ? 'bg-red-600 border-red-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
-                          }`}
-                        >
-                          <FaMinusSquare /> Restar
-                        </button>
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-2 mt-2">
-                      <input
-                        type="checkbox"
-                        id="applyToOriginal"
-                        checked={applyToOriginal}
-                        onChange={(e) => setApplyToOriginal(e.target.checked)}
-                        className="w-4 h-4 text-amber-600 bg-gray-700 border-gray-600 rounded focus:ring-amber-500"
-                      />
-                      <label htmlFor="applyToOriginal" className="text-sm text-amber-200">Aplicar sobre precio original</label>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-amber-200 mb-2">Valor a sumar/restar ($)</label>
-                      <input
-                        type="text"
-                        value={bulkValue}
-                        onChange={(e) => setBulkValue(formatArgentineInput(e.target.value))}
-                        placeholder="Ej: 500,00"
-                        className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-amber-500"
-                      />
-                    </div>
-
-                    <div className="flex items-end">
-                      <button
-                        onClick={applyBulkChanges}
-                        disabled={!bulkValue.trim()}
-                        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition"
-                      >
-                        <FaCheckSquare /> Aplicar a {selectedIds.size} producto(s)
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      type="checkbox"
+                      id="applyToOriginal"
+                      checked={applyToOriginal}
+                      onChange={(e) => setApplyToOriginal(e.target.checked)}
+                      className="w-4 h-4 text-amber-600 bg-gray-700 border-gray-600 rounded focus:ring-amber-500"
+                    />
+                    <label htmlFor="applyToOriginal" className="text-sm text-amber-200">Aplicar sobre precio original (ignorar cambios manuales pendientes)</label>
                   </div>
-                )}
 
-                {/* ✅ PREVIEW ACTUALIZADO: Ahora usa type guards para que TS no tire errores */}
+                  <div>
+                    <label className="block text-sm font-medium text-amber-200 mb-2">Valor {bulkMode === 'percentage' ? '(%)' : '($)'}</label>
+                    <input
+                      type="text"
+                      value={bulkValue}
+                      onChange={(e) => setBulkValue(formatArgentineInput(e.target.value))}
+                      placeholder={bulkMode === 'percentage' ? 'Ej: 10' : 'Ej: 500,00'}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <div className="flex items-end">
+                    <button
+                      onClick={applyBulkChanges}
+                      disabled={!bulkPreview || isApplyingBulk}
+                      className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition"
+                    >
+                      <FaCheckSquare /> Aplicar a {selectedIds.size} producto(s)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Preview de cambios */}
                 {bulkPreview && bulkPreview.length > 0 && (
                   <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
                     <p className="text-sm text-amber-200 font-medium mb-2 flex items-center gap-2">
                       <FaCalculator /> Vista previa de los cambios:
+                      {bulkPriceField === 'precioLista' && <span className="text-xs bg-amber-900/50 text-amber-300 px-2 py-0.5 rounded border border-amber-700">Incluye sincronización de Mayorista y Oferta en 0</span>}
                     </p>
                     <div className="max-h-48 overflow-y-auto space-y-1">
-                      {bulkPreview.map((item) => {
-                        // ✅ Type Guard: TypeScript ahora sabe exactamente qué propiedades tiene 'item'
-                        if (item.mode === 'assign') {
-                          const { product, changes } = item;
-                          const currentLista = editingPrices[product._id]?.precioLista ?? product.precioLista;
-                          const currentMayorista = editingPrices[product._id]?.precioMayorista ?? product.precioMayorista;
+                      {bulkPreview.map(({ product, originalPrice, newPrice, diff }) => (
+                        <div key={product._id} className="flex flex-col sm:flex-row sm:items-center justify-between text-xs bg-gray-800/50 rounded px-3 py-2 gap-1">
+                          <span className="text-gray-300 truncate flex-1 font-medium">{product.nombre}</span>
                           
-                          return (
-                            <div key={product._id} className="flex flex-col sm:flex-row sm:items-center justify-between text-xs bg-gray-800/50 rounded px-3 py-2 gap-1">
-                              <span className="text-gray-300 truncate flex-1 font-medium">{product.nombre}</span>
-                              <div className="flex flex-wrap items-center gap-3">
-                                {changes.lista !== undefined && (
-                                  <span className="text-amber-400">
-                                    Lista: {formatARS(currentLista)} → <strong>{formatARS(changes.lista)}</strong>
-                                  </span>
-                                )}
-                                {changes.mayorista !== undefined && (
-                                  <span className="text-blue-400">
-                                    Mayorista: {formatARS(currentMayorista)} → <strong>{formatARS(changes.mayorista)}</strong>
-                                  </span>
-                                )}
-                                {changes.oferta !== undefined && (
-                                  <span className="text-red-400">
-                                    Oferta: → <strong>$0,00</strong>
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        } else {
-                          const { product, originalPrice, newPrice, diff } = item;
-                          return (
-                            <div key={product._id} className="flex flex-col sm:flex-row sm:items-center justify-between text-xs bg-gray-800/50 rounded px-3 py-2 gap-1">
-                              <span className="text-gray-300 truncate flex-1 font-medium">{product.nombre}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-500">{originalPrice !== null ? formatARS(originalPrice) : '—'}</span>
-                                <span className="text-gray-500">→</span>
-                                <span className="text-white font-semibold">{formatARS(newPrice)}</span>
-                                <span className={`font-bold ${diff > 0 ? 'text-green-400' : diff < 0 ? 'text-red-400' : 'text-gray-400'}`}>
-                                  {diff > 0 ? '+' : ''}{formatARS(diff)}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        }
-                      })}
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">{originalPrice !== null ? formatARS(originalPrice) : '—'}</span>
+                            <span className="text-gray-500">→</span>
+                            <span className="text-white font-semibold">{formatARS(newPrice)}</span>
+                            <span className={`font-bold ${diff > 0 ? 'text-green-400' : diff < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                              {diff > 0 ? '+' : ''}{formatARS(diff)}
+                            </span>
+                          </div>
+
+                          {bulkPriceField === 'precioLista' && (
+                            <span className="text-xs text-amber-400 font-medium bg-amber-900/20 px-2 py-0.5 rounded border border-amber-800/50 whitespace-nowrap">
+                              Mayorista: {formatARS(newPrice)} | Oferta: $0,00
+                            </span>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -802,6 +743,7 @@ export default function PreciosMasivosPage() {
           </div>
         )}
 
+        {/* Botón guardar todos */}
         {hasChanges && (
           <div className="mb-6 flex justify-end sticky bottom-4 z-10">
             <button
@@ -815,6 +757,7 @@ export default function PreciosMasivosPage() {
           </div>
         )}
 
+        {/* Tabla de productos */}
         {products.length > 0 ? (
           <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
             <div className="overflow-x-auto">

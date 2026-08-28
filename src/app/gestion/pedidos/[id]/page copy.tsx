@@ -22,7 +22,6 @@ interface Cliente {
 interface Producto {
   _id: string; nombre: string; unidad: string; cantidad: number;
   tipoPrecio: 'mayorista' | 'oferta'; precioAplicado: number; subtotal: number; producto: string;
-  esPrecioManualTicket?: boolean; // ✅ NUEVO: Bandera para identificar precios manuales de ticket
 }
 
 interface ProductoSimple {
@@ -69,6 +68,7 @@ const getUnidadTexto = (cantidad: number, unidad: string): string => {
   return unidad;
 };
 
+// ✅ Helper: resaltar coincidencias en el nombre del producto
 const highlightMatch = (text: string, query: string) => {
   if (!query.trim()) return text;
   const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
@@ -92,7 +92,6 @@ export default function DetallePedidoPage() {
   const [cantidadTemporal, setCantidadTemporal] = useState<number>(1);
   const [precioTemporal, setPrecioTemporal] = useState<number>(0);
   const [actualizarProductoBase, setActualizarProductoBase] = useState<boolean>(false);
-  const [esPrecioManualTicket, setEsPrecioManualTicket] = useState<boolean>(false); // ✅ NUEVO
 
   const [productosDisponibles, setProductosDisponibles] = useState<ProductoSimple[]>([]);
   const [mostrarAgregar, setMostrarAgregar] = useState(false);
@@ -100,9 +99,9 @@ export default function DetallePedidoPage() {
   const [cantidadNuevo, setCantidadNuevo] = useState<number>(1);
   const [precioNuevo, setPrecioNuevo] = useState<number>(0);
   const [actualizarProductoNuevo, setActualizarProductoNuevo] = useState<boolean>(false);
-  const [esPrecioManualNuevo, setEsPrecioManualNuevo] = useState<boolean>(false); // ✅ NUEVO
   const [busquedaProducto, setBusquedaProducto] = useState<string>('');
 
+  // ✅ NUEVOS estados para el autocompletado
   const [dropdownAbierto, setDropdownAbierto] = useState(false);
   const [indiceActivo, setIndiceActivo] = useState<number>(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -161,6 +160,7 @@ export default function DetallePedidoPage() {
     fetchSaldo();
   }, [id, pedido]);
 
+  // ✅ Cerrar dropdown al hacer click fuera
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -182,12 +182,14 @@ export default function DetallePedidoPage() {
     ? productosDisponibles.find(p => p._id === productoSeleccionado)?.unidad
     : null;
 
+  // ✅ Seleccionar un producto desde el dropdown
   const seleccionarProducto = (prod: ProductoSimple) => {
     setProductoSeleccionado(prod._id);
-    setBusquedaProducto(prod.nombre);
+    setBusquedaProducto(prod.nombre); // queda el nombre en el input
     setDropdownAbierto(false);
     setIndiceActivo(-1);
 
+    // Autocompletar cantidad y precio
     setCantidadNuevo(prod.unidad === 'kg' || prod.unidad === 'litro' ? 0.000 : 1);
     const precioBase = prod.precio.oferta && prod.precio.oferta < prod.precio.mayorista
       ? prod.precio.oferta
@@ -195,6 +197,7 @@ export default function DetallePedidoPage() {
     setPrecioNuevo(precioBase);
   };
 
+  // ✅ Limpiar selección
   const limpiarSeleccion = () => {
     setProductoSeleccionado('');
     setBusquedaProducto('');
@@ -202,6 +205,7 @@ export default function DetallePedidoPage() {
     setCantidadNuevo(1);
     inputRef.current?.focus();
   };
+
 
   const handleCambiarEstado = async (nuevoEstado: string) => {
     const result = await Swal.fire({
@@ -224,9 +228,13 @@ export default function DetallePedidoPage() {
         });
 
         if (res.ok) {
+          // ✅ Leemos la respuesta completa (incluyendo posibles warnings)
           const data = await res.json();
+          
+          // ✅ Actualizamos la UI sí o sí, porque el estado cambió
           await fetchPedidoData();
 
+          // ✅ Si el backend envió una advertencia, la mostramos en AMARILLO (warning)
           if (data.warning) {
             Swal.fire({
               icon: 'warning',
@@ -235,6 +243,7 @@ export default function DetallePedidoPage() {
               confirmButtonColor: '#f59e0b',
             });
           } else {
+            // Comportamiento normal si hay stock suficiente
             Swal.fire('¡Actualizado!', 'El estado del pedido ha sido actualizado.', 'success');
           }
         } else {
@@ -247,16 +256,10 @@ export default function DetallePedidoPage() {
     }
   };
 
-  // ✅ MODIFICADO: Ahora recibe y establece el estado de precio manual
-  const iniciarEdicion = (idx: number, cantidad: number, precio: number, esManual: boolean = false) => {
-    setEditandoProducto(idx); 
-    setCantidadTemporal(cantidad); 
-    setPrecioTemporal(precio); 
-    setActualizarProductoBase(false);
-    setEsPrecioManualTicket(esManual);
+  const iniciarEdicion = (idx: number, cantidad: number, precio: number) => {
+    setEditandoProducto(idx); setCantidadTemporal(cantidad); setPrecioTemporal(precio); setActualizarProductoBase(false);
   };
 
-  // ✅ MODIFICADO: Envía la bandera 'soloTicket' al backend
   const guardarCantidadYPrecio = async (idx: number) => {
     if (cantidadTemporal <= 0 || isNaN(cantidadTemporal) || precioTemporal <= 0 || isNaN(precioTemporal)) {
       Swal.fire('Error', 'La cantidad y el precio deben ser mayores a 0', 'error'); return;
@@ -265,22 +268,12 @@ export default function DetallePedidoPage() {
     try {
       const res = await fetch(`/api/gestion/pedidos/${id}/producto/${idx}/cantidad`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          nuevaCantidad: cantidadValidada, 
-          nuevoPrecio: precioTemporal, 
-          actualizarProducto: actualizarProductoBase,
-          soloTicket: esPrecioManualTicket // ✅ Bandera para que el backend sepa que no debe tocar stock/precios base
-        }),
+        body: JSON.stringify({ nuevaCantidad: cantidadValidada, nuevoPrecio: precioTemporal, actualizarProducto: actualizarProductoBase }),
       });
       if (res.ok) {
         await fetchPedidoData();
         setEditandoProducto(null);
-        Swal.fire({ 
-          icon: 'success', 
-          title: esPrecioManualTicket ? '¡Precio de Ticket Actualizado!' : '¡Actualizado!', 
-          text: esPrecioManualTicket ? 'Este precio solo se reflejará en el ticket de este pedido.' : 'Cambios guardados correctamente.',
-          timer: 3000 
-        });
+        Swal.fire({ icon: 'success', title: '¡Actualizado!', timer: 3000 });
       } else { Swal.fire('Error', (await res.json()).error || 'No se pudo actualizar', 'error'); }
     } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
   };
@@ -303,7 +296,6 @@ export default function DetallePedidoPage() {
     }
   };
 
-  // ✅ MODIFICADO: También permite agregar productos nuevos con precio solo para ticket
   const handleAgregarProducto = async () => {
     if (!productoSeleccionado || cantidadNuevo <= 0 || isNaN(cantidadNuevo) || precioNuevo <= 0 || isNaN(precioNuevo)) {
       Swal.fire('Error', 'Selecciona un producto, cantidad y precio válidos', 'error'); return;
@@ -316,8 +308,7 @@ export default function DetallePedidoPage() {
           productoId: productoSeleccionado,
           cantidad: cantidadValidada,
           precioPersonalizado: precioNuevo,
-          actualizarProducto: actualizarProductoNuevo,
-          soloTicket: esPrecioManualNuevo // ✅ Bandera para que el backend sepa que no debe tocar stock/precios base
+          actualizarProducto: actualizarProductoNuevo
         }),
       });
       if (res.ok) {
@@ -325,7 +316,6 @@ export default function DetallePedidoPage() {
         setMostrarAgregar(false);
         setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0);
         setActualizarProductoNuevo(false); setBusquedaProducto('');
-        setEsPrecioManualNuevo(false);
         Swal.fire({ icon: 'success', title: '¡Agregado!', timer: 3000 });
       } else { Swal.fire('Error', (await res.json()).error || 'No se pudo agregar', 'error'); }
     } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
@@ -556,6 +546,7 @@ export default function DetallePedidoPage() {
             <button onClick={() => {
               setMostrarAgregar(!mostrarAgregar);
               if (!mostrarAgregar) {
+                // Al abrir, dar foco al input después del render
                 setTimeout(() => inputRef.current?.focus(), 50);
               }
             }} className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 text-sm">
@@ -564,8 +555,13 @@ export default function DetallePedidoPage() {
 
             {mostrarAgregar && (
               <div className="mt-3 p-4 bg-gray-750 rounded-lg border border-gray-600">
+
+                {/* ✅ NUEVO: Autocompletado de productos */}
                 <div className="mb-3 relative" ref={dropdownRef}>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Buscar y seleccionar producto</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Buscar y seleccionar producto
+                  </label>
+
                   <div className="relative">
                     <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
                     <input
@@ -576,6 +572,7 @@ export default function DetallePedidoPage() {
                         setBusquedaProducto(e.target.value);
                         setDropdownAbierto(true);
                         setIndiceActivo(-1);
+                        // Si el usuario modifica el texto y no coincide con el seleccionado, limpiar selección
                         if (productoSeleccionado) {
                           const prodActual = productosDisponibles.find(p => p._id === productoSeleccionado);
                           if (!prodActual || prodActual.nombre !== e.target.value) {
@@ -587,12 +584,17 @@ export default function DetallePedidoPage() {
                       onFocus={() => setDropdownAbierto(true)}
                       onKeyDown={(e) => {
                         if (!dropdownAbierto || productosFiltrados.length === 0) return;
+
                         if (e.key === 'ArrowDown') {
                           e.preventDefault();
-                          setIndiceActivo((prev) => prev < productosFiltrados.length - 1 ? prev + 1 : 0);
+                          setIndiceActivo((prev) =>
+                            prev < productosFiltrados.length - 1 ? prev + 1 : 0
+                          );
                         } else if (e.key === 'ArrowUp') {
                           e.preventDefault();
-                          setIndiceActivo((prev) => prev > 0 ? prev - 1 : productosFiltrados.length - 1);
+                          setIndiceActivo((prev) =>
+                            prev > 0 ? prev - 1 : productosFiltrados.length - 1
+                          );
                         } else if (e.key === 'Enter') {
                           e.preventDefault();
                           if (indiceActivo >= 0 && productosFiltrados[indiceActivo]) {
@@ -607,17 +609,24 @@ export default function DetallePedidoPage() {
                       autoComplete="off"
                     />
                     {busquedaProducto && (
-                      <button onClick={limpiarSeleccion} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition" title="Limpiar">
+                      <button
+                        onClick={limpiarSeleccion}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition"
+                        title="Limpiar"
+                      >
                         <FaTimes size={14} />
                       </button>
                     )}
                   </div>
 
+                  {/* ✅ Dropdown de resultados */}
                   {dropdownAbierto && (
                     <div className="absolute z-20 mt-1 w-full bg-gray-800 border border-gray-600 rounded-lg shadow-2xl shadow-black/50 max-h-72 overflow-y-auto">
                       {productosFiltrados.length === 0 ? (
                         <div className="p-4 text-center text-gray-500 text-sm">
-                          {busquedaProducto.trim() ? 'Sin resultados para esta búsqueda' : 'Escribí al menos una letra para buscar'}
+                          {busquedaProducto.trim()
+                            ? 'Sin resultados para esta búsqueda'
+                            : 'Escribí al menos una letra para buscar'}
                         </div>
                       ) : (
                         <>
@@ -625,7 +634,9 @@ export default function DetallePedidoPage() {
                             {productosFiltrados.length} resultado{productosFiltrados.length !== 1 ? 's' : ''}
                           </div>
                           {productosFiltrados.map((p, idx) => {
-                            const precioMostrar = p.precio.oferta && p.precio.oferta < p.precio.mayorista ? p.precio.oferta : p.precio.mayorista;
+                            const precioMostrar = p.precio.oferta && p.precio.oferta < p.precio.mayorista
+                              ? p.precio.oferta
+                              : p.precio.mayorista;
                             const esActivo = idx === indiceActivo;
                             const estaSeleccionado = p._id === productoSeleccionado;
 
@@ -666,6 +677,7 @@ export default function DetallePedidoPage() {
                   )}
                 </div>
 
+                {/* ✅ Producto seleccionado (tag visual) */}
                 {productoSeleccionado && (
                   <div className="mb-3 p-2.5 bg-emerald-900/20 border border-emerald-700/50 rounded-lg flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
@@ -680,37 +692,15 @@ export default function DetallePedidoPage() {
                         </div>
                       </div>
                     </div>
-                    <button onClick={limpiarSeleccion} className="text-gray-400 hover:text-red-400 transition shrink-0 ml-2" title="Quitar selección">
+                    <button
+                      onClick={limpiarSeleccion}
+                      className="text-gray-400 hover:text-red-400 transition shrink-0 ml-2"
+                      title="Quitar selección"
+                    >
                       <FaTimes size={14} />
                     </button>
                   </div>
                 )}
-
-                {/* ✅ NUEVO: Opción de Precio Solo para Ticket al agregar */}
-                <div className="flex items-center gap-4 mb-3">
-                  <label className="flex items-center gap-1 text-xs text-amber-400 cursor-pointer hover:text-amber-300 font-medium">
-                    <input 
-                      type="checkbox" 
-                      checked={esPrecioManualNuevo} 
-                      onChange={(e) => {
-                        setEsPrecioManualNuevo(e.target.checked);
-                        if (e.target.checked) setActualizarProductoNuevo(false); // Bloquea sincronización
-                      }} 
-                      className="w-3 h-3 text-amber-600 bg-gray-700 border-gray-600 rounded focus:ring-amber-500" 
-                    />
-                    <FaFileInvoice className="text-amber-400" size={10} /> Precio Solo para Ticket
-                  </label>
-                  <label className={`flex items-center gap-1 text-xs cursor-pointer ${esPrecioManualNuevo ? 'text-gray-600' : 'text-gray-400 hover:text-white'}`}>
-                    <input 
-                      type="checkbox" 
-                      checked={actualizarProductoNuevo} 
-                      disabled={esPrecioManualNuevo}
-                      onChange={(e) => setActualizarProductoNuevo(e.target.checked)} 
-                      className="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" 
-                    />
-                    <FaSync className="text-blue-400" size={10} /> Actualizar Producto Base
-                  </label>
-                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                   <div>
@@ -718,9 +708,22 @@ export default function DetallePedidoPage() {
                       <FaWeightHanging className="text-amber-400" /> Cantidad ({unidadSeleccionada || 'unidad'})
                     </label>
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => setCantidadNuevo(Math.max(0.001, parseFloat((cantidadNuevo - (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3))))} className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg">–</button>
-                      <input type="number" step={unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? "0.001" : "1"} min="0.001" value={cantidadNuevo} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setCantidadNuevo(val); }} className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 py-1.5 text-lg font-mono" />
-                      <button onClick={() => setCantidadNuevo(parseFloat((cantidadNuevo + (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3)))} className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg">+</button>
+                      <button
+                        onClick={() => setCantidadNuevo(Math.max(0.001, parseFloat((cantidadNuevo - (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3))))}
+                        className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg"
+                      >–</button>
+                      <input
+                        type="number"
+                        step={unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? "0.001" : "1"}
+                        min="0.001"
+                        value={cantidadNuevo}
+                        onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setCantidadNuevo(val); }}
+                        className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 py-1.5 text-lg font-mono"
+                      />
+                      <button
+                        onClick={() => setCantidadNuevo(parseFloat((cantidadNuevo + (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3)))}
+                        className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg"
+                      >+</button>
                     </div>
                   </div>
 
@@ -730,11 +733,19 @@ export default function DetallePedidoPage() {
                     </label>
                     <div className="flex items-center gap-1.5">
                       <span className="text-gray-400 text-sm">$</span>
-                      <input type="number" step="0.01" min="0.01" value={precioNuevo} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val >= 0) setPrecioNuevo(val); }} className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 py-1.5 text-lg font-mono" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={precioNuevo}
+                        onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val >= 0) setPrecioNuevo(val); }}
+                        className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 py-1.5 text-lg font-mono"
+                      />
                     </div>
                   </div>
                 </div>
 
+                {/* ✅ Preview del subtotal */}
                 {productoSeleccionado && cantidadNuevo > 0 && precioNuevo > 0 && (
                   <div className="mb-3 p-2.5 bg-gray-700/50 rounded-lg flex justify-between items-center">
                     <span className="text-sm text-gray-400">Subtotal estimado:</span>
@@ -745,10 +756,25 @@ export default function DetallePedidoPage() {
                 )}
 
                 <div className="flex gap-2 justify-end pt-3 border-t border-gray-600">
-                  <button onClick={() => { setMostrarAgregar(false); setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0); setActualizarProductoNuevo(false); setBusquedaProducto(''); setDropdownAbierto(false); setEsPrecioManualNuevo(false); }} className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded hover:bg-gray-600 transition">
+                  <button
+                    onClick={() => {
+                      setMostrarAgregar(false);
+                      setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0);
+                      setActualizarProductoNuevo(false); setBusquedaProducto('');
+                      setDropdownAbierto(false);
+                    }}
+                    className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded hover:bg-gray-600 transition"
+                  >
                     Cancelar
                   </button>
-                  <button onClick={handleAgregarProducto} disabled={!productoSeleccionado || cantidadNuevo <= 0 || precioNuevo <= 0} className={`px-4 py-2 rounded transition flex items-center gap-1 ${productoSeleccionado && cantidadNuevo > 0 && precioNuevo > 0 ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
+                  <button
+                    onClick={handleAgregarProducto}
+                    disabled={!productoSeleccionado || cantidadNuevo <= 0 || precioNuevo <= 0}
+                    className={`px-4 py-2 rounded transition flex items-center gap-1
+                      ${productoSeleccionado && cantidadNuevo > 0 && precioNuevo > 0
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
+                  >
                     <FaPlus /> Agregar al pedido
                   </button>
                 </div>
@@ -768,7 +794,7 @@ export default function DetallePedidoPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   {editandoProducto === idx ? (
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <div className="flex items-center gap-1">
                         <button onClick={() => setCantidadTemporal(Math.max(0.001, parseFloat((cantidadTemporal - (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3))))} className="w-7 h-7 rounded bg-gray-700 text-white flex items-center justify-center text-sm">–</button>
                         <input type="number" step={p.unidad === 'kg' || p.unidad === 'litro' ? "0.001" : "1"} min="0.001" value={cantidadTemporal} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setCantidadTemporal(val); }} className="w-20 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-sm font-mono" />
@@ -778,56 +804,22 @@ export default function DetallePedidoPage() {
                         <span className="text-gray-400 text-sm">$</span>
                         <input type="number" step="0.01" min="0.01" value={precioTemporal} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setPrecioTemporal(val); }} className="w-28 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-sm font-mono" />
                       </div>
-                      
-                      {/* ✅ NUEVO: Controles de Precio Manual vs Actualizar Base */}
-                      <div className="flex flex-col gap-1 mt-2 sm:mt-0">
-                        <label className="flex items-center gap-1 text-xs text-amber-400 cursor-pointer hover:text-amber-300 font-medium">
-                          <input 
-                            type="checkbox" 
-                            checked={esPrecioManualTicket} 
-                            onChange={(e) => {
-                              setEsPrecioManualTicket(e.target.checked);
-                              if (e.target.checked) setActualizarProductoBase(false); // Garantiza que no se sincronice
-                            }} 
-                            className="w-3 h-3 text-amber-600 bg-gray-700 border-gray-600 rounded focus:ring-amber-500" 
-                          />
-                          <FaFileInvoice className="text-amber-400" size={10} /> Solo para Ticket
-                        </label>
-                        <label className={`flex items-center gap-1 text-xs cursor-pointer ${esPrecioManualTicket ? 'text-gray-600' : 'text-gray-400 hover:text-white'}`}>
-                          <input 
-                            type="checkbox" 
-                            checked={actualizarProductoBase} 
-                            disabled={esPrecioManualTicket}
-                            onChange={(e) => setActualizarProductoBase(e.target.checked)} 
-                            className="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" 
-                          />
-                          <FaSync className="text-blue-400" size={10} /> Actualizar Producto Base
-                        </label>
-                      </div>
-
-                      <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                        <button onClick={() => guardarCantidadYPrecio(idx)} className="text-green-500 hover:text-green-400 text-sm font-medium flex items-center gap-1"><FaCheck size={14} /> Guardar</button>
-                        <button onClick={() => setEditandoProducto(null)} className="text-gray-500 hover:text-gray-400 text-sm">✕</button>
-                      </div>
+                      <label className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer hover:text-white">
+                        <input type="checkbox" checked={actualizarProductoBase} onChange={(e) => setActualizarProductoBase(e.target.checked)} className="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500" />
+                        <FaSync className="text-blue-400" size={10} /> Actualizar BD
+                      </label>
+                      <button onClick={() => guardarCantidadYPrecio(idx)} className="text-green-500 hover:text-green-400 text-sm font-medium flex items-center gap-1"><FaCheck size={14} /> Guardar</button>
+                      <button onClick={() => setEditandoProducto(null)} className="text-gray-500 hover:text-gray-400 text-sm">✕</button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
                       <div className="text-right min-w-[200px]">
                         <div className="text-white font-medium">{formatCantidad(p.cantidad, p.unidad)} {getUnidadTexto(p.cantidad, p.unidad)}</div>
-                        <div className="text-xs text-gray-400 flex items-center justify-end gap-1">
-                          {formatARS(p.precioAplicado)} c/u • {formatARS(p.subtotal)} total
-                          {/* ✅ NUEVO: Indicador visual si el producto tiene precio manual de ticket */}
-                          {(p as any).esPrecioManualTicket && (
-                            <span className="ml-2 px-1.5 py-0.5 bg-amber-900/40 text-amber-400 text-[10px] rounded border border-amber-700/50 flex items-center gap-1">
-                              <FaFileInvoice size={8} /> Precio Manual
-                            </span>
-                          )}
-                        </div>
+                        <div className="text-xs text-gray-400">{formatARS(p.precioAplicado)} c/u • {formatARS(p.subtotal)} total</div>
                       </div>
                       {['preparacion', 'enviado', 'entregado'].includes(pedido.estado) && (
                         <div className="flex gap-1">
-                          {/* ✅ MODIFICADO: Pasa el estado actual de esPrecioManualTicket al iniciar edición */}
-                          <button onClick={() => iniciarEdicion(idx, p.cantidad, p.precioAplicado, !!(p as any).esPrecioManualTicket)} className="text-amber-500 hover:text-amber-400" title="Editar"><FaEdit size={16} /></button>
+                          <button onClick={() => iniciarEdicion(idx, p.cantidad, p.precioAplicado)} className="text-amber-500 hover:text-amber-400" title="Editar"><FaEdit size={16} /></button>
                           <button onClick={() => eliminarProducto(idx, p.nombre)} className="text-red-500 hover:text-red-400" title="Eliminar"><FaTrash size={16} /></button>
                         </div>
                       )}
@@ -857,7 +849,10 @@ export default function DetallePedidoPage() {
                 <div className="text-sm text-gray-300 mb-1">Hacer el pago del pedido:</div>
                 <div className="text-3xl font-bold text-emerald-400">{formatARS(saldoPendiente ?? pedido.total)}</div>
               </div>
-              <button onClick={handleRegistrarPago} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2 transition shadow-lg shadow-emerald-900/30">
+              <button
+                onClick={handleRegistrarPago}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2 transition shadow-lg shadow-emerald-900/30"
+              >
                 <FaMoneyBillWave /> Registrar Pago
               </button>
             </div>
@@ -866,10 +861,15 @@ export default function DetallePedidoPage() {
 
         <div className="mt-6 p-4 bg-gray-750 rounded-lg border border-gray-700">
           <span className="text-sm font-medium text-amber-400 mb-2 flex items-center gap-2"><FaDollarSign /> Ingreso de importe al ticket en concepto de: </span>
-          <button onClick={() => setMostrarImporteManual(!mostrarImporteManual)} className="w-full flex items-center justify-between p-3 rounded-lg border bg-blue-900/20 hover:bg-blue-900/30 border-blue-700/50 transition group text-left cursor-pointer mt-2">
+          <button
+            onClick={() => setMostrarImporteManual(!mostrarImporteManual)}
+            className="w-full flex items-center justify-between p-3 rounded-lg border bg-blue-900/20 hover:bg-blue-900/30 border-blue-700/50 transition group text-left cursor-pointer mt-2"
+          >
             <div className="flex items-center gap-2">
               <FaDollarSign className="text-blue-400" />
-              <span className="font-semibold text-sm text-blue-300 group-hover:text-blue-200">Agregar Importe</span>
+              <span className="font-semibold text-sm text-blue-300 group-hover:text-blue-200">
+                Agregar Importe
+              </span>
             </div>
             <span className="text-xs font-bold text-blue-400 flex items-center gap-1">
               <FaPlus size={10} /> {mostrarImporteManual ? 'Ocultar formulario' : 'Ingresar importe'}
@@ -885,27 +885,61 @@ export default function DetallePedidoPage() {
 
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1">Descripción del concepto</label>
-                <input type="text" value={descImporteManual} onChange={(e) => setDescImporteManual(e.target.value)} className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Ej. Cargo adicional, servicio extra" />
+                <input
+                  type="text"
+                  value={descImporteManual}
+                  onChange={(e) => setDescImporteManual(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="Ej. Cargo adicional, servicio extra"
+                />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1">Importe a agregar ($)</label>
-                <input type="number" step="0.01" min="0.01" value={montoImporteManual} onChange={(e) => setMontoImporteManual(parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono" placeholder="0.00" />
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={montoImporteManual}
+                  onChange={(e) => setMontoImporteManual(parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                  placeholder="0.00"
+                />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1">Forma de pago *</label>
-                <select value={formaPagoImporteManual} onChange={(e) => setFormaPagoImporteManual(e.target.value)} className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                  {FORMAS_PAGO.map(f => (<option key={f.value} value={f.value}>{f.label}</option>))}
+                <select
+                  value={formaPagoImporteManual}
+                  onChange={(e) => setFormaPagoImporteManual(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  {FORMAS_PAGO.map(f => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">💡 Si seleccionás "Cuenta Corriente", se descontará del saldo del cliente</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  💡 Si seleccionás "Cuenta Corriente", se descontará del saldo del cliente
+                </p>
               </div>
 
               <div className="flex gap-2 pt-2">
-                <button onClick={handleRegistrarImporteManual} disabled={montoImporteManual <= 0} className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:text-gray-400 text-white py-2 rounded text-sm font-medium transition flex items-center justify-center gap-2">
+                <button
+                  onClick={handleRegistrarImporteManual}
+                  disabled={montoImporteManual <= 0}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:text-gray-400 text-white py-2 rounded text-sm font-medium transition flex items-center justify-center gap-2"
+                >
                   <FaCheck size={12} /> Agregar al Pedido
                 </button>
-                <button onClick={() => { setMostrarImporteManual(false); setMontoImporteManual(0); setDescImporteManual('Importe adeudado'); setFormaPagoImporteManual('otro'); }} className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded text-sm transition">
+                <button
+                  onClick={() => {
+                    setMostrarImporteManual(false);
+                    setMontoImporteManual(0);
+                    setDescImporteManual('Importe adeudado');
+                    setFormaPagoImporteManual('otro');
+                  }}
+                  className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded text-sm transition"
+                >
                   Cancelar
                 </button>
               </div>
