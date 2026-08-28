@@ -379,12 +379,15 @@ export async function GET(req: NextRequest) {
     const mapPedidos = new Map(pedidosPorCliente.map((p: any) => [p._id.toString(), p.pedidosDeudores]));
     const mapClientes = new Map(clientesData.map((c: any) => [c._id.toString(), c]));
 
-    const cuentasConAlertas = saldosClientes.map((s: any) => {
+      const cuentasConAlertas = saldosClientes.map((s: any) => {
       const clienteIdStr = s._id.toString();
       const cliente = mapClientes.get(clienteIdStr) || {};
       const pedidosDeudores = mapPedidos.get(clienteIdStr) || 0;
       const deudaTotal = s.deudaTotal || 0;
       const umbral = cliente.alerta?.umbralDeuda ?? UMBRAL_GLOBAL;
+      
+      // ✅ EXTRAER DATOS DEL ÚLTIMO MOVIMIENTO DE FORMA SEGURA
+      const ultimoMov = s.ultimoMovimiento || {};
 
       return {
         clienteId: clienteIdStr,
@@ -399,7 +402,18 @@ export async function GET(req: NextRequest) {
         pedidosDeudores,
         tieneAlerta: deudaTotal > umbral,
         umbralUsado: umbral,
-        alertaRevisada: cliente.alerta?.revisado ?? false
+        alertaRevisada: cliente.alerta?.revisado ?? false,
+        
+        // ✅ NUEVO: Enviar la info del último movimiento al frontend
+        ultimoMovimiento: {
+          descripcion: ultimoMov.descripcion || 'Sin descripción',
+          tipo: ultimoMov.tipo || 'desconocido',
+          fecha: ultimoMov.fecha 
+            ? new Date(ultimoMov.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) 
+            : 'Sin fecha',
+          importe: ultimoMov.importe || 0,
+          formaPago: ultimoMov.formaPago || 'N/A'
+        }
       };
     });
 
