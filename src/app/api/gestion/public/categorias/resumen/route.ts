@@ -7,6 +7,7 @@ export async function GET() {
     await connectDB();
 
     const resumen = await Product.aggregate([
+      { $match: { activo: true } },
       {
         $group: {
           _id: "$categoria",
@@ -14,16 +15,33 @@ export async function GET() {
           precioDesde: {
             $min: {
               $cond: [
-                {
-                  $and: [
-                    { $ifNull: ["$precioOferta", false] },
-                    { $lt: ["$precioOferta", "$precioMayorista"] }
-                  ]
-                },
+                { $gt: ["$precioOferta", 0] },
                 "$precioOferta",
                 "$precioMayorista"
               ]
             }
+          },
+          imagenes: { $push: "$imagen" } // Agrupamos todas las imágenes
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          categoria: "$_id",
+          total: "$totalProductos",
+          desde: "$precioDesde",
+          // Filtramos nulos/vacíos y tomamos máximo 3 imágenes
+          imagenes: {
+            $slice: [
+              {
+                $filter: {
+                  input: "$imagenes",
+                  as: "img",
+                  cond: { $and: [{ $ne: ["$$img", null] }, { $ne: ["$$img", ""] }] }
+                }
+              },
+              3 
+            ]
           }
         }
       }
@@ -31,7 +49,7 @@ export async function GET() {
 
     return NextResponse.json(resumen);
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Error al obtener resumen" }, { status: 500 });
+    console.error("Error en GET /api/resumen:", error);
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
 }
