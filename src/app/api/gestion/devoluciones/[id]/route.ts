@@ -10,7 +10,7 @@ const isAuthorized = (role: string) => ['admin', 'superadmin', 'vendedor'].inclu
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // ✅ Next.js 15: params es una Promise
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !isAuthorized(session.user.role)) {
@@ -18,7 +18,10 @@ export async function GET(
   }
 
   try {
-    const devolucion = await Devolucion.findById(params.id).lean();
+    // ✅ Next.js 15: debemos hacer await a params para obtener el id
+    const { id } = await params;
+    
+    const devolucion = await Devolucion.findById(id).lean();
     
     if (!devolucion) {
       return NextResponse.json({ error: 'Devolución no encontrada' }, { status: 404 });
@@ -27,6 +30,6 @@ export async function GET(
     return NextResponse.json(devolucion, { status: 200 });
   } catch (error) {
     console.error('Error al obtener devolución:', error);
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
