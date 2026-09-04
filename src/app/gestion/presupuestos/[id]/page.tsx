@@ -7,7 +7,7 @@ import Link from 'next/link';
 import {
   FaUser, FaArrowLeft, FaPrint, FaEdit, FaTrash,
   FaPlus, FaSearch, FaTimes, FaWeightHanging, FaDollarSign,
-  FaCheck, FaFileInvoice
+  FaCheck, FaFileInvoice, FaExclamationTriangle // NUEVO: Icono de advertencia
 } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import { formatARS } from '@/app/lib/formatcurrenci';
@@ -18,12 +18,22 @@ interface Cliente {
 }
 
 interface ProductoPresupuesto {
-  nombre: string; unidad: string; cantidad: number;
-  precioAplicado: number; subtotal: number; producto?: string;
+  nombre: string; 
+  unidad: string; 
+  cantidad: number;
+  precioAplicado: number; 
+  subtotal: number; 
+  producto?: string;
+  categoria?: string; // NUEVO: Para identificar si es 'fiambres' u otra
+  pesoAproximado?: number; // NUEVO: Peso confirmado por el operador
 }
 
 interface ProductoSimple {
-  _id: string; nombre: string; unidad: string; precio: { mayorista: number; oferta: number; };
+  _id: string; 
+  nombre: string; 
+  unidad: string; 
+  categoria?: string; // NUEVO
+  precio: { mayorista: number; oferta: number; };
 }
 
 interface Presupuesto {
@@ -49,6 +59,11 @@ const getUnidadTexto = (cantidad: number, unidad: string): string => {
   return unidad;
 };
 
+// NUEVO: Función auxiliar para determinar si un producto requiere peso aproximado
+const requierePesoAproximado = (p: ProductoPresupuesto | ProductoSimple) => {
+  return p.unidad === 'kg' || p.categoria?.toLowerCase() === 'fiambres';
+};
+
 const highlightMatch = (text: string, query: string) => {
   if (!query.trim()) return text;
   const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
@@ -70,6 +85,7 @@ export default function DetallePresupuestoPage() {
   const [editandoProducto, setEditandoProducto] = useState<number | null>(null);
   const [cantidadTemporal, setCantidadTemporal] = useState<number>(1);
   const [precioTemporal, setPrecioTemporal] = useState<number>(0);
+  const [pesoAproximadoTemporal, setPesoAproximadoTemporal] = useState<number | ''>(''); // NUEVO
 
   // Estados para agregar nuevo producto
   const [mostrarAgregar, setMostrarAgregar] = useState(false);
@@ -77,6 +93,7 @@ export default function DetallePresupuestoPage() {
   const [productoSeleccionado, setProductoSeleccionado] = useState<string>('');
   const [cantidadNuevo, setCantidadNuevo] = useState<number>(1);
   const [precioNuevo, setPrecioNuevo] = useState<number>(0);
+  const [pesoAproximadoNuevo, setPesoAproximadoNuevo] = useState<number | ''>(''); // NUEVO
   const [busquedaProducto, setBusquedaProducto] = useState<string>('');
 
   // Autocompletado
@@ -134,8 +151,9 @@ export default function DetallePresupuestoPage() {
   const productosFiltrados = productosDisponibles.filter(p =>
     p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase().trim())
   );
-  const unidadSeleccionada = productoSeleccionado
-    ? productosDisponibles.find(p => p._id === productoSeleccionado)?.unidad
+  
+  const prodSeleccionadoData = productoSeleccionado
+    ? productosDisponibles.find(p => p._id === productoSeleccionado)
     : null;
 
   const seleccionarProducto = (prod: ProductoSimple) => {
@@ -144,6 +162,10 @@ export default function DetallePresupuestoPage() {
     setDropdownAbierto(false);
     setIndiceActivo(-1);
     setCantidadNuevo(prod.unidad === 'kg' || prod.unidad === 'litro' ? 0.000 : 1);
+    
+    // NUEVO: Resetear peso aproximado al seleccionar
+    setPesoAproximadoNuevo(''); 
+    
     const precioBase = prod.precio.oferta && prod.precio.oferta < prod.precio.mayorista
       ? prod.precio.oferta
       : prod.precio.mayorista;
@@ -155,6 +177,7 @@ export default function DetallePresupuestoPage() {
     setBusquedaProducto('');
     setPrecioNuevo(0);
     setCantidadNuevo(1);
+    setPesoAproximadoNuevo(''); // NUEVO
     inputRef.current?.focus();
   };
 
@@ -170,12 +193,13 @@ export default function DetallePresupuestoPage() {
           productoId: productoSeleccionado,
           cantidad: cantidadValidada,
           precioPersonalizado: precioNuevo,
+          pesoAproximado: pesoAproximadoNuevo === '' ? undefined : parseFloat(String(pesoAproximadoNuevo)), // NUEVO
         }),
       });
       if (res.ok) {
         await fetchPresupuestoData();
         setMostrarAgregar(false);
-        setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0); setBusquedaProducto('');
+        setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0); setPesoAproximadoNuevo(''); setBusquedaProducto('');
         Swal.fire({ icon: 'success', title: '¡Agregado!', timer: 2000, showConfirmButton: false });
       } else { 
         const err = await res.json();
@@ -184,8 +208,11 @@ export default function DetallePresupuestoPage() {
     } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
   };
 
-  const iniciarEdicion = (idx: number, cantidad: number, precio: number) => {
-    setEditandoProducto(idx); setCantidadTemporal(cantidad); setPrecioTemporal(precio);
+  const iniciarEdicion = (idx: number, cantidad: number, precio: number, pesoAprox?: number) => {
+    setEditandoProducto(idx); 
+    setCantidadTemporal(cantidad); 
+    setPrecioTemporal(precio);
+    setPesoAproximadoTemporal(pesoAprox !== undefined && pesoAprox > 0 ? pesoAprox : ''); // NUEVO
   };
 
   const guardarCantidadYPrecio = async (idx: number) => {
@@ -196,7 +223,11 @@ export default function DetallePresupuestoPage() {
     try {
       const res = await fetch(`/api/gestion/presupuestos/${id}/producto/${idx}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nuevaCantidad: cantidadValidada, nuevoPrecio: precioTemporal }),
+        body: JSON.stringify({ 
+          nuevaCantidad: cantidadValidada, 
+          nuevoPrecio: precioTemporal,
+          nuevoPesoAproximado: pesoAproximadoTemporal === '' ? undefined : parseFloat(String(pesoAproximadoTemporal)) // NUEVO
+        }),
       });
       if (res.ok) {
         await fetchPresupuestoData();
@@ -230,8 +261,12 @@ export default function DetallePresupuestoPage() {
     }
   };
 
-  // No permitir editar si ya fue convertido a pedido o rechazado
   const puedeEditar = presupuesto.estado !== 'convertido' && presupuesto.estado !== 'rechazado';
+
+  // NUEVO: Verificar si hay productos que requieren peso pero no lo tienen confirmado
+  const productosPendientesDePeso = presupuesto.productos.filter(p => 
+    requierePesoAproximado(p) && (!p.pesoAproximado || p.pesoAproximado <= 0)
+  );
 
   return (
     <div className="p-4 sm:p-6 md:p-8">
@@ -261,7 +296,18 @@ export default function DetallePresupuestoPage() {
           </div>
         </div>
 
-    
+        {/* NUEVO: Alerta Global de Pesos Pendientes */}
+        {puedeEditar && productosPendientesDePeso.length > 0 && (
+          <div className="mb-6 p-4 bg-amber-900/20 border border-amber-700/50 rounded-lg flex items-start gap-3">
+            <FaExclamationTriangle className="text-amber-400 mt-1 shrink-0" />
+            <div>
+              <h4 className="text-amber-400 font-semibold text-sm">Atención: Pesos aproximados pendientes</h4>
+              <p className="text-amber-200/80 text-xs mt-1">
+                Hay {productosPendientesDePeso.length} producto(s) (ej. fiambres) que requieren que edites y confirmes su peso aproximado antes de enviar o convertir este presupuesto.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Botón y Formulario para Agregar Producto */}
         {puedeEditar && (
@@ -278,7 +324,7 @@ export default function DetallePresupuestoPage() {
 
             {mostrarAgregar && (
               <div className="mt-3 p-4 bg-gray-750 rounded-lg border border-gray-600">
-                {/* Autocompletado de productos */}
+                {/* ... (Código de autocompletado igual que antes) ... */}
                 <div className="mb-3 relative" ref={dropdownRef}>
                   <label className="block text-sm font-medium text-gray-300 mb-1">Buscar y seleccionar producto</label>
                   <div className="relative">
@@ -296,6 +342,7 @@ export default function DetallePresupuestoPage() {
                           if (!prodActual || prodActual.nombre !== e.target.value) {
                             setProductoSeleccionado('');
                             setPrecioNuevo(0);
+                            setPesoAproximadoNuevo(''); // NUEVO
                           }
                         }
                       }}
@@ -317,7 +364,7 @@ export default function DetallePresupuestoPage() {
                           setDropdownAbierto(false);
                         }
                       }}
-                      placeholder="Escribí para buscar (ej: harin, pan, fac...)"
+                      placeholder="Escribí para buscar (ej: jamon, queso, pan...)"
                       className="w-full pl-10 pr-10 py-2.5 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition"
                       autoComplete="off"
                     />
@@ -359,7 +406,9 @@ export default function DetallePresupuestoPage() {
                                     {estaSeleccionado && <FaCheck className="inline text-emerald-400 mr-1.5" size={10} />}
                                     {highlightMatch(p.nombre, busquedaProducto)}
                                   </div>
-                                  <div className="text-xs text-gray-400 mt-0.5 capitalize">{p.unidad}</div>
+                                  <div className="text-xs text-gray-400 mt-0.5 capitalize">
+                                    {p.unidad} {p.categoria && `• ${p.categoria}`}
+                                  </div>
                                 </div>
                                 <div className="text-right shrink-0">
                                   <div className="text-amber-400 font-semibold text-sm whitespace-nowrap">{formatARS(precioMostrar)}</div>
@@ -373,17 +422,18 @@ export default function DetallePresupuestoPage() {
                   )}
                 </div>
 
-                {productoSeleccionado && (
+                {productoSeleccionado && prodSeleccionadoData && (
                   <div className="mb-3 p-2.5 bg-emerald-900/20 border border-emerald-700/50 rounded-lg flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
                       <FaCheck className="text-emerald-400 shrink-0" size={12} />
                       <div className="min-w-0">
                         <div className="text-white text-sm font-medium truncate">
-                          {productosDisponibles.find(p => p._id === productoSeleccionado)?.nombre}
+                          {prodSeleccionadoData.nombre}
                         </div>
                         <div className="text-xs text-gray-400">
                           Precio: <span className="text-amber-400 font-semibold">{formatARS(precioNuevo)}</span>
-                          {unidadSeleccionada && <span className="ml-2">• {unidadSeleccionada}</span>}
+                          <span className="ml-2">• {prodSeleccionadoData.unidad}</span>
+                          {prodSeleccionadoData.categoria && <span className="ml-2 text-emerald-400">({prodSeleccionadoData.categoria})</span>}
                         </div>
                       </div>
                     </div>
@@ -396,23 +446,23 @@ export default function DetallePresupuestoPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="text-sm font-medium text-gray-300 mb-1 flex items-center gap-1">
-                      <FaWeightHanging className="text-amber-400" /> Cantidad ({unidadSeleccionada || 'unidad'})
+                      <FaWeightHanging className="text-amber-400" /> Cantidad ({prodSeleccionadoData?.unidad || 'unidad'})
                     </label>
                     <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => setCantidadNuevo(Math.max(0.001, parseFloat((cantidadNuevo - (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3))))}
+                        onClick={() => setCantidadNuevo(Math.max(0.001, parseFloat((cantidadNuevo - (prodSeleccionadoData?.unidad === 'kg' || prodSeleccionadoData?.unidad === 'litro' ? 0.1 : 1)).toFixed(3))))}
                         className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg"
                       >–</button>
                       <input
                         type="number"
-                        step={unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? "0.001" : "1"}
+                        step={prodSeleccionadoData?.unidad === 'kg' || prodSeleccionadoData?.unidad === 'litro' ? "0.001" : "1"}
                         min="0.001"
                         value={cantidadNuevo}
                         onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setCantidadNuevo(val); }}
                         className="flex-1 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 py-1.5 text-lg font-mono"
                       />
                       <button
-                        onClick={() => setCantidadNuevo(parseFloat((cantidadNuevo + (unidadSeleccionada === 'kg' || unidadSeleccionada === 'litro' ? 0.1 : 1)).toFixed(3)))}
+                        onClick={() => setCantidadNuevo(parseFloat((cantidadNuevo + (prodSeleccionadoData?.unidad === 'kg' || prodSeleccionadoData?.unidad === 'litro' ? 0.1 : 1)).toFixed(3)))}
                         className="w-8 h-8 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 transition text-lg"
                       >+</button>
                     </div>
@@ -435,6 +485,24 @@ export default function DetallePresupuestoPage() {
                   </div>
                 </div>
 
+                {/* NUEVO: Campo de Peso Aproximado al AGREGAR */}
+                {productoSeleccionado && prodSeleccionadoData && requierePesoAproximado(prodSeleccionadoData) && (
+                  <div className="mb-3 p-3 bg-amber-900/10 border border-amber-700/30 rounded-lg">
+                    <label className="text-sm font-medium text-amber-400 mb-1 flex items-center gap-1">
+                      <FaWeightHanging /> Peso Aproximado (kg) <span className="text-xs text-gray-400 font-normal">(Requerido para este producto)</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={pesoAproximadoNuevo}
+                      onChange={(e) => setPesoAproximadoNuevo(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                      placeholder="Ej: 1.25"
+                      className="w-full text-center bg-gray-700 text-white rounded border border-amber-600/50 focus:outline-none focus:ring-2 focus:ring-amber-500 py-2 text-lg font-mono"
+                    />
+                  </div>
+                )}
+
                 {productoSeleccionado && cantidadNuevo > 0 && precioNuevo > 0 && (
                   <div className="mb-3 p-2.5 bg-gray-700/50 rounded-lg flex justify-between items-center">
                     <span className="text-sm text-gray-400">Subtotal estimado:</span>
@@ -446,7 +514,7 @@ export default function DetallePresupuestoPage() {
                   <button
                     onClick={() => {
                       setMostrarAgregar(false);
-                      setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0); setBusquedaProducto('');
+                      setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0); setPesoAproximadoNuevo(''); setBusquedaProducto('');
                       setDropdownAbierto(false);
                     }}
                     className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded hover:bg-gray-600 transition"
@@ -476,53 +544,94 @@ export default function DetallePresupuestoPage() {
             <p className="text-gray-400 text-sm italic">No hay productos en este presupuesto aún.</p>
           ) : (
             <div className="space-y-3">
-              {presupuesto.productos.map((p, idx) => (
-                <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-700 last:border-0">
-                  <div>
-                    <div className="text-white">{p.nombre}</div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {editandoProducto === idx ? (
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => setCantidadTemporal(Math.max(0.001, parseFloat((cantidadTemporal - (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3))))} className="w-7 h-7 rounded bg-gray-700 text-white flex items-center justify-center text-sm">–</button>
-                          <input type="number" step={p.unidad === 'kg' || p.unidad === 'litro' ? "0.001" : "1"} min="0.001" value={cantidadTemporal} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setCantidadTemporal(val); }} className="w-20 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-sm font-mono" />
-                          <button onClick={() => setCantidadTemporal(parseFloat((cantidadTemporal + (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3)))} className="w-7 h-7 rounded bg-gray-700 text-white flex items-center justify-center text-sm">+</button>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-gray-400 text-sm">$</span>
-                          <input type="number" step="0.01" min="0.01" value={precioTemporal} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setPrecioTemporal(val); }} className="w-28 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-sm font-mono" />
-                        </div>
-                        <button onClick={() => guardarCantidadYPrecio(idx)} className="text-green-500 hover:text-green-400 text-sm font-medium flex items-center gap-1"><FaCheck size={14} /> Guardar</button>
-                        <button onClick={() => setEditandoProducto(null)} className="text-gray-500 hover:text-gray-400 text-sm">✕</button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <div className="text-right min-w-[200px]">
-                          <div className="text-white font-medium">{formatCantidad(p.cantidad, p.unidad)} {getUnidadTexto(p.cantidad, p.unidad)}</div>
-                          <div className="text-xs text-gray-400">{formatARS(p.precioAplicado)} c/u • {formatARS(p.subtotal)} total</div>
-                        </div>
-                        {puedeEditar && (
-                          <div className="flex gap-1">
-                            <button onClick={() => iniciarEdicion(idx, p.cantidad, p.precioAplicado)} className="text-amber-500 hover:text-amber-400" title="Editar"><FaEdit size={16} /></button>
-                            <button onClick={() => eliminarProducto(idx, p.nombre)} className="text-red-500 hover:text-red-400" title="Eliminar"><FaTrash size={16} /></button>
-                          </div>
+              {presupuesto.productos.map((p, idx) => {
+                const necesitaPeso = requierePesoAproximado(p);
+                const pesoPendiente = necesitaPeso && (!p.pesoAproximado || p.pesoAproximado <= 0);
+
+                return (
+                  <div key={idx} className={`flex flex-col sm:flex-row justify-between items-start sm:items-center py-3 border-b border-gray-700 last:border-0 ${pesoPendiente ? 'bg-amber-900/5 -mx-2 px-2 rounded' : ''}`}>
+                    <div className="mb-2 sm:mb-0">
+                      <div className="text-white font-medium flex items-center gap-2">
+                        {p.nombre}
+                        {pesoPendiente && (
+                          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-1">
+                            <FaExclamationTriangle size={10} /> Pendiente peso
+                          </span>
                         )}
                       </div>
-                    )}
+                      {/* NUEVO: Mostrar estado del peso aproximado */}
+                      {necesitaPeso && p.pesoAproximado && p.pesoAproximado > 0 && (
+                        <div className="text-xs text-emerald-400 flex items-center gap-1 mt-1">
+                          <FaCheck size={10} /> Peso aprox. confirmado: {p.pesoAproximado} kg
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                      {editandoProducto === idx ? (
+                        <div className="flex flex-col gap-2 w-full sm:w-auto">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => setCantidadTemporal(Math.max(0.001, parseFloat((cantidadTemporal - (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3))))} className="w-7 h-7 rounded bg-gray-700 text-white flex items-center justify-center text-sm">–</button>
+                              <input type="number" step={p.unidad === 'kg' || p.unidad === 'litro' ? "0.001" : "1"} min="0.001" value={cantidadTemporal} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setCantidadTemporal(val); }} className="w-20 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-sm font-mono" />
+                              <button onClick={() => setCantidadTemporal(parseFloat((cantidadTemporal + (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3)))} className="w-7 h-7 rounded bg-gray-700 text-white flex items-center justify-center text-sm">+</button>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-400 text-sm">$</span>
+                              <input type="number" step="0.01" min="0.01" value={precioTemporal} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setPrecioTemporal(val); }} className="w-24 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-sm font-mono" />
+                            </div>
+                          </div>
+                          
+                          {/* NUEVO: Input de peso aproximado en modo edición */}
+                          {necesitaPeso && (
+                            <div className="flex items-center gap-1">
+                              <FaWeightHanging className="text-amber-400 text-xs" />
+                              <span className="text-xs text-gray-400">Peso (kg):</span>
+                              <input 
+                                type="number" 
+                                step="0.01" 
+                                min="0" 
+                                value={pesoAproximadoTemporal} 
+                                onChange={(e) => setPesoAproximadoTemporal(e.target.value === '' ? '' : parseFloat(e.target.value))} 
+                                placeholder="0.00"
+                                className="w-24 text-center bg-gray-700 text-white rounded border border-amber-600/50 focus:outline-none focus:ring-1 focus:ring-amber-500 py-1 text-sm font-mono" 
+                              />
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2 mt-1">
+                            <button onClick={() => guardarCantidadYPrecio(idx)} className="text-green-500 hover:text-green-400 text-sm font-medium flex items-center gap-1"><FaCheck size={14} /> Guardar</button>
+                            <button onClick={() => setEditandoProducto(null)} className="text-gray-500 hover:text-gray-400 text-sm">✕</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <div className="text-right min-w-[180px]">
+                            <div className="text-white font-medium">{formatCantidad(p.cantidad, p.unidad)} {getUnidadTexto(p.cantidad, p.unidad)}</div>
+                            <div className="text-xs text-gray-400">{formatARS(p.precioAplicado)} c/u • {formatARS(p.subtotal)} total</div>
+                          </div>
+                          {puedeEditar && (
+                            <div className="flex gap-1">
+                              <button onClick={() => iniciarEdicion(idx, p.cantidad, p.precioAplicado, p.pesoAproximado)} className="text-amber-500 hover:text-amber-400" title="Editar"><FaEdit size={16} /></button>
+                              <button onClick={() => eliminarProducto(idx, p.nombre)} className="text-red-500 hover:text-red-400" title="Eliminar"><FaTrash size={16} /></button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
         {/* Total y Acciones */}
-        <div className="border-t border-gray-700 pt-4 flex justify-between items-center">
-          <div>
+        <div className="border-t border-gray-700 pt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="w-full sm:w-auto">
             {presupuesto.notas && <div className="text-sm text-gray-400 mb-2"><strong>Notas:</strong> {presupuesto.notas}</div>}
           </div>
-          <div className="text-right">
+          <div className="text-right w-full sm:w-auto">
             <div className="text-gray-400">Total Presupuesto</div>
             <div className="text-2xl font-bold text-white">{formatARS(presupuesto.total)}</div>
           </div>

@@ -312,7 +312,7 @@ export default function CuentasCorrientesPage() {
     }
   };
 
-  const handleGenerarRecibo = async (cuenta: CuentaCorriente) => {
+   const handleGenerarRecibo = async (cuenta: CuentaCorriente) => {
     const { value: formValues } = await Swal.fire({
       title: `Generar Recibo - ${cuenta.razonSocial}`,
       html: `
@@ -350,6 +350,43 @@ export default function CuentasCorrientesPage() {
     });
 
     if (formValues) {
+      // 🆕 TRUCO ANTI-BLOQUEO: Abrir una ventana en blanco inmediatamente después de la confirmación.
+      // Al hacerlo ANTES del fetch (async), el navegador lo reconoce como acción iniciada por el usuario.
+      const printWindow = window.open('', '_blank');
+      
+      if (!printWindow) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Ventana de impresión bloqueada',
+          html: 'Tu navegador bloqueó la ventana emergente.<br><br><strong>Solución:</strong> Haz clic en el ícono de "ventana bloqueada" (generalmente a la derecha de la barra de direcciones) y selecciona "Permitir siempre ventanas emergentes de este sitio".',
+          background: '#1f2937',
+          color: '#fff',
+          confirmButtonColor: '#f59e0b'
+        });
+        return;
+      }
+
+      // Mostrar un mensaje de carga profesional en la ventana que acabamos de abrir
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Generando Recibo...</title>
+            <style>
+              body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #111827; color: white; }
+              .loader { border: 4px solid #374151; border-top: 4px solid #f59e0b; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            </style>
+          </head>
+          <body>
+            <div style="text-align: center;">
+              <div class="loader"></div>
+              <h2>Generando recibo...</h2>
+              <p style="color: #9ca3af;">Por favor no cierres esta ventana.</p>
+            </div>
+          </body>
+        </html>
+      `);
+
       try {
         const resRecibo = await fetch('/api/gestion/pagos/recibo', {
           method: 'POST',
@@ -378,28 +415,34 @@ export default function CuentasCorrientesPage() {
         });
 
         if (resCC.ok) {
+          // 🆕 Redirigir la ventana que YA está abierta a la URL real de impresión
+          printWindow.location.href = `/gestion/pagos/recibo/${recibo._id}/imprimir`;
+          
           Swal.fire({
             icon: 'success',
             title: '¡Recibo Generado!',
-            html: `Recibo <strong>#${String(recibo.numero).padStart(6, '0')}</strong> por <strong>${formatARS(formValues.monto)}</strong><br><br>Abriendo ticket para imprimir...`,
-            timer: 2000,
-            showConfirmButton: false,
+            html: `
+              <div style="text-align: left;">
+                <p style="margin-bottom: 8px;">Se generó el recibo <strong>#${String(recibo.numero).padStart(6, '0')}</strong> por:</p>
+                <div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 12px;">${formatARS(formValues.monto)}</div>
+                <p style="color: #9ca3af; font-size: 13px;">✅ La ventana de impresión se abrió automáticamente.</p>
+              </div>
+            `,
+            confirmButtonColor: '#10b981',
             background: '#1f2937',
             color: '#fff'
           });
-          setTimeout(() => {
-            window.open(`/gestion/pagos/recibo/${recibo._id}/imprimir`, '_blank');
-          }, 1000);
           fetchCuentas();
         } else {
-          throw new Error('No se pudo registrar el pago');
+          throw new Error('No se pudo registrar el pago en la cuenta corriente');
         }
       } catch (err: any) {
+        // 🆕 Cerrar la ventana de carga si algo salió mal para no dejar ventanas huérfanas
+        printWindow.close();
         Swal.fire('Error', err.message || 'Error de conexión', 'error');
       }
     }
   };
-
   if (!isAuthorized) return null;
 
   return (
