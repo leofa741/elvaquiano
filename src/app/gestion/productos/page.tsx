@@ -132,7 +132,6 @@ function PageContent() {
     return () => clearTimeout(handler);
   }, [internalSearch]);
 
-
   /* =========================
      Pagination 
  ========================= */
@@ -189,7 +188,6 @@ function PageContent() {
     };
     validateAccess();
   }, [status, session, router]);
-
 
 
   // 📥 Cargar productos PAGINADOS (para la tabla principal)

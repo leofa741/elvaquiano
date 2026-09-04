@@ -18,6 +18,13 @@ import {
 // Módulos disponibles
 const modules = [
     {
+        id: 'devoluciones',
+        title: 'Devoluciones',
+        description: 'Gestionar devoluciones de clientes o a proveedores y ajustar stock automáticamente.',
+        icon: <FaTruck className="text-3xl text-amber-400" />, // O usa un icono de retorno si prefieres
+        href: '/gestion/devoluciones',
+    },
+    {
         id: 'productos',
         title: 'Gestión de Productos',
         description: 'Administrar nombres, categorías, stock, lotes y vencimientos.',

@@ -170,7 +170,6 @@ export default function ImprimirReciboPage() {
                 : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
 
             Swal.close();
-
             // 4. Abrir WhatsApp e instruir
             setTimeout(() => {
                 window.open(url, '_blank');
