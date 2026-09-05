@@ -11,7 +11,9 @@ export async function POST(
     await connectDB();
     const { id } = await params; 
     const body = await req.json();
-    const { productoId, cantidad, precioPersonalizado } = body;
+    
+    // 🆕 Agregamos pesoAproximado aquí
+    const { productoId, cantidad, precioPersonalizado, pesoAproximado } = body;
 
     const presupuesto = await Presupuesto.findById(id);
     if (!presupuesto) return NextResponse.json({ error: 'Presupuesto no encontrado' }, { status: 404 });
@@ -21,22 +23,22 @@ export async function POST(
 
     const subtotal = cantidad * precioPersonalizado;
 
-    // ✅ AGREGAMOS 'tipoPrecio' y 'deposito' para cumplir con la validación de Mongoose
     presupuesto.productos.push({
       producto: productoId,
       nombre: productoBase.nombre,
       unidad: productoBase.unidad,
+      categoria: productoBase.categoria, // 🆕 NUEVO: Guardamos la categoría (ej: "fiambres")
+      pesoAproximado: pesoAproximado !== undefined ? pesoAproximado : null, // 🆕 NUEVO: Guardamos el peso si se envió
       cantidad,
       precioAplicado: precioPersonalizado,
       subtotal,
-      tipoPrecio: productoBase.tipoPrecio || 'mayorista',       // ✅ Campo requerido
-      deposito: presupuesto.deposito || 'Principal'             // ✅ Campo requerido
+      tipoPrecio: productoBase.tipoPrecio || 'mayorista',
+      deposito: presupuesto.deposito || 'Principal'
     });
 
     // Recalcular total
     presupuesto.total = presupuesto.productos.reduce((acc: number, p: any) => acc + p.subtotal, 0);
     
-    // Guardamos con validateBeforeSave: true (por defecto) para asegurar que todo esté bien
     await presupuesto.save();
 
     return NextResponse.json(presupuesto);

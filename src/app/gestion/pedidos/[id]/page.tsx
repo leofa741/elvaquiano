@@ -19,15 +19,20 @@ interface Cliente {
   direccion?: string; telefono?: string; tipoCliente?: 'minorista' | 'mayorista';
 }
 
+// Reemplaza las interfaces existentes por estas:
 interface Producto {
   _id: string; nombre: string; unidad: string; cantidad: number;
   tipoPrecio: 'mayorista' | 'oferta'; precioAplicado: number; subtotal: number; producto: string;
-  esPrecioManualTicket?: boolean; // ✅ NUEVO: Bandera para identificar precios manuales de ticket
+  esPrecioManualTicket?: boolean;
+  categoria?: string; // NUEVO
+  pesoAproximado?: number; // NUEVO
 }
 
 interface ProductoSimple {
-  _id: string; nombre: string; unidad: string; precio: { mayorista: number; oferta: number; };
+  _id: string; nombre: string; unidad: string; categoria?: string; // NUEVO
+  precio: { mayorista: number; oferta: number; };
 }
+
 
 interface Pedido {
   _id: string; cliente: Cliente; productos: Producto[];
@@ -78,6 +83,11 @@ const highlightMatch = (text: string, query: string) => {
   );
 };
 
+const requierePesoAproximado = (p: Producto | ProductoSimple) => {
+  return p.unidad === 'kg' || p.categoria?.toLowerCase() === 'fiambres';
+};
+
+
 export default function DetallePedidoPage() {
   const isAuthorized = useAdminAuthorization();
   const { id } = useParams() as { id?: string };
@@ -91,6 +101,7 @@ export default function DetallePedidoPage() {
   const [editandoProducto, setEditandoProducto] = useState<number | null>(null);
   const [cantidadTemporal, setCantidadTemporal] = useState<number>(1);
   const [precioTemporal, setPrecioTemporal] = useState<number>(0);
+  const [pesoAproximadoTemporal, setPesoAproximadoTemporal] = useState<number | ''>('');
   const [actualizarProductoBase, setActualizarProductoBase] = useState<boolean>(false);
   const [esPrecioManualTicket, setEsPrecioManualTicket] = useState<boolean>(false); // ✅ NUEVO
 
@@ -247,16 +258,15 @@ export default function DetallePedidoPage() {
     }
   };
 
-  // ✅ MODIFICADO: Ahora recibe y establece el estado de precio manual
-  const iniciarEdicion = (idx: number, cantidad: number, precio: number, esManual: boolean = false) => {
-    setEditandoProducto(idx); 
-    setCantidadTemporal(cantidad); 
-    setPrecioTemporal(precio); 
+  const iniciarEdicion = (idx: number, cantidad: number, precio: number, esManual: boolean = false, pesoAprox?: number) => {
+    setEditandoProducto(idx);
+    setCantidadTemporal(cantidad);
+    setPrecioTemporal(precio);
+    setPesoAproximadoTemporal(pesoAprox !== undefined && pesoAprox > 0 ? pesoAprox : ''); // NUEVO
     setActualizarProductoBase(false);
     setEsPrecioManualTicket(esManual);
   };
 
-  // ✅ MODIFICADO: Envía la bandera 'soloTicket' al backend
   const guardarCantidadYPrecio = async (idx: number) => {
     if (cantidadTemporal <= 0 || isNaN(cantidadTemporal) || precioTemporal <= 0 || isNaN(precioTemporal)) {
       Swal.fire('Error', 'La cantidad y el precio deben ser mayores a 0', 'error'); return;
@@ -265,21 +275,22 @@ export default function DetallePedidoPage() {
     try {
       const res = await fetch(`/api/gestion/pedidos/${id}/producto/${idx}/cantidad`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          nuevaCantidad: cantidadValidada, 
-          nuevoPrecio: precioTemporal, 
+        body: JSON.stringify({
+          nuevaCantidad: cantidadValidada,
+          nuevoPrecio: precioTemporal,
           actualizarProducto: actualizarProductoBase,
-          soloTicket: esPrecioManualTicket // ✅ Bandera para que el backend sepa que no debe tocar stock/precios base
+          soloTicket: esPrecioManualTicket,
+          nuevoPesoAproximado: pesoAproximadoTemporal === '' ? undefined : parseFloat(String(pesoAproximadoTemporal)) // NUEVO
         }),
       });
       if (res.ok) {
         await fetchPedidoData();
         setEditandoProducto(null);
-        Swal.fire({ 
-          icon: 'success', 
-          title: esPrecioManualTicket ? '¡Precio de Ticket Actualizado!' : '¡Actualizado!', 
+        Swal.fire({
+          icon: 'success',
+          title: esPrecioManualTicket ? '¡Precio de Ticket Actualizado!' : '¡Actualizado!',
           text: esPrecioManualTicket ? 'Este precio solo se reflejará en el ticket de este pedido.' : 'Cambios guardados correctamente.',
-          timer: 3000 
+          timer: 3000
         });
       } else { Swal.fire('Error', (await res.json()).error || 'No se pudo actualizar', 'error'); }
     } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
@@ -689,24 +700,24 @@ export default function DetallePedidoPage() {
                 {/* ✅ NUEVO: Opción de Precio Solo para Ticket al agregar */}
                 <div className="flex items-center gap-4 mb-3">
                   <label className="flex items-center gap-1 text-xs text-amber-400 cursor-pointer hover:text-amber-300 font-medium">
-                    <input 
-                      type="checkbox" 
-                      checked={esPrecioManualNuevo} 
+                    <input
+                      type="checkbox"
+                      checked={esPrecioManualNuevo}
                       onChange={(e) => {
                         setEsPrecioManualNuevo(e.target.checked);
                         if (e.target.checked) setActualizarProductoNuevo(false); // Bloquea sincronización
-                      }} 
-                      className="w-3 h-3 text-amber-600 bg-gray-700 border-gray-600 rounded focus:ring-amber-500" 
+                      }}
+                      className="w-3 h-3 text-amber-600 bg-gray-700 border-gray-600 rounded focus:ring-amber-500"
                     />
                     <FaFileInvoice className="text-amber-400" size={10} /> Precio Solo para Ticket
                   </label>
                   <label className={`flex items-center gap-1 text-xs cursor-pointer ${esPrecioManualNuevo ? 'text-gray-600' : 'text-gray-400 hover:text-white'}`}>
-                    <input 
-                      type="checkbox" 
-                      checked={actualizarProductoNuevo} 
+                    <input
+                      type="checkbox"
+                      checked={actualizarProductoNuevo}
                       disabled={esPrecioManualNuevo}
-                      onChange={(e) => setActualizarProductoNuevo(e.target.checked)} 
-                      className="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" 
+                      onChange={(e) => setActualizarProductoNuevo(e.target.checked)}
+                      className="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50"
                     />
                     <FaSync className="text-blue-400" size={10} /> Actualizar Producto Base
                   </label>
@@ -760,82 +771,101 @@ export default function DetallePedidoPage() {
         <div className="mb-6">
           <h3 className="text-lg font-medium text-amber-400 mb-3">Productos</h3>
           <div className="space-y-3">
-            {pedido.productos.map((p, idx) => (
-              <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-700 last:border-0">
-                <div>
-                  <div className="text-white">{p.nombre}</div>
-                  <div className="text-sm text-gray-400"><span className="ml-2 capitalize">{p.tipoPrecio}</span></div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {editandoProducto === idx ? (
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setCantidadTemporal(Math.max(0.001, parseFloat((cantidadTemporal - (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3))))} className="w-7 h-7 rounded bg-gray-700 text-white flex items-center justify-center text-sm">–</button>
-                        <input type="number" step={p.unidad === 'kg' || p.unidad === 'litro' ? "0.001" : "1"} min="0.001" value={cantidadTemporal} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setCantidadTemporal(val); }} className="w-20 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-sm font-mono" />
-                        <button onClick={() => setCantidadTemporal(parseFloat((cantidadTemporal + (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3)))} className="w-7 h-7 rounded bg-gray-700 text-white flex items-center justify-center text-sm">+</button>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-gray-400 text-sm">$</span>
-                        <input type="number" step="0.01" min="0.01" value={precioTemporal} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setPrecioTemporal(val); }} className="w-28 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-sm font-mono" />
-                      </div>
-                      
-                      {/* ✅ NUEVO: Controles de Precio Manual vs Actualizar Base */}
-                      <div className="flex flex-col gap-1 mt-2 sm:mt-0">
-                        <label className="flex items-center gap-1 text-xs text-amber-400 cursor-pointer hover:text-amber-300 font-medium">
-                          <input 
-                            type="checkbox" 
-                            checked={esPrecioManualTicket} 
-                            onChange={(e) => {
-                              setEsPrecioManualTicket(e.target.checked);
-                              if (e.target.checked) setActualizarProductoBase(false); // Garantiza que no se sincronice
-                            }} 
-                            className="w-3 h-3 text-amber-600 bg-gray-700 border-gray-600 rounded focus:ring-amber-500" 
-                          />
-                          <FaFileInvoice className="text-amber-400" size={10} /> Solo para Ticket
-                        </label>
-                        <label className={`flex items-center gap-1 text-xs cursor-pointer ${esPrecioManualTicket ? 'text-gray-600' : 'text-gray-400 hover:text-white'}`}>
-                          <input 
-                            type="checkbox" 
-                            checked={actualizarProductoBase} 
-                            disabled={esPrecioManualTicket}
-                            onChange={(e) => setActualizarProductoBase(e.target.checked)} 
-                            className="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" 
-                          />
-                          <FaSync className="text-blue-400" size={10} /> Actualizar Producto Base
-                        </label>
-                      </div>
+            {pedido.productos.map((p, idx) => {
+              const necesitaPeso = requierePesoAproximado(p);
+              const pesoPendiente = necesitaPeso && (!p.pesoAproximado || p.pesoAproximado <= 0);
 
-                      <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                        <button onClick={() => guardarCantidadYPrecio(idx)} className="text-green-500 hover:text-green-400 text-sm font-medium flex items-center gap-1"><FaCheck size={14} /> Guardar</button>
-                        <button onClick={() => setEditandoProducto(null)} className="text-gray-500 hover:text-gray-400 text-sm">✕</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <div className="text-right min-w-[200px]">
-                        <div className="text-white font-medium">{formatCantidad(p.cantidad, p.unidad)} {getUnidadTexto(p.cantidad, p.unidad)}</div>
-                        <div className="text-xs text-gray-400 flex items-center justify-end gap-1">
-                          {formatARS(p.precioAplicado)} c/u • {formatARS(p.subtotal)} total
-                          {/* ✅ NUEVO: Indicador visual si el producto tiene precio manual de ticket */}
-                          {(p as any).esPrecioManualTicket && (
-                            <span className="ml-2 px-1.5 py-0.5 bg-amber-900/40 text-amber-400 text-[10px] rounded border border-amber-700/50 flex items-center gap-1">
-                              <FaFileInvoice size={8} /> Precio Manual
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {['preparacion', 'enviado', 'entregado'].includes(pedido.estado) && (
-                        <div className="flex gap-1">
-                          {/* ✅ MODIFICADO: Pasa el estado actual de esPrecioManualTicket al iniciar edición */}
-                          <button onClick={() => iniciarEdicion(idx, p.cantidad, p.precioAplicado, !!(p as any).esPrecioManualTicket)} className="text-amber-500 hover:text-amber-400" title="Editar"><FaEdit size={16} /></button>
-                          <button onClick={() => eliminarProducto(idx, p.nombre)} className="text-red-500 hover:text-red-400" title="Eliminar"><FaTrash size={16} /></button>
-                        </div>
+              return (
+                <div key={idx} className={`flex flex-col sm:flex-row justify-between items-start sm:items-center py-3 border-b border-gray-700 last:border-0 ${pesoPendiente ? 'bg-amber-900/5 -mx-2 px-2 rounded' : ''}`}>
+                  <div className="mb-2 sm:mb-0">
+                    <div className="text-white font-medium flex items-center gap-2">
+                      {p.nombre}
+                      {pesoPendiente && (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-1">
+                          <FaExclamationCircle size={10} /> Pendiente peso
+                        </span>
                       )}
                     </div>
-                  )}
+                    <div className="text-sm text-gray-400 flex items-center gap-2 flex-wrap">
+                      <span className="capitalize">{p.tipoPrecio}</span>
+                      {necesitaPeso && p.pesoAproximado && p.pesoAproximado > 0 && (
+                        <span className="text-xs text-emerald-400 flex items-center gap-1">
+                          <FaCheck size={10} /> Peso aprox: {p.pesoAproximado} kg
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                    {editandoProducto === idx ? (
+                      <div className="flex flex-col gap-2 w-full sm:w-auto">
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => setCantidadTemporal(Math.max(0.001, parseFloat((cantidadTemporal - (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3))))} className="w-7 h-7 rounded bg-gray-700 text-white flex items-center justify-center text-sm">–</button>
+                            <input type="number" step={p.unidad === 'kg' || p.unidad === 'litro' ? "0.001" : "1"} min="0.001" value={cantidadTemporal} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setCantidadTemporal(val); }} className="w-20 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-sm font-mono" />
+                            <button onClick={() => setCantidadTemporal(parseFloat((cantidadTemporal + (p.unidad === 'kg' || p.unidad === 'litro' ? 0.1 : 1)).toFixed(3)))} className="w-7 h-7 rounded bg-gray-700 text-white flex items-center justify-center text-sm">+</button>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-gray-400 text-sm">$</span>
+                            <input type="number" step="0.01" min="0.01" value={precioTemporal} onChange={(e) => { const val = parseFloat(e.target.value); if (!isNaN(val) && val > 0) setPrecioTemporal(val); }} className="w-24 text-center bg-gray-700 text-white rounded border border-gray-600 focus:outline-none py-1 text-sm font-mono" />
+                          </div>
+                        </div>
+
+                        {/* NUEVO: Input de peso aproximado en modo edición */}
+                        {necesitaPeso && (
+                          <div className="flex items-center gap-1">
+                            <FaWeightHanging className="text-amber-400 text-xs" />
+                            <span className="text-xs text-gray-400">Peso (kg):</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={pesoAproximadoTemporal}
+                              onChange={(e) => setPesoAproximadoTemporal(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                              placeholder="0.00"
+                              className="w-24 text-center bg-gray-700 text-white rounded border border-amber-600/50 focus:outline-none focus:ring-1 focus:ring-amber-500 py-1 text-sm font-mono"
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <label className="flex items-center gap-1 text-xs text-amber-400 cursor-pointer hover:text-amber-300 font-medium">
+                            <input type="checkbox" checked={esPrecioManualTicket} onChange={(e) => { setEsPrecioManualTicket(e.target.checked); if (e.target.checked) setActualizarProductoBase(false); }} className="w-3 h-3 text-amber-600 bg-gray-700 border-gray-600 rounded focus:ring-amber-500" />
+                            <FaFileInvoice className="text-amber-400" size={10} /> Solo Ticket
+                          </label>
+                          <label className={`flex items-center gap-1 text-xs cursor-pointer ${esPrecioManualTicket ? 'text-gray-600' : 'text-gray-400 hover:text-white'}`}>
+                            <input type="checkbox" checked={actualizarProductoBase} disabled={esPrecioManualTicket} onChange={(e) => setActualizarProductoBase(e.target.checked)} className="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
+                            <FaSync className="text-blue-400" size={10} /> Actualizar Base
+                          </label>
+                          <button onClick={() => guardarCantidadYPrecio(idx)} className="text-green-500 hover:text-green-400 text-sm font-medium flex items-center gap-1"><FaCheck size={14} /> Guardar</button>
+                          <button onClick={() => setEditandoProducto(null)} className="text-gray-500 hover:text-gray-400 text-sm">✕</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="text-right min-w-[200px]">
+                          <div className="text-white font-medium">{formatCantidad(p.cantidad, p.unidad)} {getUnidadTexto(p.cantidad, p.unidad)}</div>
+                          <div className="text-xs text-gray-400 flex items-center justify-end gap-1">
+                            {formatARS(p.precioAplicado)} c/u • {formatARS(p.subtotal)} total
+                            {(p as any).esPrecioManualTicket && (
+                              <span className="ml-2 px-1.5 py-0.5 bg-amber-900/40 text-amber-400 text-[10px] rounded border border-amber-700/50 flex items-center gap-1">
+                                <FaFileInvoice size={8} /> Precio Manual
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {['preparacion', 'enviado', 'entregado'].includes(pedido.estado) && (
+                          <div className="flex gap-1">
+                            <button onClick={() => iniciarEdicion(idx, p.cantidad, p.precioAplicado, !!(p as any).esPrecioManualTicket, p.pesoAproximado)} className="text-amber-500 hover:text-amber-400" title="Editar"><FaEdit size={16} /></button>
+                            <button onClick={() => eliminarProducto(idx, p.nombre)} className="text-red-500 hover:text-red-400" title="Eliminar"><FaTrash size={16} /></button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

@@ -44,7 +44,9 @@ export async function PATCH(request: NextRequest, { params }: any) {
   try {
     // ✅ FIX: Await params antes de usarlo
     const { id, productoIndex } = await params;
-    const { nuevaCantidad, nuevoPrecio, actualizarProducto } = await request.json();
+    
+    // 🆕 Agregamos 'nuevoPesoAproximado' y 'soloTicket' a la extracción del body
+    const { nuevaCantidad, nuevoPrecio, actualizarProducto, soloTicket, nuevoPesoAproximado } = await request.json();
     const index = parseInt(productoIndex, 10);
 
     const pedido = await Pedido.findById(id).populate('productos.producto');
@@ -71,7 +73,7 @@ export async function PATCH(request: NextRequest, { params }: any) {
 
       const diferencia = item.cantidad - nuevaCantidad;
 
-      // Manejo de stock solo si está en "preparacion"
+      // Manejo de stock solo si está en "preparacion" y NO es soloTicket (opcional, según tu lógica)
       if (pedido.estado === 'preparacion') {
         const productoDB = await Producto.findById(item.producto);
         if (productoDB) {
@@ -116,8 +118,8 @@ export async function PATCH(request: NextRequest, { params }: any) {
 
       item.precioAplicado = nuevoPrecio;
 
-      // ✅ Opcional: Actualizar el producto en la base de datos
-      if (actualizarProducto) {
+      // ✅ Opcional: Actualizar el producto en la base de datos (solo si no es soloTicket)
+      if (actualizarProducto && !soloTicket) {
         const productoDB = await Producto.findById(item.producto);
         if (productoDB) {
           // Determinar si actualizar precioMayorista o precioOferta
@@ -134,6 +136,11 @@ export async function PATCH(request: NextRequest, { params }: any) {
           });
         }
       }
+    }
+
+    // 🆕 NUEVO: Actualizar peso aproximado si se envió desde el frontend
+    if (nuevoPesoAproximado !== undefined) {
+      item.pesoAproximado = nuevoPesoAproximado;
     }
 
     // ✅ Recalcular subtotal y total
