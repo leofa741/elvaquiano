@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { ReactNode, useEffect, useState } from 'react';
 
+
 interface PatriaBannerProps {
     title: string;
     subtitle?: string;

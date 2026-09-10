@@ -2,7 +2,8 @@ import Banner from "./components/baner/Banner";
 import { Metadata } from "next";
 import Image from "next/image";
 import CategoryResumenCard from "./components/categoryresumencard/CategoryResumenCard";
-import BannerHotSale from "./components/bannerhotsale/BannerHotSale";
+
+import PrimaveraBanner from "./components/primaverabanner/PrimaveraBanner";
 
 export const metadata: Metadata = {
   title: "Distribuidora El Vaquiano - Venta Mayorista y Minorista",
@@ -49,7 +50,11 @@ export default async function Home() {
         <Banner />
       </div>
 
-      <BannerHotSale />
+   
+      <PrimaveraBanner
+      title="Feliz Primavera"
+     
+       />
       <br />
 
       {/* Sección: Valor principal + CTAs */}
