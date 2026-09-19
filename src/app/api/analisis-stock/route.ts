@@ -5,7 +5,7 @@ import connectDB from '@/app/lib/mongoose';
 import mongoose from 'mongoose';
 import Cliente from '@/app/models/Cliente';
 import Product from '@/app/models/Product';
-import LogStockModel from '@/app/models/LogStock'; // <--- NUEVO: Importamos el modelo de logs
+import LogStockModel from '@/app/models/LogStock';
 
 connectDB();
 
@@ -35,12 +35,26 @@ export async function POST(req: NextRequest) {
       { $match: { estado: 'preparacion', createdAt: { $gte: start, $lte: end } } },
       { $unwind: '$productos' },
       { $match: { 'productos.nombre': { $regex: producto, $options: 'i' } } },
-      { $group: { _id: '$cliente', cantidadTotal: { $sum: '$productos.cantidad' }, pedidos: { $sum: 1 } } }
+      { 
+        $group: { 
+          _id: '$cliente', 
+          cantidadTotal: { $sum: '$productos.cantidad' }, 
+          pedidos: { $sum: 1 } 
+        } 
+      }
     ];
 
     const resultadosPedidos = await db.collection('pedidos').aggregate(pipeline).toArray();
     const totalUnidadesPreparacion = resultadosPedidos.reduce((acc: number, r: any) => acc + (r.cantidadTotal || 0), 0);
     const totalPedidosPreparacion = resultadosPedidos.reduce((acc: number, r: any) => acc + (r.pedidos || 0), 0);
+
+    // 1.5 DETALLE DE PEDIDOS (NUEVO: Para cruzar con huecos de tiempo)
+    const pedidosDetalle = await db.collection('pedidos').aggregate([
+      { $match: { estado: 'preparacion', createdAt: { $gte: start, $lte: end } } },
+      { $unwind: '$productos' },
+      { $match: { 'productos.nombre': { $regex: producto, $options: 'i' } } },
+      { $project: { fecha: '$createdAt', cantidad: '$productos.cantidad', cliente: '$cliente' } }
+    ]).toArray();
 
     // 2. TRAER NOMBRES DE LOS CLIENTES
     const clientesIds = resultadosPedidos.map((r: any) => String(r._id));
@@ -77,8 +91,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 4. AUDITORÍA DETALLADA DE STOCK (REBOBINADO HISTÓRICO)
-    // Buscamos todos los logs de este producto en el periodo, ordenados del más antiguo al más nuevo
+    // 4. AUDITORÍA DETALLADA DE STOCK
     const logsStock = await LogStockModel.find({
       productoNombre: { $regex: producto, $options: 'i' },
       timestamp: { $gte: start, $lte: end }
@@ -89,7 +102,6 @@ export async function POST(req: NextRequest) {
     let totalEgresadoPeriodo = 0;
     const movimientosDetalle = [];
 
-    // "Rebobinamos" el stock: por cada cambio, restamos la diferencia para saber cuánto había antes
     for (const log of logsStock) {
       const cambio = (log.stockTotalNuevo || 0) - (log.stockTotalAnterior || 0);
       stockInicialExacto -= cambio; 
@@ -114,9 +126,14 @@ export async function POST(req: NextRequest) {
       totalPedidosPreparacion,
       totalUnidadesPreparacion,
       desglose,
+      pedidosDetalle: pedidosDetalle.map((p: any) => ({
+        fecha: p.fecha,
+        cantidad: p.cantidad || 0,
+        clienteId: String(p.cliente)
+      })), // <--- NUEVO: Enviamos esto al frontend
       stock: {
         actual: stockActual,
-        inicialExacto: Math.max(0, stockInicialExacto), // Evitar negativos por errores de data
+        inicialExacto: Math.max(0, stockInicialExacto),
         detalleDepositos,
         auditoria: {
           totalIngresado: totalIngresadoPeriodo,
