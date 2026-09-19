@@ -35,21 +35,15 @@ export async function POST(req: NextRequest) {
       { $match: { estado: 'preparacion', createdAt: { $gte: start, $lte: end } } },
       { $unwind: '$productos' },
       { $match: { 'productos.nombre': { $regex: producto, $options: 'i' } } },
-      { 
-        $group: { 
-          _id: '$cliente', 
-          cantidadTotal: { $sum: '$productos.cantidad' }, 
-          pedidos: { $sum: 1 } 
-        } 
-      }
+      { $group: { _id: '$cliente', cantidadTotal: { $sum: '$productos.cantidad' }, pedidos: { $sum: 1 } } }
     ];
 
     const resultadosPedidos = await db.collection('pedidos').aggregate(pipeline).toArray();
     const totalUnidadesPreparacion = resultadosPedidos.reduce((acc: number, r: any) => acc + (r.cantidadTotal || 0), 0);
     const totalPedidosPreparacion = resultadosPedidos.reduce((acc: number, r: any) => acc + (r.pedidos || 0), 0);
 
-    // 1.5 DETALLE DE PEDIDOS (NUEVO: Para cruzar con huecos de tiempo)
-    const pedidosDetalle = await db.collection('pedidos').aggregate([
+    // 1.5 DETALLE DE PEDIDOS (Para cruzar con huecos de tiempo)
+    const pedidosDetalleRaw = await db.collection('pedidos').aggregate([
       { $match: { estado: 'preparacion', createdAt: { $gte: start, $lte: end } } },
       { $unwind: '$productos' },
       { $match: { 'productos.nombre': { $regex: producto, $options: 'i' } } },
@@ -78,6 +72,19 @@ export async function POST(req: NextRequest) {
       cantidadTotal: r.cantidadTotal || 0,
       pedidos: r.pedidos || 0
     }));
+
+    // Enriquecemos los detalles de los pedidos con el nombre del cliente
+    const pedidosDetalle = pedidosDetalleRaw.map((p: any) => {
+      const cId = String(p.cliente);
+      const infoCliente = clientesMap[cId] || { nombre: 'Desconocido', telefono: '-' };
+      return {
+        fecha: p.fecha,
+        cantidad: p.cantidad || 0,
+        clienteId: cId,
+        nombreCliente: infoCliente.nombre,
+        telefono: infoCliente.telefono
+      };
+    });
 
     // 3. STOCK ACTUAL DEL PRODUCTO
     const productoDoc = await Product.findOne({ nombre: { $regex: producto, $options: 'i' } }).lean() as any;
@@ -126,11 +133,7 @@ export async function POST(req: NextRequest) {
       totalPedidosPreparacion,
       totalUnidadesPreparacion,
       desglose,
-      pedidosDetalle: pedidosDetalle.map((p: any) => ({
-        fecha: p.fecha,
-        cantidad: p.cantidad || 0,
-        clienteId: String(p.cliente)
-      })), // <--- NUEVO: Enviamos esto al frontend
+      pedidosDetalle, // <--- Ahora incluye nombre y teléfono
       stock: {
         actual: stockActual,
         inicialExacto: Math.max(0, stockInicialExacto),

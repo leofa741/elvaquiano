@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FaSearch, FaUsers, FaWarehouse, FaHistory, FaArrowUp, FaArrowDown, FaShoppingCart } from 'react-icons/fa';
+import { FaSearch, FaUsers, FaWarehouse, FaHistory, FaArrowUp, FaArrowDown, FaShoppingCart, FaUserCircle } from 'react-icons/fa';
 
 // Interfaces
 interface MovimientoStock {
@@ -25,6 +25,8 @@ interface PedidoDetalle {
   fecha: string;
   cantidad: number;
   clienteId: string;
+  nombreCliente: string; // <--- NUEVO
+  telefono: string;      // <--- NUEVO
 }
 
 interface ResultadoAPI {
@@ -34,7 +36,7 @@ interface ResultadoAPI {
   totalPedidosPreparacion: number;
   totalUnidadesPreparacion: number;
   desglose: DesgloseCliente[];
-  pedidosDetalle: PedidoDetalle[]; // <--- NUEVO
+  pedidosDetalle: PedidoDetalle[]; 
   stock: {
     actual: number;
     inicialExacto: number;
@@ -179,7 +181,7 @@ export default function AnalisisStockPage() {
               )}
             </div>
 
-            {/* 🕵️‍♂️ DETECCIÓN AUTOMÁTICA DE HUECOS + CRUCE CON PEDIDOS */}
+            {/* 🕵️‍♂️ DETECCIÓN AUTOMÁTICA DE HUECOS + CRUCE CON PEDIDOS Y CLIENTES */}
             {(() => {
               const hallazgos: any[] = [];
               const movs = [...resultado.stock.auditoria.movimientos].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
@@ -207,7 +209,7 @@ export default function AnalisisStockPage() {
                     time2: time2.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
                     stock1: prev.nuevo,
                     stock2: curr.anterior,
-                    pedidosEncontrados: pedidosEnHueco.length,
+                    pedidosEncontrados: pedidosEnHueco, // Guardamos el array completo para mostrarlo
                     unidadesEncontradas: unidadesEnHueco
                   });
                 }
@@ -222,35 +224,52 @@ export default function AnalisisStockPage() {
                   </h3>
                   <ul className="space-y-4">
                     {hallazgos.map((h, idx) => (
-                      <li key={idx} className="text-sm text-orange-200 flex items-start gap-3 bg-orange-950/30 p-3 rounded-lg border border-orange-800/30">
+                      <li key={idx} className="text-sm text-orange-200 flex items-start gap-3 bg-orange-950/30 p-4 rounded-lg border border-orange-800/30">
                         <span className="mt-0.5 text-xl">{h.tipo === 'perdida' ? '⚠️' : 'ℹ️'}</span>
                         <div className="flex-1">
-                          <p className="mb-2">
+                          <p className="mb-3">
                             <strong className="text-orange-400">
                               {h.tipo === 'perdida' ? `Desaparición de ${h.diff} unidades:` : `Aparición de ${h.diff} unidades:`}
                             </strong>{' '}
                             Entre las {h.time1} (Stock: {h.stock1}) y las {h.time2} (Stock registrado: {h.stock2}). No hay registro en bitácora.
                           </p>
                           
-                          {/* 💡 AQUÍ ESTÁ LA MAGIA: Mostrar si hubo pedidos en ese lapso */}
+                          {/* 💡 AQUÍ ESTÁ LA MAGIA: Mostrar los clientes específicos */}
                           {h.tipo === 'perdida' && h.unidadesEncontradas > 0 && (
-                            <div className="bg-green-900/30 border border-green-700/50 rounded-md p-3 mt-2 flex items-start gap-2">
-                              <FaShoppingCart className="text-green-400 mt-0.5 flex-shrink-0" />
-                              <div>
-                                <p className="text-green-300 font-semibold text-xs uppercase tracking-wide mb-1">💡 Coincidencia Detectada</p>
-                                <p className="text-sm text-green-100">
-                                  En ese exacto lapso de tiempo se registraron <strong>{h.unidadesEncontradas} unidades</strong> en <strong>{h.pedidosEncontrados} pedido(s)</strong> en estado "preparación". 
-                                  {h.unidadesEncontradas === h.diff 
-                                    ? " ¡La cantidad coincide perfectamente! Es muy probable que esta sea la causa de la baja de stock." 
-                                    : ` (Representa el ${Math.round((h.unidadesEncontradas / h.diff) * 100)}% de la diferencia).`}
-                                </p>
+                            <div className="bg-green-900/30 border border-green-700/50 rounded-md p-4 mt-2">
+                              <p className="text-green-300 font-semibold text-xs uppercase tracking-wide mb-3 flex items-center gap-2">
+                                <FaShoppingCart /> Coincidencia Detectada: Pedidos realizados en este lapso
+                              </p>
+                              <div className="space-y-2">
+                                {h.pedidosEncontrados.map((pedido: PedidoDetalle, pIdx: number) => (
+                                  <div key={pIdx} className="flex justify-between items-center bg-green-950/40 p-3 rounded border border-green-800/30">
+                                    <div className="flex items-center gap-3">
+                                      <FaUserCircle className="text-green-400 text-lg" />
+                                      <div>
+                                        <p className="font-semibold text-white text-sm">{pedido.nombreCliente}</p>
+                                        <p className="text-green-400/70 text-xs">{pedido.telefono}</p>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="font-bold text-white text-lg">{pedido.cantidad} un.</p>
+                                      <p className="text-green-400/70 text-xs">
+                                        {new Date(pedido.fecha).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
+                              <p className="text-xs text-green-300/80 mt-3 italic border-t border-green-800/50 pt-2">
+                                {h.unidadesEncontradas === h.diff 
+                                  ? "✅ La cantidad de los pedidos coincide perfectamente con la diferencia de stock. ¡Misterio resuelto!" 
+                                  : `⚠️ Estos pedidos representan el ${Math.round((h.unidadesEncontradas / h.diff) * 100)}% de la diferencia. El resto podría ser merma o ajuste no registrado.`}
+                              </p>
                             </div>
                           )}
 
                           {h.tipo === 'perdida' && h.unidadesEncontradas === 0 && (
-                            <p className="text-xs text-orange-300/70 mt-2 italic">
-                              * No se encontraron pedidos en preparación en este lapso. Podría ser una venta por otro canal, merma, o un error de tipeo al cargar el siguiente ajuste.
+                            <p className="text-xs text-orange-300/70 mt-2 italic bg-orange-950/20 p-2 rounded">
+                              * No se encontraron pedidos en preparación en este lapso. Podría ser una venta por mostrador, merma, o un error de tipeo al cargar el siguiente ajuste.
                             </p>
                           )}
                         </div>
@@ -264,7 +283,7 @@ export default function AnalisisStockPage() {
               );
             })()}
 
-            {/* 2. PEDIDOS EN PREPARACIÓN */}
+            {/* 2. PEDIDOS EN PREPARACIÓN (Resumen y Tabla) */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1 bg-gray-800 border border-gray-700 rounded-xl p-6">
                 <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
