@@ -13,6 +13,7 @@ import {
     FaFileInvoice,
     FaChartLine,
     FaWallet,
+    FaSearch,
 } from 'react-icons/fa';
 
 // Módulos disponibles
@@ -30,6 +31,13 @@ const modules = [
         description: 'Administrar nombres, categorías, stock, lotes y vencimientos.',
         icon: <FaBox className="text-3xl text-amber-400" />,
         href: '/gestion/productos',
+    },
+   {
+        id: 'analisis-stock',
+        title: 'Análisis de Stock y Pedidos',
+        description: 'Consulta unidades comprometidas en preparación, desglose por cliente y estimación de inventario.',
+        icon: <FaSearch className="text-3xl text-amber-400" />,
+        href: '/gestion/analisis-stock',
     },
     {
         id: 'clientes',
