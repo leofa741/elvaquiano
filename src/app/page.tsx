@@ -1,9 +1,11 @@
 import Banner from "./components/baner/Banner";
 import { Metadata } from "next";
 import Image from "next/image";
-import CategoryResumenCard from "./components/categoryresumencard/CategoryResumenCard";
+
 
 import PrimaveraBanner from "./components/primaverabanner/PrimaveraBanner";
+import CategoryResumenCard from "./components/categoryresumencard/CategoryResumenCard";
+
 
 export const metadata: Metadata = {
   title: "Distribuidora El Vaquiano - Venta Mayorista y Minorista",
@@ -144,7 +146,7 @@ export default async function Home() {
                 categoria={cat.categoria}
                 total={cat.total}
                 desde={cat.desde}
-                imagenes={cat.imagenes}
+               
               />
             ))}
           </div>
