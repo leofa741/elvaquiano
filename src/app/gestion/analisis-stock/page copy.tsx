@@ -25,8 +25,8 @@ interface PedidoDetalle {
   fecha: string;
   cantidad: number;
   clienteId: string;
-  nombreCliente: string;
-  telefono: string;
+  nombreCliente: string; // <--- NUEVO
+  telefono: string;      // <--- NUEVO
 }
 
 interface ResultadoAPI {
@@ -103,7 +103,7 @@ export default function AnalisisStockPage() {
         <form onSubmit={handleSubmit} className="bg-gray-800 border border-gray-700 rounded-xl p-6 mb-8 grid grid-cols-1 md:grid-cols-4 gap-4 shadow-lg">
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-300 mb-1">Producto</label>
-            <input type="text" value={producto} onChange={(e) => setProducto(e.target.value)} placeholder="Ej: pre pizza" required className="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder-gray-500" />
+            <input type="text" value={producto} onChange={(e) => setProducto(e.target.value)} placeholder="Ej: Yogur Cremigal Frutilla x1LT" required className="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder-gray-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">Fecha Inicio</label>
@@ -181,165 +181,7 @@ export default function AnalisisStockPage() {
               )}
             </div>
 
-            {/* 🆕 2. LÍNEA DE TIEMPO UNIFICADA DE STOCK (Pedidos + Ajustes) */}
-            <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
-              <div className="p-4 border-b border-gray-700 bg-gray-900/50 flex items-center gap-2">
-                <FaHistory className="text-amber-400" />
-                <h2 className="text-lg font-bold text-white">Línea de Tiempo Real de Stock (Pedidos + Ajustes)</h2>
-              </div>
-              
-              {(() => {
-                type TimelineEvent = {
-                  fecha: string;
-                  fechaObj: Date;
-                  tipo: 'ajuste' | 'pedido';
-                  detalle: string;
-                  movimiento: number;
-                  stockAntes: number;
-                  stockDespues: number;
-                  estado: string;
-                };
-
-                const eventos: TimelineEvent[] = [];
-
-                // 1. Agregar pedidos
-                resultado.pedidosDetalle.forEach(p => {
-                  eventos.push({
-                    fecha: p.fecha,
-                    fechaObj: new Date(p.fecha),
-                    tipo: 'pedido',
-                    detalle: p.nombreCliente,
-                    movimiento: -p.cantidad,
-                    stockAntes: 0,
-                    stockDespues: 0,
-                    estado: ''
-                  });
-                });
-
-                // 2. Agregar logs de stock
-                resultado.stock.auditoria.movimientos.forEach(m => {
-                  eventos.push({
-                    fecha: m.fecha,
-                    fechaObj: new Date(m.fecha),
-                    tipo: 'ajuste',
-                    detalle: m.usuario,
-                    movimiento: m.diferencia,
-                    stockAntes: m.anterior,
-                    stockDespues: m.nuevo,
-                    estado: '✅ Ajuste Registrado'
-                  });
-                });
-
-                // 3. Ordenar cronológicamente
-                eventos.sort((a, b) => a.fechaObj.getTime() - b.fechaObj.getTime());
-
-                // 4. Simular stock paso a paso respetando los logs de la BD
-                let currentStock = resultado.stock.inicialExacto;
-
-                eventos.forEach(ev => {
-                  if (ev.tipo === 'ajuste') {
-                    ev.stockAntes = ev.stockAntes;
-                    ev.stockDespues = ev.stockDespues;
-                    currentStock = ev.stockDespues; // Sincronizar con la realidad de la BD
-                  } else {
-                    ev.stockAntes = currentStock;
-                    ev.stockDespues = currentStock + ev.movimiento; // movimiento es negativo
-                    currentStock = ev.stockDespues;
-                    
-                    if (ev.stockAntes < Math.abs(ev.movimiento)) {
-                      ev.estado = '⚠️ EXCESO (Backorder)';
-                    } else {
-                      ev.estado = '✅ Cubierto';
-                    }
-                  }
-                });
-
-                if (eventos.length === 0) {
-                  return (
-                    <div className="p-8 text-center text-gray-400">
-                      No hay movimientos ni pedidos registrados en este periodo.
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                      <thead className="bg-gray-900 text-gray-400 uppercase text-xs sticky top-0">
-                        <tr>
-                          <th className="px-4 py-3">Fecha y Hora</th>
-                          <th className="px-4 py-3">Tipo</th>
-                          <th className="px-4 py-3">Detalle</th>
-                          <th className="px-4 py-3 text-center">Movimiento</th>
-                          <th className="px-4 py-3 text-center">Stock Antes</th>
-                          <th className="px-4 py-3 text-center">Stock Después</th>
-                          <th className="px-4 py-3 text-center">Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-700">
-                        {eventos.map((ev, i) => {
-                          const esPositivo = ev.movimiento > 0;
-                          const movimientoStr = esPositivo ? `+${ev.movimiento}` : `${ev.movimiento}`;
-                          
-                          let estadoColor = "text-gray-300";
-                          let tipoBadge = "bg-gray-700 text-gray-300";
-                          
-                          if (ev.tipo === 'ajuste') {
-                            tipoBadge = "bg-blue-900/40 text-blue-400 border border-blue-700/50";
-                          } else {
-                            tipoBadge = "bg-amber-900/40 text-amber-400 border border-amber-700/50";
-                            if (ev.estado.includes('EXCESO')) {
-                              estadoColor = "text-red-400 font-bold";
-                            } else {
-                              estadoColor = "text-green-400 font-bold";
-                            }
-                          }
-
-                          return (
-                            <tr key={i} className="hover:bg-gray-700/50 transition-colors">
-                              <td className="px-4 py-3 text-gray-300 text-xs whitespace-nowrap">
-                                {new Date(ev.fecha).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${tipoBadge}`}>
-                                  {ev.tipo === 'ajuste' ? '📦 Ajuste' : '🛒 Pedido'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-white text-xs font-medium">
-                                {ev.detalle}
-                              </td>
-                              <td className={`px-4 py-3 text-center font-bold ${esPositivo ? 'text-green-400' : 'text-red-400'}`}>
-                                {movimientoStr}
-                              </td>
-                              <td className="px-4 py-3 text-center text-gray-300">
-                                {ev.stockAntes}
-                              </td>
-                              <td className="px-4 py-3 text-center text-white font-semibold">
-                                {ev.stockDespues}
-                              </td>
-                              <td className={`px-4 py-3 text-center text-xs ${estadoColor}`}>
-                                {ev.estado}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
-              
-              <div className="p-4 bg-gray-900/30 border-t border-gray-700 text-xs text-gray-400 flex items-start gap-2">
-                <span className="text-amber-400 text-lg mt-0.5">💡</span>
-                <p>
-                  <strong>Nota del sistema:</strong> Esta línea de tiempo unifica pedidos y ajustes en orden cronológico. 
-                  Para los ajustes, se utilizan los valores "Anterior/Nuevo" reales de la base de datos para garantizar la precisión. 
-                  Para los pedidos, se simula el descuento sobre el último stock conocido, marcando como <span className="text-red-400 font-bold">EXCESO (Backorder)</span> cuando la cantidad pedida supera el stock disponible en ese instante.
-                </p>
-              </div>
-            </div>
-
-            {/* 🕵️‍♂️ 3. DETECCIÓN AUTOMÁTICA DE HUECOS + CRUCE CON PEDIDOS */}
+            {/* 🕵️‍♂️ DETECCIÓN AUTOMÁTICA DE HUECOS + CRUCE CON PEDIDOS Y CLIENTES */}
             {(() => {
               const hallazgos: any[] = [];
               const movs = [...resultado.stock.auditoria.movimientos].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
@@ -352,6 +194,7 @@ export default function AnalisisStockPage() {
                   const time1 = new Date(prev.fecha);
                   const time2 = new Date(curr.fecha);
                   
+                  // 🔍 CRUCE: Buscar pedidos en este lapso exacto
                   const pedidosEnHueco = resultado.pedidosDetalle.filter((p: PedidoDetalle) => {
                     const pDate = new Date(p.fecha);
                     return pDate >= time1 && pDate <= time2;
@@ -366,7 +209,7 @@ export default function AnalisisStockPage() {
                     time2: time2.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
                     stock1: prev.nuevo,
                     stock2: curr.anterior,
-                    pedidosEncontrados: pedidosEnHueco,
+                    pedidosEncontrados: pedidosEnHueco, // Guardamos el array completo para mostrarlo
                     unidadesEncontradas: unidadesEnHueco
                   });
                 }
@@ -391,6 +234,7 @@ export default function AnalisisStockPage() {
                             Entre las {h.time1} (Stock: {h.stock1}) y las {h.time2} (Stock registrado: {h.stock2}). No hay registro en bitácora.
                           </p>
                           
+                          {/* 💡 AQUÍ ESTÁ LA MAGIA: Mostrar los clientes específicos */}
                           {h.tipo === 'perdida' && h.unidadesEncontradas > 0 && (
                             <div className="bg-green-900/30 border border-green-700/50 rounded-md p-4 mt-2">
                               <p className="text-green-300 font-semibold text-xs uppercase tracking-wide mb-3 flex items-center gap-2">
@@ -432,11 +276,14 @@ export default function AnalisisStockPage() {
                       </li>
                     ))}
                   </ul>
+                  <p className="text-xs text-orange-300/70 mt-4 italic border-t border-orange-800/50 pt-3">
+                    * El sistema compensa matemáticamente estas diferencias para mantener la ecuación de stock cuadrada.
+                  </p>
                 </div>
               );
             })()}
 
-            {/* 4. RESUMEN DE PREPARACIÓN Y DESGLOSE */}
+            {/* 2. PEDIDOS EN PREPARACIÓN (Resumen y Tabla) */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1 bg-gray-800 border border-gray-700 rounded-xl p-6">
                 <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -456,6 +303,14 @@ export default function AnalisisStockPage() {
                     <span className="text-2xl font-bold text-green-400">{resultado.totalUnidadesPreparacion}</span>
                   </div>
                 </div>
+                
+                {resultado.totalPedidosPreparacion !== resultado.desglose.length && (
+                  <div className="mt-4 bg-blue-900/20 border border-blue-800/50 rounded-lg p-3">
+                    <p className="text-xs text-blue-300">
+                      💡 <strong>Nota:</strong> Hay más pedidos que filas en la tabla porque algunos clientes realizaron más de una compra en este periodo.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="lg:col-span-2 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
@@ -496,12 +351,12 @@ export default function AnalisisStockPage() {
               </div>
             </div>
 
-            {/* 5. BITÁCORA DE MOVIMIENTOS (Referencia) */}
+            {/* 3. TABLA DE AUDITORÍA DE MOVIMIENTOS */}
             {resultado.stock.auditoria.movimientos.length > 0 && (
               <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
                 <div className="p-4 border-b border-gray-700 bg-gray-900/50 flex items-center gap-2">
                   <FaHistory className="text-amber-400" />
-                  <h2 className="text-lg font-bold text-white">Bitácora Cruda de Movimientos en el Periodo</h2>
+                  <h2 className="text-lg font-bold text-white">Bitácora de Movimientos en el Periodo</h2>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
