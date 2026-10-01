@@ -444,7 +444,7 @@ export default function AnalisisStockPage() {
                 </h2>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-                    <span className="text-gray-400 text-sm">Total de Órdenes (Pedidos)</span>
+                    <span className="text-gray-400 text-sm">Total de Órdenes en (Pedidos)</span>
                     <span className="text-2xl font-bold text-white">{resultado.totalPedidosPreparacion}</span>
                   </div>
                   <div className="flex justify-between items-center border-b border-gray-700 pb-2">
