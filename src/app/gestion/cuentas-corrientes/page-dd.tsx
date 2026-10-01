@@ -6,19 +6,12 @@ import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import {
   FaWallet, FaArrowLeft, FaMoneyBillWave, FaUser, FaPhone, 
   FaExclamationTriangle, FaCheck, FaSync, FaPrint, FaHistory, 
-  FaSearch, FaTimes, FaFileInvoiceDollar, FaChevronLeft, FaChevronRight
+  FaSearch, FaTimes, FaFileInvoiceDollar, FaChevronLeft, FaChevronRight,
+  FaChevronDown, FaReceipt, FaCheckCircle
 } from 'react-icons/fa';
 import { FaDollarSign } from 'react-icons/fa6';
 import Swal from 'sweetalert2';
 import { formatARS } from '@/app/lib/formatcurrenci';
-
-interface Movimiento {
-  descripcion: string;
-  tipo: string;
-  fecha: string;
-  importe: number;
-  formaPago: string;
-}
 
 interface CuentaCorriente {
   clienteId: string;
@@ -31,7 +24,22 @@ interface CuentaCorriente {
   pedidosDeudores: number;
   tieneAlerta: boolean;
   umbralUsado: number;
-  ultimosMovimientos: Movimiento[];
+  ultimoMovimiento?: {
+    descripcion: string;
+    tipo: string;
+    fecha: string;
+    importe: number;
+    formaPago: string;
+  };
+}
+
+interface PedidoPendiente {
+  _id: string;
+  numero: string;
+  fecha: string;
+  total: number;
+  estadoPago: 'pendiente' | 'parcial';
+  saldoPendiente: number;
 }
 
 interface ClienteBuscado {
@@ -66,6 +74,10 @@ export default function CuentasCorrientesPage() {
   const [filtroLista, setFiltroLista] = useState('');
   const [paginaActual, setPaginaActual] = useState(1);
   const itemsPorPagina = 10;
+
+  const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
+  const [pedidosDetalle, setPedidosDetalle] = useState<Record<string, PedidoPendiente[]>>({});
+  const [cargandoPedidos, setCargandoPedidos] = useState(false);
 
   const fetchCuentas = async () => {
     try {
@@ -118,6 +130,115 @@ export default function CuentasCorrientesPage() {
     return () => clearTimeout(timer);
   }, [busquedaCliente]);
 
+  const toggleExpandirPedidos = async (clienteId: string) => {
+    if (expandedClientId === clienteId) {
+      setExpandedClientId(null);
+      return;
+    }
+
+    if (!pedidosDetalle[clienteId]) {
+      setCargandoPedidos(true);
+      try {
+        const res = await fetch(`/api/gestion/pedidos-pendientes?clienteId=${clienteId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setPedidosDetalle(prev => ({ ...prev, [clienteId]: data.pedidos || [] }));
+        }
+      } catch (err) {
+        console.error('Error cargando detalles:', err);
+      } finally {
+        setCargandoPedidos(false);
+      }
+    }
+    setExpandedClientId(clienteId);
+  };
+
+   const handleRegularizarPedido = async (clienteId: string, pedido: PedidoPendiente) => {
+    const confirmacion = await Swal.fire({
+      title: `¿Regularizar Pedido ${pedido.numero}?`,
+      html: `
+        <div style="text-align: left;">
+          <p style="color: #d1d5db; font-size: 14px; margin-bottom: 16px;">
+            Se registrará un pago automático de <strong style="color: #fbbf24; font-size: 18px;">${formatARS(pedido.saldoPendiente)}</strong> 
+            para saldar este pedido específico.
+          </p>
+          <div style="background: rgba(127, 29, 29, 0.2); border: 1px solid #991b1b; border-radius: 6px; padding: 12px;">
+            <p style="color: #f87171; font-size: 12px; display: flex; align-items: start; gap: 8px; margin: 0;">
+              <span style="flex-shrink: 0;">⚠️</span>
+              <span>Esto descontará este monto de la deuda total del cliente y actualizará la Cuenta Corriente como "Regularización Histórica".</span>
+            </p>
+          </div>
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, Saldar Pedido',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#6b7280',
+      background: '#1f2937',
+      color: '#fff'
+    });
+
+    if (confirmacion.isConfirmed) {
+      try {
+        const res = await fetch('/api/gestion/cuentas-corrientes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clienteId: clienteId,
+            pedidoId: pedido._id,
+            tipo: 'pago',
+            importe: pedido.saldoPendiente,
+            formaPago: 'efectivo',
+            descripcion: `Regularización histórica: Saldado de Pedido ${pedido.numero}`,
+            notas: 'Ajuste por saneamiento de datos iniciales del sistema'
+          })
+        });
+
+        if (res.ok) {
+          Swal.fire({
+            icon: 'success',
+            title: '¡Pedido Regularizado!',
+            text: 'La deuda del cliente se actualizó correctamente.',
+            confirmButtonColor: '#10b981',
+            background: '#1f2937',
+            color: '#fff'
+          });
+          
+          // 🆕 CÓDIGO ACTUALIZADO - Reemplaza las 2 líneas anteriores
+          // 1. Actualizamos los totales generales (deuda del cliente)
+          await fetchCuentas();
+          
+          // 2. Refrescamos SOLO los datos del acordeón abierto, sin cerrarlo
+          setCargandoPedidos(true);
+          try {
+            const resDetalle = await fetch(`/api/gestion/pedidos-pendientes?clienteId=${clienteId}`);
+            if (resDetalle.ok) {
+              const dataDetalle = await resDetalle.json();
+              setPedidosDetalle(prev => ({ 
+                ...prev, 
+                [clienteId]: dataDetalle.pedidos || [] 
+              }));
+            }
+          } catch (err) {
+            console.error('Error refrescando detalles:', err);
+          } finally {
+            setCargandoPedidos(false);
+          }
+          // 🆕 FIN DEL CÓDIGO ACTUALIZADO
+
+        } else {
+          const err = await res.json();
+          Swal.fire('Error', err.error || 'No se pudo regularizar el pedido', 'error');
+        }
+      } catch (error) {
+        console.error(error);
+        Swal.fire('Error', 'Error de conexión con el servidor', 'error');
+      }
+    }
+  };
+
   const cuentasFiltradas = useMemo(() => {
     if (!filtroLista.trim()) return cuentas;
     const termino = filtroLista.toLowerCase();
@@ -135,27 +256,23 @@ export default function CuentasCorrientesPage() {
     paginaActual * itemsPorPagina
   );
 
-  const mostrarModalAgregarDeuda = async (clienteId: string, razonSocial: string) => {
+  const handleAgregarDeudaRapida = async (cliente: ClienteBuscado) => {
+    setMostrarDropdown(false);
+    setBusquedaCliente('');
     const { value: formValues } = await Swal.fire({
       title: `Agregar Deuda / Ajuste Manual`,
       html: `
         <div style="text-align: left; padding: 10px 0;">
           <div style="margin-bottom: 15px; padding: 10px; background: #1f2937; border-radius: 8px; border: 1px solid #374151;">
             <div style="font-size: 12px; color: #9ca3af; margin-bottom: 4px;">Cliente seleccionado:</div>
-            <div style="font-size: 16px; font-weight: bold; color: white;">${razonSocial}</div>
+            <div style="font-size: 16px; font-weight: bold; color: white;">${cliente.razonSocial}</div>
           </div>
           <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Monto a cargar a la deuda *</label>
-          <input id="swal-monto-cargo" type="number" step="0.01" min="0.01" 
-            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" 
-            placeholder="0.00" />
+          <input id="swal-monto-cargo" type="number" step="0.01" min="0.01" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" placeholder="0.00" />
           <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Concepto / Descripción *</label>
-          <input id="swal-concepto-cargo" type="text" 
-            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" 
-            placeholder="Ej: Mercadería entregada, Servicio extra" />
+          <input id="swal-concepto-cargo" type="text" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" placeholder="Ej: Mercadería entregada, Servicio extra" />
           <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Nota interna (opcional)</label>
-          <input id="swal-nota-cargo" type="text" 
-            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px;" 
-            placeholder="Detalles adicionales..." />
+          <input id="swal-nota-cargo" type="text" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px;" placeholder="Detalles adicionales..." />
         </div>
       `,
       focusConfirm: false,
@@ -182,7 +299,7 @@ export default function CuentasCorrientesPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            clienteId: clienteId,
+            clienteId: cliente._id,
             tipo: 'ajuste',
             importe: formValues.monto,
             descripcion: formValues.concepto,
@@ -193,7 +310,7 @@ export default function CuentasCorrientesPage() {
           Swal.fire({
             icon: 'success',
             title: '¡Deuda Registrada!',
-            html: `<div style="text-align: left; padding: 10px 0;"><p style="color: #d1d5db; margin-bottom: 8px;">Se agregó un cargo a la cuenta de <strong>${razonSocial}</strong> por:</p><div style="font-size: 24px; font-weight: bold; color: #f59e0b; margin-bottom: 12px;">${formatARS(formValues.monto)}</div><p style="color: #d1d5db;">Concepto: <strong style="color: white;">${formValues.concepto}</strong></p></div>`,
+            html: `<div style="text-align: left; padding: 10px 0;"><p style="color: #d1d5db; margin-bottom: 8px;">Se agregó un cargo a la cuenta de <strong>${cliente.razonSocial}</strong> por:</p><div style="font-size: 24px; font-weight: bold; color: #f59e0b; margin-bottom: 12px;">${formatARS(formValues.monto)}</div><p style="color: #d1d5db;">Concepto: <strong style="color: white;">${formValues.concepto}</strong></p></div>`,
             confirmButtonColor: '#f59e0b', background: '#1f2937', color: '#fff'
           });
           await fetchCuentas();
@@ -208,12 +325,6 @@ export default function CuentasCorrientesPage() {
     }
   };
 
-  const handleAgregarDeudaRapida = async (cliente: ClienteBuscado) => {
-    setMostrarDropdown(false);
-    setBusquedaCliente('');
-    await mostrarModalAgregarDeuda(cliente._id, cliente.razonSocial);
-  };
-
   const handleRegistrarPago = async (cuenta: CuentaCorriente) => {
     const { value: formValues } = await Swal.fire({
       title: `Registrar Pago - ${cuenta.razonSocial}`,
@@ -224,13 +335,10 @@ export default function CuentasCorrientesPage() {
             <div style="font-size: 20px; font-weight: bold; color: #f59e0b;">${formatARS(cuenta.deudaTotal)}</div>
           </div>
           <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Monto a pagar *</label>
-          <input id="swal-monto" type="number" step="0.01" min="0.01" max="${cuenta.deudaTotal}" value="${cuenta.deudaTotal}" 
-            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" placeholder="0.00" />
+          <input id="swal-monto" type="number" step="0.01" min="0.01" max="${cuenta.deudaTotal}" value="${cuenta.deudaTotal}" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" placeholder="0.00" />
           <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-            <button type="button" onclick="document.getElementById('swal-monto').value = '${cuenta.deudaTotal}'" 
-              style="flex: 1; padding: 6px; background: #374151; color: #f59e0b; border: 1px solid #4b5563; border-radius: 4px; font-size: 11px; cursor: pointer;">Total</button>
-            <button type="button" onclick="document.getElementById('swal-monto').value = '${(cuenta.deudaTotal / 2).toFixed(2)}'" 
-              style="flex: 1; padding: 6px; background: #374151; color: #f59e0b; border: 1px solid #4b5563; border-radius: 4px; font-size: 11px; cursor: pointer;">Mitad</button>
+            <button type="button" onclick="document.getElementById('swal-monto').value = '${cuenta.deudaTotal}'" style="flex: 1; padding: 6px; background: #374151; color: #f59e0b; border: 1px solid #4b5563; border-radius: 4px; font-size: 11px; cursor: pointer;">Total</button>
+            <button type="button" onclick="document.getElementById('swal-monto').value = '${(cuenta.deudaTotal / 2).toFixed(2)}'" style="flex: 1; padding: 6px; background: #374151; color: #f59e0b; border: 1px solid #4b5563; border-radius: 4px; font-size: 11px; cursor: pointer;">Mitad</button>
           </div>
           <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Forma de pago *</label>
           <select id="swal-forma-pago" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;">
@@ -278,34 +386,13 @@ export default function CuentasCorrientesPage() {
         });
         if (res.ok) {
           const data = await res.json();
-          const nuevoSaldo = data.saldoActual !== undefined ? data.saldoActual : Math.max(0, cuenta.deudaTotal - formValues.monto);
-          
-          await Swal.fire({
+          const nuevoSaldo = data.saldoActual || (cuenta.deudaTotal - formValues.monto);
+          Swal.fire({
             icon: 'success',
             title: '¡Pago Registrado!',
-            html: `<div style="text-align: left; padding: 10px 0;"><p style="color: #d1d5db; margin-bottom: 8px;">Se registró un pago de:</p><div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 12px;">${formatARS(formValues.monto)}</div><p style="color: #d1d5db; margin-bottom: 4px;">Forma de pago: <strong style="color: white;">${FORMAS_PAGO.find(f => f.value === formValues.formaPago)?.label}</strong></p><p style="color: #d1d5db; margin-bottom: 4px;">Saldo restante: <strong style="color: #f59e0b;">${formatARS(nuevoSaldo)}</strong></p></div>`,
+            html: `<div style="text-align: left; padding: 10px 0;"><p style="color: #d1d5db; margin-bottom: 8px;">Se registró un pago de:</p><div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 12px;">${formatARS(formValues.monto)}</div><p style="color: #d1d5db; margin-bottom: 4px;">Forma de pago: <strong style="color: white;">${FORMAS_PAGO.find(f => f.value === formValues.formaPago)?.label}</strong></p><p style="color: #d1d5db; margin-bottom: 4px;">Saldo restante: <strong style="color: #f59e0b;">${formatARS(Math.max(0, nuevoSaldo))}</strong></p></div>`,
             confirmButtonColor: '#10b981', background: '#1f2937', color: '#fff'
           });
-
-          if (nuevoSaldo <= 0) {
-            const { isConfirmed } = await Swal.fire({
-              title: '¿Desea agregar una nueva deuda?',
-              text: `La deuda de ${cuenta.razonSocial} ha sido saldada. ¿Desea registrar un nuevo cargo o ajuste ahora?`,
-              icon: 'question',
-              showCancelButton: true,
-              confirmButtonText: 'Sí, agregar deuda',
-              cancelButtonText: 'No, finalizar',
-              confirmButtonColor: '#f59e0b',
-              cancelButtonColor: '#6b7280',
-              background: '#1f2937',
-              color: '#fff'
-            });
-
-            if (isConfirmed) {
-              await mostrarModalAgregarDeuda(cuenta.clienteId, cuenta.razonSocial);
-            }
-          }
-          
           await fetchCuentas();
         } else {
           const err = await res.json();
@@ -327,15 +414,13 @@ export default function CuentasCorrientesPage() {
           <div style="font-size: 20px; font-weight: bold; color: #f59e0b;">${formatARS(cuenta.deudaTotal)}</div>
         </div>
         <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Monto a cobrar *</label>
-        <input id="swal-monto" type="number" step="0.01" min="0.01" value="${cuenta.deudaTotal}" 
-          style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" />
+        <input id="swal-monto" type="number" step="0.01" min="0.01" value="${cuenta.deudaTotal}" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" />
         <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Forma de pago *</label>
         <select id="swal-forma-pago" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;">
           ${FORMAS_PAGO.map(f => `<option value="${f.value}">${f.label}</option>`).join('')}
         </select>
         <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Concepto</label>
-        <input id="swal-concepto" type="text" value="Pago de deuda"
-          style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" />
+        <input id="swal-concepto" type="text" value="Pago de deuda" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" />
       </div>`,
       focusConfirm: false,
       showCancelButton: true,
@@ -417,43 +502,15 @@ export default function CuentasCorrientesPage() {
 
         if (resCC.ok) {
           printWindow.location.href = `/gestion/pagos/recibo/${recibo._id}/imprimir`;
-          
-          await Swal.fire({
+          Swal.fire({
             icon: 'success',
             title: '¡Recibo Generado!',
-            html: `
-              <div style="text-align: left;">
-                <p style="margin-bottom: 8px;">Se generó el recibo <strong>#${String(recibo.numero).padStart(6, '0')}</strong> por:</p>
-                <div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 12px;">${formatARS(formValues.monto)}</div>
-                <p style="color: #9ca3af; font-size: 13px;">✅ La ventana de impresión se abrió automáticamente.</p>
-              </div>
-            `,
+            html: `<div style="text-align: left;"><p style="margin-bottom: 8px;">Se generó el recibo <strong>#${String(recibo.numero).padStart(6, '0')}</strong> por:</p><div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 12px;">${formatARS(formValues.monto)}</div><p style="color: #9ca3af; font-size: 13px;">✅ La ventana de impresión se abrió automáticamente.</p></div>`,
             confirmButtonColor: '#10b981',
             background: '#1f2937',
             color: '#fff'
           });
-
-          const nuevoSaldo = cuenta.deudaTotal - formValues.monto;
-          if (nuevoSaldo <= 0) {
-            const { isConfirmed } = await Swal.fire({
-              title: '¿Desea agregar una nueva deuda?',
-              text: `La deuda de ${cuenta.razonSocial} ha sido saldada. ¿Desea registrar un nuevo cargo o ajuste ahora?`,
-              icon: 'question',
-              showCancelButton: true,
-              confirmButtonText: 'Sí, agregar deuda',
-              cancelButtonText: 'No, finalizar',
-              confirmButtonColor: '#f59e0b',
-              cancelButtonColor: '#6b7280',
-              background: '#1f2937',
-              color: '#fff'
-            });
-
-            if (isConfirmed) {
-              await mostrarModalAgregarDeuda(cuenta.clienteId, cuenta.razonSocial);
-            }
-          }
-
-          await fetchCuentas();
+          fetchCuentas();
         } else {
           throw new Error('No se pudo registrar el pago en la cuenta corriente');
         }
@@ -500,19 +557,8 @@ export default function CuentasCorrientesPage() {
           <div className="flex gap-2">
             <div className="relative flex-1">
               <FaUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input
-                type="text"
-                placeholder="Buscar cliente para agregarle una deuda..."
-                value={busquedaCliente}
-                onChange={(e) => setBusquedaCliente(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-700 text-white pl-10 pr-10 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-all placeholder-gray-500"
-              />
+              <input type="text" placeholder="Buscar cliente..." value={busquedaCliente} onChange={(e) => setBusquedaCliente(e.target.value)} className="w-full bg-gray-900 border border-gray-700 text-white pl-10 pr-10 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-all placeholder-gray-500" />
               {buscando && <div className="absolute right-3 top-1/2 -translate-y-1/2"><FaSync className="animate-spin text-amber-400 text-sm" /></div>}
-              {busquedaCliente.length >= 2 && !buscando && (
-                <button onClick={() => { setBusquedaCliente(''); setResultadosBusqueda([]); setMostrarDropdown(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors">
-                  <FaTimes />
-                </button>
-              )}
             </div>
           </div>
           {mostrarDropdown && resultadosBusqueda.length > 0 && (
@@ -527,11 +573,6 @@ export default function CuentasCorrientesPage() {
                   <FaCheck className="text-gray-600 group-hover:text-amber-400 transition-colors" />
                 </button>
               ))}
-            </div>
-          )}
-          {mostrarDropdown && busquedaCliente.length >= 2 && resultadosBusqueda.length === 0 && !buscando && (
-            <div className="absolute z-50 w-full mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 text-center text-gray-400 text-sm">
-              No se encontraron clientes con ese término.
             </div>
           )}
         </div>
@@ -558,131 +599,148 @@ export default function CuentasCorrientesPage() {
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
           <FaSearch className="text-gray-400 text-lg" />
         </div>
-        <input
-          type="text"
-          placeholder="🔍 Buscar en la lista por nombre, razón social o teléfono..."
-          value={filtroLista}
-          onChange={(e) => setFiltroLista(e.target.value)}
-          className="w-full bg-gray-800 border border-gray-700 text-white pl-12 pr-12 py-3.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all placeholder-gray-500 shadow-sm"
-        />
-        {filtroLista && (
-          <button 
-            onClick={() => setFiltroLista('')}
-            className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-white transition-colors"
-            title="Limpiar búsqueda"
-          >
-            <FaTimes className="text-lg" />
-          </button>
-        )}
-        {filtroLista && (
-          <div className="absolute right-14 top-1/2 -translate-y-1/2 text-xs text-amber-400 font-medium bg-amber-900/30 px-2 py-1 rounded border border-amber-700/50">
-            {cuentasFiltradas.length} resultado{cuentasFiltradas.length !== 1 ? 's' : ''}
-          </div>
-        )}
+        <input type="text" placeholder="🔍 Buscar en la lista..." value={filtroLista} onChange={(e) => setFiltroLista(e.target.value)} className="w-full bg-gray-800 border border-gray-700 text-white pl-12 pr-12 py-3.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all placeholder-gray-500 shadow-sm" />
+        {filtroLista && <button onClick={() => setFiltroLista('')} className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-white transition-colors"><FaTimes className="text-lg" /></button>}
       </div>
 
       <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-sm">
         {loading ? (
           <div className="p-8 text-center text-gray-300 flex flex-col items-center gap-3">
-            <FaSync className="animate-spin text-amber-400 text-2xl" />
-            Cargando cuentas corrientes...
+            <FaSync className="animate-spin text-amber-400 text-2xl" /> Cargando...
           </div>
         ) : cuentasFiltradas.length === 0 ? (
           <div className="p-8 text-center text-gray-400 flex flex-col items-center gap-3">
-            <FaSearch className="text-4xl text-gray-600" />
-            {filtroLista ? 'No se encontraron clientes que coincidan con tu búsqueda.' : 'No hay clientes con saldo pendiente.'}
+            <FaSearch className="text-4xl text-gray-600" /> No se encontraron resultados.
           </div>
         ) : (
           <>
             <div className="divide-y divide-gray-700">
-              {cuentasPaginadas.map((cuenta) => (
-                <div key={cuenta.clienteId} className="p-4 hover:bg-gray-750 transition-colors">
-                  <div className="flex flex-col md:flex-row md:justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <FaUser className="text-amber-400 text-sm" />
-                        <span className="font-medium text-white text-lg">{cuenta.razonSocial}</span>
-                        {cuenta.tieneAlerta && (
-                          <span className="px-2 py-0.5 text-xs bg-red-600 text-white rounded-full flex items-center gap-1 animate-pulse">
-                            <FaExclamationTriangle size={10} /> Alerta Umbral
-                          </span>
-                        )}
-                      </div>
-                      {(cuenta.nombre || cuenta.apellido) && (
-                        <div className="text-gray-400 text-sm ml-5">{cuenta.nombre} {cuenta.apellido}</div>
-                      )}
-                      <div className="flex flex-wrap gap-4 mt-2 ml-5 text-sm text-gray-400">
-                        {cuenta.telefono && (
-                          <span className="flex items-center gap-1"><FaPhone size={12} /> {cuenta.telefono}</span>
-                        )}
-                        <span>{cuenta.pedidosDeudores} pedido(s) pendiente(s)</span>
-                      </div>
+              {cuentasPaginadas.map((cuenta) => {
+                const estaExpandido = expandedClientId === cuenta.clienteId;
+                const pedidosDeEsteCliente = pedidosDetalle[cuenta.clienteId] || [];
 
-                      {/* 🆕 TABLA DE ÚLTIMOS 5 MOVIMIENTOS - CORREGIDA */}
-                      {cuenta.ultimosMovimientos && cuenta.ultimosMovimientos.length > 0 && (
-                        <div className="mt-3 ml-5">
-                          <div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider flex items-center gap-1">
-                            <FaHistory className="text-amber-400" /> Últimos 5 Movimientos
+                return (
+                  <div key={cuenta.clienteId} className="transition-colors">
+                    <div className={`p-4 hover:bg-gray-750 transition-colors ${estaExpandido ? 'bg-gray-750' : ''}`}>
+                      <div className="flex flex-col md:flex-row md:justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <FaUser className="text-amber-400 text-sm" />
+                            <span className="font-medium text-white text-lg">{cuenta.razonSocial}</span>
+                            {cuenta.tieneAlerta && (
+                              <span className="px-2 py-0.5 text-xs bg-red-600 text-white rounded-full flex items-center gap-1 animate-pulse">
+                                <FaExclamationTriangle size={10} /> Alerta Umbral
+                              </span>
+                            )}
                           </div>
+                          {(cuenta.nombre || cuenta.apellido) && (
+                            <div className="text-gray-400 text-sm ml-5">{cuenta.nombre} {cuenta.apellido}</div>
+                          )}
+                          
+                          <div className="flex flex-wrap gap-4 mt-2 ml-5 text-sm text-gray-400 items-center">
+                            {cuenta.telefono && <span className="flex items-center gap-1"><FaPhone size={12} /> {cuenta.telefono}</span>}
+                            
+                            {cuenta.pedidosDeudores > 0 && (
+                              <button 
+                                onClick={() => toggleExpandirPedidos(cuenta.clienteId)}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-700 hover:bg-gray-600 text-amber-400 hover:text-amber-300 transition-all border border-gray-600 hover:border-amber-500/50 text-xs font-medium"
+                              >
+                                {cargandoPedidos && estaExpandido ? (
+                                  <FaSync className="animate-spin" size={10} />
+                                ) : (
+                                  <FaChevronDown className={`transition-transform duration-300 ${estaExpandido ? 'rotate-180' : ''}`} size={10} />
+                                )}
+                                {cuenta.pedidosDeudores} pedido(s) con deuda
+                              </button>
+                            )}
+                          </div>
+
+                          {cuenta.ultimoMovimiento && !estaExpandido && (
+                            <div className="mt-3 ml-5 p-3 bg-gray-900/50 border border-gray-700 rounded-lg">
+                              <div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider flex items-center gap-1">
+                                <FaHistory className="text-amber-400" /> Último Movimiento
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                <div><span className="text-xs text-gray-500">Fecha</span><div className="text-gray-200 font-medium">📅 {cuenta.ultimoMovimiento.fecha}</div></div>
+                                <div><span className="text-xs text-gray-500">Tipo</span><div className={`font-semibold capitalize ${cuenta.ultimoMovimiento.tipo === 'pago' ? 'text-green-400' : 'text-amber-400'}`}>{cuenta.ultimoMovimiento.tipo}</div></div>
+                                <div><span className="text-xs text-gray-500">Importe</span><div className="text-white font-bold">{formatARS(cuenta.ultimoMovimiento.importe)}</div></div>
+                                <div className="col-span-2 md:col-span-1"><span className="text-xs text-gray-500">Descripción</span><div className="text-gray-300 truncate">{cuenta.ultimoMovimiento.descripcion}</div></div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col sm:items-end gap-2">
+                          <div className="text-right">
+                            <div className="text-xs text-gray-400">Saldo Pendiente Total</div>
+                            <div className="text-2xl font-bold text-amber-400">{formatARS(cuenta.deudaTotal)}</div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleRegistrarPago(cuenta)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition">
+                              <FaMoneyBillWave /> Pagar
+                            </button>
+                            <button onClick={() => handleGenerarRecibo(cuenta)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition">
+                              <FaPrint /> Recibo
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {estaExpandido && (
+                      <div className="bg-gray-900/60 border-t border-gray-700 px-4 py-4 animate-in slide-in-from-top-2 duration-200">
+                        <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-300">
+                          <FaReceipt className="text-amber-400" /> Detalle de Pedidos Pendientes de Pago
+                        </div>
+                        
+                        {pedidosDeEsteCliente.length === 0 ? (
+                          <p className="text-sm text-gray-500 italic">No hay pedidos con saldo pendiente registrados.</p>
+                        ) : (
                           <div className="overflow-x-auto rounded-lg border border-gray-700">
-                            <table className="w-full text-xs text-left">
-                              <thead className="bg-gray-900/80 text-gray-400">
+                            <table className="w-full text-sm text-left">
+                              <thead className="bg-gray-800 text-gray-400 uppercase text-xs">
                                 <tr>
-                                  <th className="px-3 py-2">Fecha</th>
-                                  <th className="px-3 py-2">Tipo</th>
-                                  <th className="px-3 py-2">Descripción</th>
-                                  <th className="px-3 py-2 text-right">Importe</th>
+                                  <th className="px-4 py-3">N° Pedido</th>
+                                  <th className="px-4 py-3">Fecha</th>
+                                  <th className="px-4 py-3 text-right">Total Pedido</th>
+                                  <th className="px-4 py-3 text-center">Estado</th>
+                                  <th className="px-4 py-3 text-right">Saldo Adeudado</th>
+                                  <th className="px-4 py-3 text-center">Acción</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-gray-700 bg-gray-900/30">
-                                {cuenta.ultimosMovimientos.map((mov, idx) => (
-                                  <tr key={idx} className="hover:bg-gray-800/50 transition-colors">
-                                    <td className="px-3 py-2 text-gray-300 whitespace-nowrap">{mov.fecha}</td>
-                                    <td className="px-3 py-2">
-                                      <span className={`font-semibold capitalize flex items-center gap-1 ${
-                                        mov.tipo === 'pago' ? 'text-green-400' : 
-                                        mov.tipo === 'ajuste' ? 'text-amber-400' : 'text-blue-400'
-                                      }`}>
-                                        {mov.tipo === 'pago' ? '💰 Pago' : 
-                                         mov.tipo === 'ajuste' ? '⚠️ Ajuste' : '📦 Pedido'}
+                              <tbody className="divide-y divide-gray-700 bg-gray-900/50">
+                                {pedidosDeEsteCliente.map((pedido) => (
+                                  <tr key={pedido._id} className="hover:bg-gray-800/50 transition-colors group">
+                                    <td className="px-4 py-3 font-medium text-white">#{pedido.numero}</td>
+                                    <td className="px-4 py-3 text-gray-400">{new Date(pedido.fecha).toLocaleDateString('es-AR')}</td>
+                                    <td className="px-4 py-3 text-right text-gray-300">{formatARS(pedido.total)}</td>
+                                    <td className="px-4 py-3 text-center">
+                                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${pedido.estadoPago === 'parcial' ? 'bg-blue-900/50 text-blue-300 border border-blue-700' : 'bg-red-900/50 text-red-300 border border-red-700'}`}>
+                                        {pedido.estadoPago === 'parcial' ? 'Parcial' : 'Pendiente'}
                                       </span>
                                     </td>
-                                    <td className="px-3 py-2 text-gray-300 max-w-[150px] truncate" title={mov.descripcion}>
-                                      {mov.descripcion}
-                                    </td>
-                                    <td className="px-3 py-2 text-right font-bold text-white whitespace-nowrap">
-                                      {formatARS(mov.importe)}
+                                    <td className="px-4 py-3 text-right font-bold text-amber-400">{formatARS(pedido.saldoPendiente)}</td>
+                                    <td className="px-4 py-3 text-center">
+                                      <button
+                                        onClick={() => handleRegularizarPedido(cuenta.clienteId, pedido)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600/10 text-emerald-400 border border-emerald-600/30 hover:bg-emerald-600 hover:text-white transition-all text-xs font-medium"
+                                        title="Marcar este pedido específico como pagado y actualizar la cuenta corriente"
+                                      >
+                                        <FaCheckCircle size={12} />
+                                        Regularizar
+                                      </button>
                                     </td>
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-col sm:items-end gap-2">
-                      <div className="text-right">
-                        <div className="text-xs text-gray-400">Saldo Pendiente</div>
-                        <div className="text-2xl font-bold text-amber-400">{formatARS(cuenta.deudaTotal)}</div>
+                        )}
                       </div>
-                      <button
-                        onClick={() => handleRegistrarPago(cuenta)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"
-                      >
-                        <FaMoneyBillWave /> Registrar Pago
-                      </button>
-                      <button
-                        onClick={() => handleGenerarRecibo(cuenta)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"
-                        title="Generar recibo de pago para imprimir"
-                      >
-                        <FaPrint /> Generar Recibo
-                      </button>
-                    </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {totalPaginas > 1 && (
@@ -693,43 +751,10 @@ export default function CuentasCorrientesPage() {
                   <span className="font-medium text-white">{cuentasFiltradas.length}</span> resultados
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setPaginaActual(p => Math.max(1, p - 1))}
-                    disabled={paginaActual === 1}
-                    className="px-4 py-2 rounded-lg bg-gray-700 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-600 transition flex items-center gap-2 text-sm font-medium"
-                  >
+                  <button onClick={() => setPaginaActual(p => Math.max(1, p - 1))} disabled={paginaActual === 1} className="px-4 py-2 rounded-lg bg-gray-700 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-600 transition flex items-center gap-2 text-sm font-medium">
                     <FaChevronLeft size={12} /> Anterior
                   </button>
-                  
-                  <div className="hidden sm:flex items-center gap-1">
-                    {Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => {
-                      let pageNum = i + 1;
-                      if (totalPaginas > 5 && paginaActual > 3) {
-                        pageNum = paginaActual - 2 + i;
-                      }
-                      if (pageNum > totalPaginas) return null;
-                      
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setPaginaActual(pageNum)}
-                          className={`w-9 h-9 rounded-lg text-sm font-medium transition ${
-                            paginaActual === pageNum 
-                              ? 'bg-amber-600 text-white' 
-                              : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <button
-                    onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))}
-                    disabled={paginaActual === totalPaginas}
-                    className="px-4 py-2 rounded-lg bg-gray-700 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-600 transition flex items-center gap-2 text-sm font-medium"
-                  >
+                  <button onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))} disabled={paginaActual === totalPaginas} className="px-4 py-2 rounded-lg bg-gray-700 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-600 transition flex items-center gap-2 text-sm font-medium">
                     Siguiente <FaChevronRight size={12} />
                   </button>
                 </div>

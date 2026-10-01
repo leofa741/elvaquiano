@@ -853,36 +853,49 @@ function PageContent() {
                             </div>
 
                             {/* BOTÓN: Resetear Stock */}
-                            <div className="relative group">
-                              <button
-                                className="text-purple-500 hover:text-purple-700 transition-colors focus:outline-none flex items-center gap-1"
-                                aria-label="Opciones de stock"
-                              >
+                            <details className="relative group">
+                              {/* El summary actúa como el botón que abre/cierra el menú */}
+                              <summary className="list-none cursor-pointer text-purple-500 hover:text-purple-700 transition-colors focus:outline-none flex items-center gap-1 p-2 rounded-md active:bg-purple-100">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                   <path d="M21 16v-4a2 2 0 0 0-2-2H7" />
                                   <path d="M3 12l4-4 4 4" />
                                   <rect x="3" y="16" width="18" height="4" rx="1" />
                                 </svg>
                                 <span className="text-[10px] font-medium hidden xl:inline">Stock</span>
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                              </button>
+                                {/* La flecha gira automáticamente gracias a 'group-open:rotate-180' */}
+                                <svg className="w-3 h-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </summary>
 
                               {/* Dropdown */}
-                              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-30">
+                              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                                 <button
-                                  onClick={() => resetStockToZero(product)}
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2"
+                                  onClick={() => {
+                                    resetStockToZero(product);
+                                    // Truco nativo: cierra el menú después de hacer clic
+                                    const detailsEl = (document.activeElement as HTMLElement)?.closest('details');
+                                    if (detailsEl) detailsEl.removeAttribute('open');
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 active:bg-gray-100 text-gray-700 flex items-center gap-2 transition-colors"
                                 >
                                   <span className="text-purple-500">🗑️</span> Resetear a Cero
                                 </button>
                                 <button
-                                  onClick={() => resetStockToCustom(product)}
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2"
+                                  onClick={() => {
+                                    resetStockToCustom(product);
+                                    // Truco nativo: cierra el menú después de hacer clic
+                                    const detailsEl = (document.activeElement as HTMLElement)?.closest('details');
+                                    if (detailsEl) detailsEl.removeAttribute('open');
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 active:bg-gray-100 text-gray-700 flex items-center gap-2 transition-colors"
                                 >
                                   <span className="text-blue-500">✏️</span> Cantidad personalizada...
                                 </button>
                               </div>
-                            </div>
+                            </details>
+
+
                           </td>
 
 

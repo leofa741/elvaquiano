@@ -1,5 +1,4 @@
-
-// API ruta  gestion/cuentas-corrientes/route.ts 
+// API ruta: app/api/gestion/cuentas-corrientes/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongoose';
@@ -31,25 +30,24 @@ function normalizarFormaPago(formaPago: any): string {
   return mapeo[valor] || 'otro';
 }
 
-// ✅ FUNCIÓN CORREGIDA: Ahora recibe el movimientoCCId para vincularlo al pedido
-
-
-// ✅ FUNCIÓN CORREGIDA: Busca pagos en AMBAS tablas (Pago y CuentaCorriente)
+// ✅ FUNCIÓN CORREGIDA: Ahora recibe pagoIdOriginal para evitar duplicados al fraccionar
 async function actualizarEstadoPagoPedidos(
   clienteId: string, 
   montoPagado: number, 
   movimientoCCId: string,
-  pedidoIdEspecifico?: string
+  pedidoIdEspecifico?: string,
+  pagoIdOriginal?: string // 🆕 NUEVO: Para eliminar el pago general si se va a fraccionar
 ) {
   try {
     console.log('🔍 [actualizarEstadoPagoPedidos] Iniciando...', {
       clienteId,
       montoPagado,
       movimientoCCId,
-      pedidoIdEspecifico
+      pedidoIdEspecifico,
+      pagoIdOriginal
     });
 
-    // Si hay un pedidoId específico, actualizar solo ese
+    // Si hay un pedidoId específico, actualizar solo ese (NO borramos el pago original, es correcto)
     if (pedidoIdEspecifico) {
       const pedido = await Pedido.findById(pedidoIdEspecifico);
       if (!pedido) {
@@ -57,7 +55,6 @@ async function actualizarEstadoPagoPedidos(
         return;
       }
 
-      // ✅ BUSCAR EN AMBAS TABLAS
       const pagosEnPago = await Pago.find({ pedido: pedidoIdEspecifico });
       const pagosEnCC = await CuentaCorriente.find({
         cliente: clienteId,
@@ -68,15 +65,7 @@ async function actualizarEstadoPagoPedidos(
       const totalPagadoEnPago = pagosEnPago.reduce((sum, p) => sum + Number(p.monto), 0);
       const totalPagadoEnCC = pagosEnCC.reduce((sum, p) => sum + Number(p.importe), 0);
       const totalPagado = totalPagadoEnPago + totalPagadoEnCC;
-
       const totalPedido = Number(pedido.total) || 0;
-
-      console.log('📊 [Pedido específico]', { 
-        totalPagadoEnPago, 
-        totalPagadoEnCC, 
-        totalPagado, 
-        totalPedido 
-      });
 
       if (totalPagado >= totalPedido) {
         pedido.estadoPago = 'pagado';
@@ -86,7 +75,6 @@ async function actualizarEstadoPagoPedidos(
         pedido.estadoPago = 'pendiente';
       }
       await pedido.save();
-      console.log('✅ [Pedido específico] Actualizado a:', pedido.estadoPago);
       return;
     }
 
@@ -97,8 +85,6 @@ async function actualizarEstadoPagoPedidos(
       activo: { $ne: false },
       estado: { $ne: 'cancelado' }
     }).sort({ createdAt: 1 });
-
-    console.log('📋 [Pedidos pendientes encontrados]', pedidosPendientes.length);
 
     if (pedidosPendientes.length === 0) {
       console.warn('⚠️ No hay pedidos pendientes para el cliente', clienteId);
@@ -113,7 +99,14 @@ async function actualizarEstadoPagoPedidos(
       return;
     }
 
+    // 1. Eliminamos el movimiento de CC original (se va a fraccionar)
     await CuentaCorriente.findByIdAndDelete(movimientoCCId);
+
+    // 🆕 2. ELIMINAMOS EL PAGO GENERAL CREADO EN EL POST, YA QUE SE VA A FRACCIONAR
+    // Esto evita que quede el pago "general" + los pagos "fraccionados" (duplicidad)
+    if (pagoIdOriginal) {
+      await Pago.findByIdAndDelete(pagoIdOriginal);
+    }
 
     let saldoAcumulado = movimientoOriginal.saldoAnterior || 0;
     let pedidosActualizados = 0;
@@ -123,7 +116,6 @@ async function actualizarEstadoPagoPedidos(
 
       const totalPedido = Number(pedido.total) || 0;
       
-      // ✅ BUSCAR EN AMBAS TABLAS
       const pagosEnPago = await Pago.find({ pedido: pedido._id });
       const pagosEnCC = await CuentaCorriente.find({
         cliente: new mongoose.Types.ObjectId(clienteId),
@@ -134,18 +126,7 @@ async function actualizarEstadoPagoPedidos(
       const totalPagadoEnPago = pagosEnPago.reduce((sum, p) => sum + Number(p.monto), 0);
       const totalPagadoEnCC = pagosEnCC.reduce((sum, p) => sum + Number(p.importe), 0);
       const totalPagadoPedido = totalPagadoEnPago + totalPagadoEnCC;
-      
       const saldoPendientePedido = totalPedido - totalPagadoPedido;
-
-      console.log('💰 [Procesando pedido]', {
-        pedidoId: pedido._id,
-        totalPedido,
-        totalPagadoEnPago,
-        totalPagadoEnCC,
-        totalPagadoPedido,
-        saldoPendientePedido,
-        montoRestante
-      });
 
       if (saldoPendientePedido <= 0) continue;
 
@@ -155,7 +136,8 @@ async function actualizarEstadoPagoPedidos(
       const saldoAnteriorPedido = saldoAcumulado;
       saldoAcumulado = saldoAcumulado - montoAplicado;
 
-      const nuevoMovimiento = await CuentaCorriente.create({
+      // Crear movimiento fraccionado en CC
+      await CuentaCorriente.create({
         cliente: new mongoose.Types.ObjectId(clienteId),
         pedido: pedido._id,
         tipo: 'pago',
@@ -168,6 +150,7 @@ async function actualizarEstadoPagoPedidos(
         notas: movimientoOriginal.notas
       });
 
+      // Crear registro fraccionado en Pago
       await Pago.create({
         pedido: pedido._id,
         cliente: new mongoose.Types.ObjectId(clienteId),
@@ -178,7 +161,6 @@ async function actualizarEstadoPagoPedidos(
       });
 
       const nuevoTotalPagado = totalPagadoPedido + montoAplicado;
-      const estadoAnterior = pedido.estadoPago;
       
       if (nuevoTotalPagado >= totalPedido) {
         pedido.estadoPago = 'pagado';
@@ -188,13 +170,6 @@ async function actualizarEstadoPagoPedidos(
       
       await pedido.save();
       pedidosActualizados++;
-      
-      console.log('✅ [Pedido actualizado]', {
-        pedidoId: pedido._id,
-        estadoAnterior,
-        nuevoEstado: pedido.estadoPago,
-        montoAplicado
-      });
     }
 
     if (montoRestante > 0) {
@@ -210,7 +185,6 @@ async function actualizarEstadoPagoPedidos(
         formaPago: movimientoOriginal.formaPago,
         notas: movimientoOriginal.notas
       });
-      console.log('💵 [Saldo a favor generado]', montoRestante);
     }
 
     console.log('🎉 [actualizarEstadoPagoPedidos] Completado. Pedidos actualizados:', pedidosActualizados);
@@ -219,7 +193,6 @@ async function actualizarEstadoPagoPedidos(
     console.error('❌ [ERROR CRÍTICO] en actualizarEstadoPagoPedidos:', error);
   }
 }
-
 
 export async function POST(req: NextRequest) {
   try {
@@ -249,6 +222,7 @@ export async function POST(req: NextRequest) {
       : saldoAnterior - importeNumerico;
 
     let referenciaId = pedidoId || null;
+    let nuevoPagoId: string | null = null; // 🆕 NUEVO: Para rastrear el pago creado
     
     if (tipo === 'pago') {
       const nuevoPago = await Pago.create({
@@ -259,10 +233,11 @@ export async function POST(req: NextRequest) {
         fechaPago: new Date(),
         notas: notas || descripcion
       });
+      nuevoPagoId = nuevoPago._id.toString(); // 🆕 NUEVO: Guardamos el ID
       referenciaId = nuevoPago._id;
     }
 
-    // ✅ Crear PRIMERO el movimiento de Cuenta Corriente
+    // ✅ Crear el movimiento de Cuenta Corriente
     const nuevoMovimientoCC = await CuentaCorriente.create({
       cliente: clienteId,
       pedido: pedidoId || null,
@@ -276,32 +251,30 @@ export async function POST(req: NextRequest) {
       notas
     });
 
-    // ✅ Si es tipo 'pago', actualizar estado de pedidos (pasando el ID del movimiento)
-  // ✅ Si es tipo 'pago', actualizar estado de pedidos (pasando el ID del movimiento)
-if (tipo === 'pago') {
-  await actualizarEstadoPagoPedidos(
-    clienteId, 
-    importeNumerico, 
-    nuevoMovimientoCC._id.toString(),
-    pedidoId || undefined
-  );
-  
-  // ✅ NUEVO: Recalcular y retornar el estado actualizado de los pedidos
-  const pedidosActualizados = await Pedido.find({
-    cliente: new mongoose.Types.ObjectId(clienteId),
-    activo: { $ne: false },
-    estado: { $ne: 'cancelado' }
-  }).select('_id estadoPago total').lean();
-  
-  return NextResponse.json({ 
-    success: true, 
-    data: nuevoMovimientoCC, 
-    saldoActual,
-    pedidosActualizados // ✅ El frontend puede verificar qué pedidos cambiaron
-  }, { status: 201 });
-}
+    // ✅ Si es tipo 'pago', actualizar estado de pedidos
+    if (tipo === 'pago') {
+      await actualizarEstadoPagoPedidos(
+        clienteId, 
+        importeNumerico, 
+        nuevoMovimientoCC._id.toString(),
+        pedidoId || undefined,
+        nuevoPagoId || undefined // 🆕 NUEVO: Pasamos el ID para que lo limpie si fracciona
+      );
+      
+      const pedidosActualizados = await Pedido.find({
+        cliente: new mongoose.Types.ObjectId(clienteId),
+        activo: { $ne: false },
+        estado: { $ne: 'cancelado' }
+      }).select('_id estadoPago total').lean();
+      
+      return NextResponse.json({ 
+        success: true, 
+        data: nuevoMovimientoCC, 
+        saldoActual,
+        pedidosActualizados
+      }, { status: 201 });
+    }
 
-    // Si es tipo 'pedido', también actualizar el pedido a "pendiente"
     if (tipo === 'pedido' && pedidoId) {
       const pedido = await Pedido.findById(pedidoId);
       if (pedido && pedido.estadoPago === 'pagado') {
@@ -317,7 +290,6 @@ if (tipo === 'pago') {
   }
 }
 
-// ✅ GET: (mantén el GET igual que ya lo tienes)
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
@@ -352,10 +324,16 @@ export async function GET(req: NextRequest) {
         $group: {
           _id: "$cliente",
           deudaTotal: { $first: "$saldoActual" },
-          ultimoMovimiento: { $first: "$$ROOT" }
+          ultimosMovimientos: { $push: "$$ROOT" }
         }
       },
-      { $match: { deudaTotal: { $gt: 0 } } }
+      { $match: { deudaTotal: { $gt: 0 } } },
+      {
+        $project: {
+          deudaTotal: 1,
+          ultimosMovimientos: { $slice: ["$ultimosMovimientos", 5] } 
+        }
+      }
     ]);
 
     if (saldosClientes.length === 0) {
@@ -372,22 +350,36 @@ export async function GET(req: NextRequest) {
     ).lean() as any[];
 
     const pedidosPorCliente = await Pedido.aggregate([
-      { $match: { cliente: { $in: clientIds }, activo: true, estado: { $ne: 'cancelado' } } },
+      { 
+        $match: { 
+          cliente: { $in: clientIds }, 
+          activo: { $ne: false }, 
+          estado: { $ne: 'cancelado' },
+          estadoPago: { $in: ['pendiente', 'parcial'] }
+        } 
+      },
       { $group: { _id: "$cliente", pedidosDeudores: { $sum: 1 } } }
     ]);
 
     const mapPedidos = new Map(pedidosPorCliente.map((p: any) => [p._id.toString(), p.pedidosDeudores]));
     const mapClientes = new Map(clientesData.map((c: any) => [c._id.toString(), c]));
 
-      const cuentasConAlertas = saldosClientes.map((s: any) => {
+    const cuentasConAlertas = saldosClientes.map((s: any) => {
       const clienteIdStr = s._id.toString();
       const cliente = mapClientes.get(clienteIdStr) || {};
       const pedidosDeudores = mapPedidos.get(clienteIdStr) || 0;
       const deudaTotal = s.deudaTotal || 0;
       const umbral = cliente.alerta?.umbralDeuda ?? UMBRAL_GLOBAL;
       
-      // ✅ EXTRAER DATOS DEL ÚLTIMO MOVIMIENTO DE FORMA SEGURA
-      const ultimoMov = s.ultimoMovimiento || {};
+      const ultimosMovimientos = (s.ultimosMovimientos || []).map((mov: any) => ({
+        descripcion: mov.descripcion || 'Sin descripción',
+        tipo: mov.tipo || 'desconocido',
+        fecha: mov.fecha 
+          ? new Date(mov.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) 
+          : 'Sin fecha',
+        importe: mov.importe || 0,
+        formaPago: mov.formaPago || 'N/A'
+      }));
 
       return {
         clienteId: clienteIdStr,
@@ -403,17 +395,7 @@ export async function GET(req: NextRequest) {
         tieneAlerta: deudaTotal > umbral,
         umbralUsado: umbral,
         alertaRevisada: cliente.alerta?.revisado ?? false,
-        
-        // ✅ NUEVO: Enviar la info del último movimiento al frontend
-        ultimoMovimiento: {
-          descripcion: ultimoMov.descripcion || 'Sin descripción',
-          tipo: ultimoMov.tipo || 'desconocido',
-          fecha: ultimoMov.fecha 
-            ? new Date(ultimoMov.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) 
-            : 'Sin fecha',
-          importe: ultimoMov.importe || 0,
-          formaPago: ultimoMov.formaPago || 'N/A'
-        }
+        ultimosMovimientos
       };
     });
 

@@ -10,5 +10,6 @@ const ReciboPagoSchema = new Schema({
   fecha: { type: Date, default: Date.now }
 }, { timestamps: true });
 
+
 export default mongoose.models.ReciboPago || mongoose.model('ReciboPago', ReciboPagoSchema);
 
