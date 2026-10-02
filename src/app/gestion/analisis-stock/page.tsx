@@ -1,6 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-toastify';
 import { FaSearch, FaUsers, FaWarehouse, FaHistory, FaArrowUp, FaArrowDown, FaShoppingCart, FaUserCircle } from 'react-icons/fa';
 
 // Interfaces
@@ -50,6 +53,10 @@ interface ResultadoAPI {
 }
 
 export default function AnalisisStockPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  
   const [producto, setProducto] = useState('');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
@@ -57,8 +64,41 @@ export default function AnalisisStockPage() {
   const [resultado, setResultado] = useState<ResultadoAPI | null>(null);
   const [error, setError] = useState('');
 
+  // 🔒 Validación de acceso
+  useEffect(() => {
+    const validateAccess = async () => {
+      if (status === 'loading') return;
+      if (status === 'unauthenticated') {
+        router.push('/');
+        return;
+      }
+      const token = session?.user?.token || localStorage.getItem('token');
+      if (!token) {
+        toast.error('Acceso denegado: no hay sesión activa');
+        router.push('/');
+        return;
+      }
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (!['admin', 'superadmin'].includes(payload.role)) {
+          toast.error('Acceso restringido a administradores');
+          router.push('/');
+          return;
+        }
+        setIsAuthorized(true);
+      } catch (err: any) {
+        console.error('Error al validar el token:', err);
+        toast.error('Sesión inválida o expirada');
+        router.push('/');
+      }
+    };
+    validateAccess();
+  }, [status, session, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAuthorized) return; // 🔒 Protección extra en el submit
+    
     setLoading(true);
     setError('');
     setResultado(null);
@@ -90,6 +130,8 @@ export default function AnalisisStockPage() {
       default: return { label: accion, color: "bg-gray-900/30 text-gray-400" };
     }
   };
+
+  if (!isAuthorized) return null;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
