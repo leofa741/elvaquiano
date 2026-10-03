@@ -74,15 +74,9 @@ export default function AnalisisStockPage() {
   const [resultado, setResultado] = useState<ResultadoAPI | null>(null);
   const [error, setError] = useState('');
 
-  // Buscador de productos
   const [sugerenciasProducto, setSugerenciasProducto] = useState<string[]>([]);
   const [buscandoProducto, setBuscandoProducto] = useState(false);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
-
-  // 🆕 Filtro de modo de fecha de inicio
-  const [modoFiltroInicio, setModoFiltroInicio] = useState<'fecha' | 'ajuste'>('fecha');
-  const [ajustesDisponibles, setAjustesDisponibles] = useState<any[]>([]);
-  const [cargandoAjustes, setCargandoAjustes] = useState(false);
 
   // ==========================================
   // 3. SEGURIDAD
@@ -124,7 +118,7 @@ export default function AnalisisStockPage() {
   }, [status, session, router]);
 
   // ==========================================
-  // 4. BUSCADOR DE PRODUCTOS
+  // 4. BUSCADOR
   // ==========================================
   useEffect(() => {
     if (producto.length < 2) {
@@ -153,34 +147,7 @@ export default function AnalisisStockPage() {
   }, [producto]);
 
   // ==========================================
-  // 5. 🆕 CARGAR AJUSTES CUANDO SE ELIGE ESE MODO
-  // ==========================================
-  useEffect(() => {
-    if (modoFiltroInicio === 'ajuste' && producto.length >= 2) {
-      setCargandoAjustes(true);
-      setAjustesDisponibles([]);
-      
-      const fetchAjustes = async () => {
-        try {
-          // ⚠️ NOTA: Ajusta esta URL si tu endpoint de logs tiene otro nombre
-          const res = await fetch(`/api/gestion/logs/stock?producto=${encodeURIComponent(producto)}&limit=10`);
-          if (res.ok) {
-            const data = await res.json();
-            setAjustesDisponibles(data.logs || data);
-          }
-        } catch (err) {
-          console.error('Error cargando ajustes:', err);
-        } finally {
-          setCargandoAjustes(false);
-        }
-      };
-      
-      fetchAjustes();
-    }
-  }, [modoFiltroInicio, producto]);
-
-  // ==========================================
-  // 6. SUBMIT
+  // 5. SUBMIT
   // ==========================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,8 +217,6 @@ export default function AnalisisStockPage() {
 
         {/* FORMULARIO */}
         <form onSubmit={handleSubmit} className="bg-gray-800 border border-gray-700 rounded-xl p-6 mb-8 grid grid-cols-1 md:grid-cols-4 gap-4 shadow-lg relative z-10">
-          
-          {/* PRODUCTO */}
           <div className="md:col-span-2 relative">
             <label className="block text-sm font-medium text-gray-300 mb-1">Producto a Auditar</label>
             <div className="relative">
@@ -270,15 +235,8 @@ export default function AnalisisStockPage() {
             {mostrarSugerencias && sugerenciasProducto.length > 0 && (
               <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl max-h-60 overflow-y-auto">
                 {sugerenciasProducto.map((nombre, idx) => (
-                  <button 
-                    key={idx} 
-                    type="button" 
-                    onClick={() => { 
-                      setProducto(nombre); 
-                      setMostrarSugerencias(false); 
-                    }}
-                    className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-amber-600 hover:text-white transition-colors border-b border-gray-700 last:border-0 flex items-center gap-2"
-                  >
+                  <button key={idx} type="button" onClick={() => { setProducto(nombre); setMostrarSugerencias(false); }}
+                    className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-amber-600 hover:text-white transition-colors border-b border-gray-700 last:border-0 flex items-center gap-2">
                     <FaSearch className="text-gray-500 text-xs" /> {nombre}
                   </button>
                 ))}
@@ -286,78 +244,13 @@ export default function AnalisisStockPage() {
             )}
           </div>
 
-          {/* 🆕 FILTRO DE FECHA INICIO (SELECTOR DE MODO) */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-300 mb-1">Filtro de Fecha Inicio</label>
-            
-            {/* Selector de modo */}
-            <select 
-              value={modoFiltroInicio} 
-              onChange={(e) => {
-                setModoFiltroInicio(e.target.value as 'fecha' | 'ajuste');
-                setFechaInicio(''); // Limpiar al cambiar de modo
-              }}
-              className="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500 mb-2 appearance-none"
-            >
-              <option value="fecha">📅 Ingresar fecha manualmente</option>
-              <option value="ajuste">🔄 Desde último ajuste de stock</option>
-            </select>
-
-            {/* Opción A: Calendario manual */}
-            {modoFiltroInicio === 'fecha' && (
-              <input 
-                type="date" 
-                value={fechaInicio} 
-                onChange={(e) => setFechaInicio(e.target.value)} 
-                required 
-                className="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500" 
-              />
-            )}
-
-            {/* Opción B: Select con últimos ajustes */}
-            {modoFiltroInicio === 'ajuste' && (
-              <div className="relative">
-                {cargandoAjustes ? (
-                  <div className="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-gray-400 flex items-center gap-2">
-                    <span className="animate-spin">⏳</span> Cargando ajustes...
-                  </div>
-                ) : (
-                  <select
-                    value={fechaInicio}
-                    onChange={(e) => setFechaInicio(e.target.value)}
-                    required
-                    className="w-full px-4 py-2.5 bg-gray-900 border border-amber-600/50 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer"
-                  >
-                    <option value="">Selecciona un ajuste reciente...</option>
-                    {ajustesDisponibles.map((ajuste: any, idx: number) => {
-                      const fechaRaw = ajuste.timestamp || ajuste.fecha;
-                      const fechaObj = new Date(fechaRaw);
-                      const fechaFormateada = fechaObj.toISOString().split('T')[0];
-                      return (
-                        <option key={idx} value={fechaFormateada}>
-                          {fechaObj.toLocaleString('es-AR')} - {ajuste.accion || 'Ajuste'} ({ajuste.usuario || 'Sistema'})
-                        </option>
-                      );
-                    })}
-                  </select>
-                )}
-                {!cargandoAjustes && ajustesDisponibles.length === 0 && producto && (
-                  <p className="text-xs text-red-400 mt-1">No se encontraron ajustes recientes para este producto.</p>
-                )}
-              </div>
-            )}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Fecha Inicio</label>
+            <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} required className="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500" />
           </div>
-
-          {/* FECHA FIN */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">Fecha Fin</label>
-            <input 
-              type="date" 
-              value={fechaFin} 
-              onChange={(e) => setFechaFin(e.target.value)} 
-              required 
-              className="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500" 
-            />
+            <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} required className="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500" />
           </div>
           
           <div className="md:col-span-4 mt-2">
@@ -461,6 +354,7 @@ export default function AnalisisStockPage() {
 
                 return (
                   <div className="overflow-x-auto">
+                    {/* 🟢 CUADRO DE CONCILIACIÓN */}
                     {primerAjuste && (
                       <div className="bg-emerald-900/20 border-b border-emerald-700/50 p-5 flex items-start gap-4">
                         <div className="bg-emerald-500/20 p-2 rounded-full text-emerald-400 text-xl mt-1">
@@ -505,13 +399,20 @@ export default function AnalisisStockPage() {
                         {eventos.map((ev, i) => {
                           const esPositivo = ev.movimiento > 0;
                           const movimientoStr = esPositivo ? `+${ev.movimiento}` : `${ev.movimiento}`;
+                          
                           let tipoBadge = "bg-gray-700 text-gray-300";
+
                           if (ev.tipo === 'ajuste') {
                             tipoBadge = "bg-blue-900/40 text-blue-400 border border-blue-700/50";
                           } else {
                             tipoBadge = "bg-amber-900/40 text-amber-400 border border-amber-700/50";
                           }
 
+                          // 🛡️ MOSTRAR NÚMEROS REALES (incluyendo negativos y backorder)
+                          const displayStockPrevio = ev.stockAntes;
+                          const displayStockPosterior = ev.stockDespues;
+                          const displayEstado = ev.estado;
+                          
                           const estadoColor = ev.estado.includes('EXCESO') 
                             ? "text-red-400 font-bold" 
                             : ev.estado.includes('Ajuste') 
@@ -532,9 +433,9 @@ export default function AnalisisStockPage() {
                               <td className={`px-4 py-3 text-center font-bold font-mono ${esPositivo ? 'text-green-400' : 'text-red-400'}`}>
                                 {movimientoStr}
                               </td>
-                              <td className="px-4 py-3 text-center text-gray-300 font-mono">{ev.stockAntes}</td>
-                              <td className="px-4 py-3 text-center text-white font-semibold font-mono">{ev.stockDespues}</td>
-                              <td className={`px-4 py-3 text-center text-xs ${estadoColor}`}>{ev.estado}</td>
+                              <td className="px-4 py-3 text-center text-gray-300 font-mono">{displayStockPrevio}</td>
+                              <td className="px-4 py-3 text-center text-white font-semibold font-mono">{displayStockPosterior}</td>
+                              <td className={`px-4 py-3 text-center text-xs ${estadoColor}`}>{displayEstado}</td>
                             </tr>
                           );
                         })}
