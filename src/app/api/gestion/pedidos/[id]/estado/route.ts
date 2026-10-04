@@ -11,11 +11,12 @@ connectDB();
 
 /* =====================================
    STOCK REAL (físico)
-   ✅ MODIFICADO: Ahora devuelve un array de advertencias en lugar de lanzar error
+   ✅ MODIFICADO: Ahora devuelve un array de advertencias y motivo dinámico
 ===================================== */
 async function procesarStockFisico(
   pedido: any,
-  accion: 'descontar' | 'devolver'
+  accion: 'descontar' | 'devolver',
+  motivoNotificacion: string
 ): Promise<string[]> {
   const advertencias: string[] = [];
 
@@ -29,14 +30,13 @@ async function procesarStockFisico(
     if (!stock) continue;
 
     if (accion === 'descontar') {
-      // ✅ Si no alcanza, guardamos el mensaje de advertencia pero NO tiramos error
       if (stock.cantidad < item.cantidad) {
         advertencias.push(
           `Stock insuficiente para "${item.nombre}" en ${pedido.deposito}. Disponible: ${stock.cantidad}, solicitado: ${item.cantidad}.`
         );
       }
       
-      // ✅ "Que lo lleve a cero": Restamos, pero nunca permitimos que baje de 0
+      // "Que lo lleve a cero": Restamos, pero nunca permitimos que baje de 0
       stock.cantidad = Math.max(0, stock.cantidad - item.cantidad);
     }
 
@@ -50,16 +50,12 @@ async function procesarStockFisico(
       type: 'stock_modificado',
       data: {
         producto,
-        motivo:
-          accion === 'descontar'
-            ? 'pedido_en_preparacion'
-            : 'pedido_cancelado',
+        motivo: motivoNotificacion, // ✅ Ahora es dinámico
         pedidoId: pedido._id,
       },
     });
   }
   
-  // ✅ Devolvemos el array (vacío si todo salió perfecto, con mensajes si hubo faltantes)
   return advertencias;
 }
 
@@ -95,26 +91,48 @@ export async function PATCH(request: NextRequest, { params }: any) {
     }
 
     const estadoAnterior = pedido.estado;
-    let advertenciasStock: string[] = []; // ✅ Array para capturar las warnings
+    let advertenciasStock: string[] = [];
 
     /* =====================================
-       pendiente → preparacion
+       1. pendiente → preparacion
+       (Descontar stock físico)
     ===================================== */
     if (estadoAnterior === 'pendiente' && estado === 'preparacion') {
-      advertenciasStock = await procesarStockFisico(pedido, 'descontar');
+      advertenciasStock = await procesarStockFisico(
+        pedido, 
+        'descontar', 
+        'pedido_en_preparacion'
+      );
     }
 
     /* =====================================
-       preparacion/enviado/entregado → cancelado
+       2. preparacion → pendiente 
+       ✅ NUEVO: Devolver stock si se había descontado por error
+    ===================================== */
+    if (estadoAnterior === 'preparacion' && estado === 'pendiente') {
+      await procesarStockFisico(
+        pedido, 
+        'devolver', 
+        'correccion_estado_a_pendiente'
+      );
+    }
+
+    /* =====================================
+       3. preparacion/enviado/entregado → cancelado
        (Devolver stock físico si ya se había descontado)
     ===================================== */
     if (
       ['preparacion', 'enviado', 'entregado'].includes(estadoAnterior) && 
       estado === 'cancelado'
     ) {
-      await procesarStockFisico(pedido, 'devolver');
+      await procesarStockFisico(
+        pedido, 
+        'devolver', 
+        'pedido_cancelado'
+      );
     }
 
+    // Guardar el nuevo estado
     pedido.estado = estado;
     await pedido.save();
 
@@ -127,12 +145,12 @@ export async function PATCH(request: NextRequest, { params }: any) {
     });
 
     /* =====================================
-       ✅ RESPUESTA: Si hay advertencias, las enviamos con status 200 (Éxito)
+       RESPUESTA: Si hay advertencias, las enviamos con status 200 (Éxito)
     ===================================== */
     if (advertenciasStock.length > 0) {
       return NextResponse.json({
         ...pedido.toObject(),
-        warning: advertenciasStock.join(' | ') // Unimos todas las advertencias en un solo texto
+        warning: advertenciasStock.join(' | ')
       }, { status: 200 });
     }
 
