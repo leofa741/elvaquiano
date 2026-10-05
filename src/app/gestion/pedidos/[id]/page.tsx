@@ -19,20 +19,18 @@ interface Cliente {
   direccion?: string; telefono?: string; tipoCliente?: 'minorista' | 'mayorista';
 }
 
-// Reemplaza las interfaces existentes por estas:
 interface Producto {
   _id: string; nombre: string; unidad: string; cantidad: number;
   tipoPrecio: 'mayorista' | 'oferta'; precioAplicado: number; subtotal: number; producto: string;
   esPrecioManualTicket?: boolean;
-  categoria?: string; // NUEVO
-  pesoAproximado?: number; // NUEVO
+  categoria?: string;
+  pesoAproximado?: number;
 }
 
 interface ProductoSimple {
-  _id: string; nombre: string; unidad: string; categoria?: string; // NUEVO
+  _id: string; nombre: string; unidad: string; categoria?: string;
   precio: { mayorista: number; oferta: number; };
 }
-
 
 interface Pedido {
   _id: string; cliente: Cliente; productos: Producto[];
@@ -87,7 +85,6 @@ const requierePesoAproximado = (p: Producto | ProductoSimple) => {
   return p.unidad === 'kg' || p.categoria?.toLowerCase() === 'fiambres';
 };
 
-
 export default function DetallePedidoPage() {
   const isAuthorized = useAdminAuthorization();
   const { id } = useParams() as { id?: string };
@@ -98,12 +95,16 @@ export default function DetallePedidoPage() {
   const [saldoPendiente, setSaldoPendiente] = useState<number | null>(null);
   const [totalPagado, setTotalPagado] = useState<number>(0);
 
+  // ✅ NUEVO: Estados para bloquear la interfaz y evitar doble clic
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [procesandoPago, setProcesandoPago] = useState(false);
+
   const [editandoProducto, setEditandoProducto] = useState<number | null>(null);
   const [cantidadTemporal, setCantidadTemporal] = useState<number>(1);
   const [precioTemporal, setPrecioTemporal] = useState<number>(0);
   const [pesoAproximadoTemporal, setPesoAproximadoTemporal] = useState<number | ''>('');
   const [actualizarProductoBase, setActualizarProductoBase] = useState<boolean>(false);
-  const [esPrecioManualTicket, setEsPrecioManualTicket] = useState<boolean>(false); // ✅ NUEVO
+  const [esPrecioManualTicket, setEsPrecioManualTicket] = useState<boolean>(false);
 
   const [productosDisponibles, setProductosDisponibles] = useState<ProductoSimple[]>([]);
   const [mostrarAgregar, setMostrarAgregar] = useState(false);
@@ -111,7 +112,7 @@ export default function DetallePedidoPage() {
   const [cantidadNuevo, setCantidadNuevo] = useState<number>(1);
   const [precioNuevo, setPrecioNuevo] = useState<number>(0);
   const [actualizarProductoNuevo, setActualizarProductoNuevo] = useState<boolean>(false);
-  const [esPrecioManualNuevo, setEsPrecioManualNuevo] = useState<boolean>(false); // ✅ NUEVO
+  const [esPrecioManualNuevo, setEsPrecioManualNuevo] = useState<boolean>(false);
   const [busquedaProducto, setBusquedaProducto] = useState<string>('');
 
   const [dropdownAbierto, setDropdownAbierto] = useState(false);
@@ -214,7 +215,10 @@ export default function DetallePedidoPage() {
     inputRef.current?.focus();
   };
 
+  // ✅ MODIFICADO: Bloqueo contra doble clic
   const handleCambiarEstado = async (nuevoEstado: string) => {
+    if (updatingStatus) return; // Si ya se está procesando, ignorar clics adicionales
+
     const result = await Swal.fire({
       title: '¿Cambiar estado?',
       text: `¿Seguro que deseas cambiar el estado a "${ESTADO_LABEL[nuevoEstado]}"?`,
@@ -227,6 +231,7 @@ export default function DetallePedidoPage() {
     });
 
     if (result.isConfirmed) {
+      setUpdatingStatus(true); // 🔒 BLOQUEAR INTERFAZ
       try {
         const res = await fetch(`/api/gestion/pedidos/${id}/estado`, {
           method: 'PATCH',
@@ -254,6 +259,8 @@ export default function DetallePedidoPage() {
         }
       } catch (err) {
         Swal.fire('Error', 'Error de conexión con el servidor', 'error');
+      } finally {
+        setUpdatingStatus(false); // 🔓 LIBERAR INTERFAZ (pase lo que pase)
       }
     }
   };
@@ -262,7 +269,7 @@ export default function DetallePedidoPage() {
     setEditandoProducto(idx);
     setCantidadTemporal(cantidad);
     setPrecioTemporal(precio);
-    setPesoAproximadoTemporal(pesoAprox !== undefined && pesoAprox > 0 ? pesoAprox : ''); // NUEVO
+    setPesoAproximadoTemporal(pesoAprox !== undefined && pesoAprox > 0 ? pesoAprox : '');
     setActualizarProductoBase(false);
     setEsPrecioManualTicket(esManual);
   };
@@ -280,7 +287,7 @@ export default function DetallePedidoPage() {
           nuevoPrecio: precioTemporal,
           actualizarProducto: actualizarProductoBase,
           soloTicket: esPrecioManualTicket,
-          nuevoPesoAproximado: pesoAproximadoTemporal === '' ? undefined : parseFloat(String(pesoAproximadoTemporal)) // NUEVO
+          nuevoPesoAproximado: pesoAproximadoTemporal === '' ? undefined : parseFloat(String(pesoAproximadoTemporal))
         }),
       });
       if (res.ok) {
@@ -314,7 +321,6 @@ export default function DetallePedidoPage() {
     }
   };
 
-  // ✅ MODIFICADO: También permite agregar productos nuevos con precio solo para ticket
   const handleAgregarProducto = async () => {
     if (!productoSeleccionado || cantidadNuevo <= 0 || isNaN(cantidadNuevo) || precioNuevo <= 0 || isNaN(precioNuevo)) {
       Swal.fire('Error', 'Selecciona un producto, cantidad y precio válidos', 'error'); return;
@@ -328,7 +334,7 @@ export default function DetallePedidoPage() {
           cantidad: cantidadValidada,
           precioPersonalizado: precioNuevo,
           actualizarProducto: actualizarProductoNuevo,
-          soloTicket: esPrecioManualNuevo // ✅ Bandera para que el backend sepa que no debe tocar stock/precios base
+          soloTicket: esPrecioManualNuevo
         }),
       });
       if (res.ok) {
@@ -342,12 +348,15 @@ export default function DetallePedidoPage() {
     } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
   };
 
+  // ✅ MODIFICADO: Bloqueo contra doble clic en importes manuales
   const handleRegistrarImporteManual = async () => {
+    if (procesandoPago) return;
     if (montoImporteManual <= 0) {
       Swal.fire('Error', 'El monto debe ser mayor a 0', 'error');
       return;
     }
 
+    setProcesandoPago(true); // 🔒
     try {
       const resPedido = await fetch(`/api/gestion/pedidos/${id}/producto`, {
         method: 'POST',
@@ -402,10 +411,14 @@ export default function DetallePedidoPage() {
       setFormaPagoImporteManual('otro');
     } catch (err: any) {
       Swal.fire('Error', err.message || 'Error de conexión con el servidor', 'error');
+    } finally {
+      setProcesandoPago(false); // 🔓
     }
   };
 
+  // ✅ MODIFICADO: Bloqueo contra doble clic en pagos
   const handleRegistrarPago = async () => {
+    if (procesandoPago) return;
     const montoDefault = saldoPendiente && saldoPendiente > 0 ? saldoPendiente : pedido.total;
 
     const { value: formValues } = await Swal.fire({
@@ -458,6 +471,7 @@ export default function DetallePedidoPage() {
     });
 
     if (formValues) {
+      setProcesandoPago(true); // 🔒
       try {
         const res = await fetch('/api/gestion/pagos', {
           method: 'POST',
@@ -494,6 +508,8 @@ export default function DetallePedidoPage() {
         }
       } catch (err) {
         Swal.fire('Error', 'Error de conexión con el servidor', 'error');
+      } finally {
+        setProcesandoPago(false); // 🔓
       }
     }
   };
@@ -551,15 +567,38 @@ export default function DetallePedidoPage() {
           </div>
         </div>
 
+        {/* ✅ SECCIÓN DE ESTADO MODIFICADA CON BLOQUEO Y SPINNER */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-300 mb-2">Estado actual</label>
           <div className="flex flex-wrap gap-2">
-            {ESTADO_OPCIONES.map((estado) => (
-              <button key={estado} onClick={() => handleCambiarEstado(estado)} className={`px-3 py-1 text-xs rounded-full ${pedido.estado === estado ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
-                {ESTADO_LABEL[estado]}
-              </button>
-            ))}
+            {ESTADO_OPCIONES.map((estado) => {
+              const isActive = pedido.estado === estado;
+              const isProcessing = updatingStatus;
+              
+              return (
+                <button 
+                  key={estado} 
+                  onClick={() => handleCambiarEstado(estado)} 
+                  disabled={isProcessing}
+                  className={`px-3 py-1 text-xs rounded-full flex items-center gap-2 transition-all ${
+                    isActive 
+                      ? 'bg-blue-600 text-white' 
+                      : isProcessing 
+                        ? 'bg-gray-800 text-gray-600 cursor-not-allowed' 
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  {isProcessing && isActive && <FaSync className="animate-spin" size={10} />}
+                  {ESTADO_LABEL[estado]}
+                </button>
+              );
+            })}
           </div>
+          {updatingStatus && (
+            <p className="text-xs text-amber-400 mt-2 flex items-center gap-1 animate-pulse">
+              <FaSync className="animate-spin" /> Actualizando pedido y ajustando stock, por favor espere...
+            </p>
+          )}
         </div>
 
         {['preparacion', 'enviado', 'entregado'].includes(pedido.estado) && (
@@ -697,7 +736,6 @@ export default function DetallePedidoPage() {
                   </div>
                 )}
 
-                {/* ✅ NUEVO: Opción de Precio Solo para Ticket al agregar */}
                 <div className="flex items-center gap-4 mb-3">
                   <label className="flex items-center gap-1 text-xs text-amber-400 cursor-pointer hover:text-amber-300 font-medium">
                     <input
@@ -705,7 +743,7 @@ export default function DetallePedidoPage() {
                       checked={esPrecioManualNuevo}
                       onChange={(e) => {
                         setEsPrecioManualNuevo(e.target.checked);
-                        if (e.target.checked) setActualizarProductoNuevo(false); // Bloquea sincronización
+                        if (e.target.checked) setActualizarProductoNuevo(false);
                       }}
                       className="w-3 h-3 text-amber-600 bg-gray-700 border-gray-600 rounded focus:ring-amber-500"
                     />
@@ -811,7 +849,6 @@ export default function DetallePedidoPage() {
                           </div>
                         </div>
 
-                        {/* NUEVO: Input de peso aproximado en modo edición */}
                         {necesitaPeso && (
                           <div className="flex items-center gap-1">
                             <FaWeightHanging className="text-amber-400 text-xs" />
@@ -887,8 +924,14 @@ export default function DetallePedidoPage() {
                 <div className="text-sm text-gray-300 mb-1">Hacer el pago del pedido:</div>
                 <div className="text-3xl font-bold text-emerald-400">{formatARS(saldoPendiente ?? pedido.total)}</div>
               </div>
-              <button onClick={handleRegistrarPago} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2 transition shadow-lg shadow-emerald-900/30">
-                <FaMoneyBillWave /> Registrar Pago
+              <button 
+                onClick={handleRegistrarPago} 
+                disabled={procesandoPago}
+                className={`px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2 transition shadow-lg shadow-emerald-900/30 ${
+                  procesandoPago ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                }`}
+              >
+                {procesandoPago ? <><FaSync className="animate-spin" /> Procesando...</> : <><FaMoneyBillWave /> Registrar Pago</>}
               </button>
             </div>
           </div>
@@ -932,8 +975,16 @@ export default function DetallePedidoPage() {
               </div>
 
               <div className="flex gap-2 pt-2">
-                <button onClick={handleRegistrarImporteManual} disabled={montoImporteManual <= 0} className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:text-gray-400 text-white py-2 rounded text-sm font-medium transition flex items-center justify-center gap-2">
-                  <FaCheck size={12} /> Agregar al Pedido
+                <button 
+                  onClick={handleRegistrarImporteManual} 
+                  disabled={montoImporteManual <= 0 || procesandoPago} 
+                  className={`flex-1 py-2 rounded text-sm font-medium transition flex items-center justify-center gap-2 ${
+                    procesandoPago || montoImporteManual <= 0 
+                      ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {procesandoPago ? <><FaSync className="animate-spin" /> Procesando...</> : <><FaCheck size={12} /> Agregar al Pedido</>}
                 </button>
                 <button onClick={() => { setMostrarImporteManual(false); setMontoImporteManual(0); setDescImporteManual('Importe adeudado'); setFormaPagoImporteManual('otro'); }} className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded text-sm transition">
                   Cancelar

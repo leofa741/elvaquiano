@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { 
   FaSearch, FaUsers, FaWarehouse, FaHistory, 
-  FaShoppingCart, FaUserCircle, FaShieldAlt, FaCheckCircle
+  FaArrowUp, FaArrowDown, FaShoppingCart, FaUserCircle, FaShieldAlt, FaCheckCircle
 } from 'react-icons/fa';
 
 // ==========================================
@@ -162,6 +162,7 @@ export default function AnalisisStockPage() {
       
       const fetchAjustes = async () => {
         try {
+          // ⚠️ NOTA: Ajusta esta URL si tu endpoint de logs tiene otro nombre
           const res = await fetch(`/api/gestion/logs/stock?producto=${encodeURIComponent(producto)}&limit=10`);
           if (res.ok) {
             const data = await res.json();
@@ -209,6 +210,17 @@ export default function AnalisisStockPage() {
       toast.error(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getAccionLabel = (accion: string) => {
+    switch (accion) {
+      case "resetear_cero": return { label: "Resetear a Cero", color: "bg-red-900/30 text-red-400 border border-red-800" };
+      case "cantidad_personalizada": return { label: "Ajuste Manual", color: "bg-blue-900/30 text-blue-400 border border-blue-800" };
+      case "edicion_manual": return { label: "Edición Manual", color: "bg-purple-900/30 text-purple-400 border border-purple-800" };
+      case "venta": return { label: "Venta / Salida", color: "bg-orange-900/30 text-orange-400 border border-orange-800" };
+      case "ingreso": return { label: "Ingreso / Compra", color: "bg-green-900/30 text-green-400 border border-green-800" };
+      default: return { label: accion, color: "bg-gray-900/30 text-gray-400 border border-gray-700" };
     }
   };
 
@@ -360,7 +372,44 @@ export default function AnalisisStockPage() {
         {resultado && (
           <div className="space-y-6 animate-fade-in">
             
-            {/* 1. LÍNEA DE TIEMPO (CON BACKORDER VISIBLE) */}
+            {/* 1. ECUACIÓN DE STOCK */}
+            <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+              <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <FaWarehouse className="text-amber-400" /> Ecuación de Movimiento
+              </h2>
+              {(() => {
+                const egresosReales = resultado.stock.auditoria.totalEgresado > 0 ? resultado.stock.auditoria.totalEgresado : resultado.totalUnidadesPreparacion;
+                const stockInicialCalculado = resultado.stock.actual - resultado.stock.auditoria.totalIngresado + egresosReales;
+
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 items-center text-center">
+                    <div className="bg-gray-900/50 p-4 rounded-lg border border-blue-500/30">
+                      <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Stock Inicial Est.</p>
+                      <p className="text-3xl font-bold text-blue-400 font-mono">{Math.max(0, stockInicialCalculado)}</p>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="bg-green-900/30 text-green-400 px-3 py-1.5 rounded-full text-xs font-bold mb-1 flex items-center gap-1 border border-green-800">
+                        <FaArrowUp size={10} /> +{resultado.stock.auditoria.totalIngresado}
+                      </div>
+                      <span className="text-xs text-gray-500 text-center">Ingresos / Ajustes (+)</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="bg-red-900/30 text-red-400 px-3 py-1.5 rounded-full text-xs font-bold mb-1 flex items-center gap-1 border border-red-800">
+                        <FaArrowDown size={10} /> -{egresosReales}
+                      </div>
+                      <span className="text-xs text-gray-500 text-center">Ventas y Mermas (-)</span>
+                    </div>
+                    <div className="flex flex-col items-center text-gray-500"><span className="text-3xl font-light">=</span></div>
+                    <div className="bg-gray-900/50 p-4 rounded-lg border border-amber-500/30 ring-2 ring-amber-500/10">
+                      <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Stock Actual en BD</p>
+                      <p className="text-3xl font-bold text-amber-400 font-mono">{resultado.stock.actual}</p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* 2. LÍNEA DE TIEMPO (CON BACKORDER VISIBLE) */}
             <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-lg">
               <div className="p-4 border-b border-gray-700 bg-gray-900/50 flex items-center gap-2">
                 <FaHistory className="text-amber-400" />
@@ -504,7 +553,7 @@ export default function AnalisisStockPage() {
               })()}
             </div>
 
-            {/* 2. DETECCIÓN DE HUECOS */}
+            {/* 3. DETECCIÓN DE HUECOS */}
             {(() => {
               const hallazgos: any[] = [];
               const movs = [...resultado.stock.auditoria.movimientos].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
@@ -579,7 +628,7 @@ export default function AnalisisStockPage() {
               );
             })()}
 
-            {/* 3. RESUMEN Y DESGLOSE */}
+            {/* 4. RESUMEN Y DESGLOSE */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1 bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
                 <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><FaUsers className="text-amber-400" /> Resumen</h2>
