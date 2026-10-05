@@ -67,6 +67,8 @@ export default function CuentasCorrientesPage() {
   const [paginaActual, setPaginaActual] = useState(1);
   const itemsPorPagina = 10;
 
+  const [procesandoPagoId, setProcesandoPagoId] = useState<string | null>(null);
+
   const fetchCuentas = async () => {
     try {
       const res = await fetch('/api/gestion/cuentas-corrientes', { cache: 'no-store' });
@@ -215,6 +217,18 @@ export default function CuentasCorrientesPage() {
   };
 
   const handleRegistrarPago = async (cuenta: CuentaCorriente) => {
+    if (procesandoPagoId === cuenta.clienteId) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Procesando...',
+        html: `Ya se está registrando un pago para <strong>${cuenta.razonSocial}</strong>.<br><br>Por favor, espera a que el sistema termine de guardar el registro antes de intentar nuevamente.`,
+        confirmButtonColor: '#f59e0b',
+        background: '#1f2937',
+        color: '#fff'
+      });
+      return;
+    }
+
     const { value: formValues } = await Swal.fire({
       title: `Registrar Pago - ${cuenta.razonSocial}`,
       html: `
@@ -223,25 +237,71 @@ export default function CuentasCorrientesPage() {
             <div style="font-size: 12px; color: #9ca3af; margin-bottom: 4px;">Deuda actual:</div>
             <div style="font-size: 20px; font-weight: bold; color: #f59e0b;">${formatARS(cuenta.deudaTotal)}</div>
           </div>
-          <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Monto a pagar *</label>
-          <input id="swal-monto" type="number" step="0.01" min="0.01" max="${cuenta.deudaTotal}" value="${cuenta.deudaTotal}" 
-            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" placeholder="0.00" />
+          
+          <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Monto a abonar al capital (Principal) *</label>
+          <input id="swal-monto-capital" type="number" step="0.01" min="0.01" max="${cuenta.deudaTotal}" value="${cuenta.deudaTotal}" 
+            style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 8px;" placeholder="0.00" />
+          
           <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-            <button type="button" onclick="document.getElementById('swal-monto').value = '${cuenta.deudaTotal}'" 
-              style="flex: 1; padding: 6px; background: #374151; color: #f59e0b; border: 1px solid #4b5563; border-radius: 4px; font-size: 11px; cursor: pointer;">Total</button>
-            <button type="button" onclick="document.getElementById('swal-monto').value = '${(cuenta.deudaTotal / 2).toFixed(2)}'" 
+            <button type="button" onclick="document.getElementById('swal-monto-capital').value = '${cuenta.deudaTotal}'; document.getElementById('swal-interes').value = '0'; if(window.actualizarTotalesCC) window.actualizarTotalesCC();" 
+              style="flex: 1; padding: 6px; background: #374151; color: #f59e0b; border: 1px solid #4b5563; border-radius: 4px; font-size: 11px; cursor: pointer;">Pagar Todo</button>
+            <button type="button" onclick="document.getElementById('swal-monto-capital').value = '${(cuenta.deudaTotal / 2).toFixed(2)}'; if(window.actualizarTotalesCC) window.actualizarTotalesCC();" 
               style="flex: 1; padding: 6px; background: #374151; color: #f59e0b; border: 1px solid #4b5563; border-radius: 4px; font-size: 11px; cursor: pointer;">Mitad</button>
           </div>
+
+          <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Interés / Recargo (en $, manual sin redondeo)</label>
+          <input id="swal-interes" type="number" step="0.01" min="0" value="0" 
+            style="width: 100%; padding: 8px 12px; background: #374151; color: #fbbf24; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" placeholder="0.00" />
+
+          <div style="margin-bottom: 15px; padding: 10px; background: #064e3b; border-radius: 8px; border: 1px solid #065f46;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span style="font-size: 13px; color: #a7f3d0;">Total a cobrar (Cliente paga):</span>
+              <span id="swal-total-cobrar" style="font-size: 16px; font-weight: bold; color: #34d399;">${formatARS(cuenta.deudaTotal)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-top: 1px solid #065f46; padding-top: 4px; margin-top: 4px;">
+              <span style="font-size: 12px; color: #6ee7b7;">Nueva deuda restante:</span>
+              <span id="swal-nueva-deuda" style="font-size: 14px; font-weight: bold; color: #fbbf24;">${formatARS(0)}</span>
+            </div>
+          </div>
+
           <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Forma de pago *</label>
           <select id="swal-forma-pago" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;">
             ${FORMAS_PAGO.map(f => `<option value="${f.value}">${f.label}</option>`).join('')}
           </select>
+          
           <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Referencia (opcional)</label>
           <input id="swal-referencia" type="text" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" placeholder="Ej: N° de transacción" />
+          
           <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Notas (opcional)</label>
           <textarea id="swal-notas" rows="2" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; resize: vertical;" placeholder="Observaciones adicionales"></textarea>
         </div>
       `,
+      didOpen: () => {
+        const inputCapital = document.getElementById('swal-monto-capital') as HTMLInputElement;
+        const inputInteres = document.getElementById('swal-interes') as HTMLInputElement;
+        const spanTotal = document.getElementById('swal-total-cobrar');
+        const spanNuevaDeuda = document.getElementById('swal-nueva-deuda');
+
+        const actualizarTotales = () => {
+          const capital = parseFloat(inputCapital.value) || 0;
+          const interes = parseFloat(inputInteres.value) || 0;
+          const total = capital + interes;
+          const nuevaDeuda = Math.max(0, cuenta.deudaTotal - capital);
+
+          if (spanTotal) spanTotal.textContent = formatARS(total);
+          if (spanNuevaDeuda) spanNuevaDeuda.textContent = formatARS(nuevaDeuda);
+        };
+
+        (window as any).actualizarTotalesCC = actualizarTotales;
+
+        inputCapital.addEventListener('input', actualizarTotales);
+        inputInteres.addEventListener('input', actualizarTotales);
+        
+        actualizarTotales();
+      },
+      willClose: () => {
+        delete (window as any).actualizarTotalesCC;
+      },
       focusConfirm: false,
       showCancelButton: true,
       confirmButtonText: 'Registrar Pago',
@@ -250,40 +310,79 @@ export default function CuentasCorrientesPage() {
       cancelButtonColor: '#6b7280',
       background: '#1f2937',
       color: '#fff',
+      showLoaderOnConfirm: true,
       preConfirm: () => {
-        const monto = parseFloat((document.getElementById('swal-monto') as HTMLInputElement).value);
+        const montoCapital = parseFloat((document.getElementById('swal-monto-capital') as HTMLInputElement).value);
+        const montoInteres = parseFloat((document.getElementById('swal-interes') as HTMLInputElement).value) || 0;
         const formaPago = (document.getElementById('swal-forma-pago') as HTMLSelectElement).value;
         const referencia = (document.getElementById('swal-referencia') as HTMLInputElement).value;
         const notas = (document.getElementById('swal-notas') as HTMLTextAreaElement).value;
-        if (!monto || monto <= 0) { Swal.showValidationMessage('El monto debe ser mayor a 0'); return false; }
-        if (monto > cuenta.deudaTotal) { Swal.showValidationMessage(`El monto no puede superar la deuda (${formatARS(cuenta.deudaTotal)})`); return false; }
-        return { monto, formaPago, referencia, notas };
+        
+        if (!montoCapital || montoCapital <= 0) { Swal.showValidationMessage('El monto al capital debe ser mayor a 0'); return false; }
+        if (montoCapital > cuenta.deudaTotal) { Swal.showValidationMessage(`El monto al capital no puede superar la deuda (${formatARS(cuenta.deudaTotal)})`); return false; }
+        
+        return { montoCapital, montoInteres, formaPago, referencia, notas };
       }
     });
 
     if (formValues) {
+      setProcesandoPagoId(cuenta.clienteId);
       try {
+        let descripcionPago = `Pago recibido - ${FORMAS_PAGO.find(f => f.value === formValues.formaPago)?.label}`;
+        
+        if (formValues.montoInteres > 0) {
+          descripcionPago += ` (Incluye ${formatARS(formValues.montoInteres)} de interés/recargo)`;
+          
+          // 1. Registrar el interés como un ajuste/cargo a la cuenta (aumenta la deuda temporalmente)
+          const resInteres = await fetch('/api/gestion/cuentas-corrientes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clienteId: cuenta.clienteId,
+              tipo: 'ajuste',
+              importe: formValues.montoInteres,
+              descripcion: 'Interés/Recargo aplicado a pago parcial',
+              notas: `Interés manual cobrado junto al pago. Forma de pago: ${formValues.formaPago}`
+            })
+          });
+          
+          if (!resInteres.ok) {
+            throw new Error('No se pudo registrar el interés/recargo');
+          }
+        }
+
+        // 2. Registrar el pago total (capital + interés). 
+        // Al restar el total, la deuda neta bajará exactamente por el monto del capital.
+        const totalPagar = formValues.montoCapital + formValues.montoInteres;
+
         const res = await fetch('/api/gestion/cuentas-corrientes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             clienteId: cuenta.clienteId,
             tipo: 'pago',
-            importe: formValues.monto,
+            importe: totalPagar,
             formaPago: formValues.formaPago,
-            descripcion: `Pago recibido - ${FORMAS_PAGO.find(f => f.value === formValues.formaPago)?.label}`,
+            descripcion: descripcionPago,
             referencia: formValues.referencia || undefined,
             notas: formValues.notas || undefined
           })
         });
+
         if (res.ok) {
           const data = await res.json();
-          const nuevoSaldo = data.saldoActual !== undefined ? data.saldoActual : Math.max(0, cuenta.deudaTotal - formValues.monto);
+          const nuevoSaldo = data.saldoActual !== undefined ? data.saldoActual : Math.max(0, cuenta.deudaTotal - formValues.montoCapital);
           
           await Swal.fire({
             icon: 'success',
             title: '¡Pago Registrado!',
-            html: `<div style="text-align: left; padding: 10px 0;"><p style="color: #d1d5db; margin-bottom: 8px;">Se registró un pago de:</p><div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 12px;">${formatARS(formValues.monto)}</div><p style="color: #d1d5db; margin-bottom: 4px;">Forma de pago: <strong style="color: white;">${FORMAS_PAGO.find(f => f.value === formValues.formaPago)?.label}</strong></p><p style="color: #d1d5db; margin-bottom: 4px;">Saldo restante: <strong style="color: #f59e0b;">${formatARS(nuevoSaldo)}</strong></p></div>`,
+            html: `<div style="text-align: left; padding: 10px 0;">
+              <p style="color: #d1d5db; margin-bottom: 8px;">Se registró un pago total de:</p>
+              <div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 12px;">${formatARS(totalPagar)}</div>
+              <p style="color: #9ca3af; font-size: 13px; margin-bottom: 4px;">(Abono a capital: ${formatARS(formValues.montoCapital)} + Interés: ${formatARS(formValues.montoInteres)})</p>
+              <p style="color: #d1d5db; margin-bottom: 4px;">Forma de pago: <strong style="color: white;">${FORMAS_PAGO.find(f => f.value === formValues.formaPago)?.label}</strong></p>
+              <p style="color: #fbbf24; font-size: 14px; margin-top: 8px;">Saldo restante: <strong>${formatARS(nuevoSaldo)}</strong></p>
+            </div>`,
             confirmButtonColor: '#10b981', background: '#1f2937', color: '#fff'
           });
 
@@ -311,13 +410,27 @@ export default function CuentasCorrientesPage() {
           const err = await res.json();
           Swal.fire('Error', err.error || 'No se pudo registrar el pago', 'error');
         }
-      } catch (err) {
-        Swal.fire('Error', 'Error de conexión con el servidor', 'error');
+      } catch (err: any) {
+        Swal.fire('Error', err.message || 'Error de conexión con el servidor', 'error');
+      } finally {
+        setProcesandoPagoId(null);
       }
     }
   };
 
   const handleGenerarRecibo = async (cuenta: CuentaCorriente) => {
+    if (procesandoPagoId === cuenta.clienteId) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Procesando...',
+        text: 'Ya hay una operación en curso para este cliente. Espera un momento.',
+        confirmButtonColor: '#f59e0b',
+        background: '#1f2937',
+        color: '#fff'
+      });
+      return;
+    }
+
     const { value: formValues } = await Swal.fire({
       title: `Generar Recibo - ${cuenta.razonSocial}`,
       html: `
@@ -326,9 +439,26 @@ export default function CuentasCorrientesPage() {
           <div style="font-size: 12px; color: #9ca3af; margin-bottom: 4px;">Deuda actual:</div>
           <div style="font-size: 20px; font-weight: bold; color: #f59e0b;">${formatARS(cuenta.deudaTotal)}</div>
         </div>
-        <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Monto a cobrar *</label>
-        <input id="swal-monto" type="number" step="0.01" min="0.01" value="${cuenta.deudaTotal}" 
-          style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" />
+        
+        <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Monto a abonar al capital (Principal) *</label>
+        <input id="swal-monto-capital" type="number" step="0.01" min="0.01" max="${cuenta.deudaTotal}" value="${cuenta.deudaTotal}" 
+          style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 8px;" />
+        
+        <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Interés / Recargo (en $, manual sin redondeo)</label>
+        <input id="swal-interes" type="number" step="0.01" min="0" value="0" 
+          style="width: 100%; padding: 8px 12px; background: #374151; color: #fbbf24; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" />
+
+        <div style="margin-bottom: 15px; padding: 10px; background: #064e3b; border-radius: 8px; border: 1px solid #065f46;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="font-size: 13px; color: #a7f3d0;">Total en Recibo:</span>
+            <span id="swal-total-cobrar" style="font-size: 16px; font-weight: bold; color: #34d399;">${formatARS(cuenta.deudaTotal)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-top: 1px solid #065f46; padding-top: 4px; margin-top: 4px;">
+            <span style="font-size: 12px; color: #6ee7b7;">Nueva deuda restante:</span>
+            <span id="swal-nueva-deuda" style="font-size: 14px; font-weight: bold; color: #fbbf24;">${formatARS(0)}</span>
+          </div>
+        </div>
+
         <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Forma de pago *</label>
         <select id="swal-forma-pago" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;">
           ${FORMAS_PAGO.map(f => `<option value="${f.value}">${f.label}</option>`).join('')}
@@ -337,6 +467,31 @@ export default function CuentasCorrientesPage() {
         <input id="swal-concepto" type="text" value="Pago de deuda"
           style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" />
       </div>`,
+      didOpen: () => {
+        const inputCapital = document.getElementById('swal-monto-capital') as HTMLInputElement;
+        const inputInteres = document.getElementById('swal-interes') as HTMLInputElement;
+        const spanTotal = document.getElementById('swal-total-cobrar');
+        const spanNuevaDeuda = document.getElementById('swal-nueva-deuda');
+
+        const actualizarTotales = () => {
+          const capital = parseFloat(inputCapital.value) || 0;
+          const interes = parseFloat(inputInteres.value) || 0;
+          const total = capital + interes;
+          const nuevaDeuda = Math.max(0, cuenta.deudaTotal - capital);
+
+          if (spanTotal) spanTotal.textContent = formatARS(total);
+          if (spanNuevaDeuda) spanNuevaDeuda.textContent = formatARS(nuevaDeuda);
+        };
+
+        (window as any).actualizarTotalesCC = actualizarTotales;
+
+        inputCapital.addEventListener('input', actualizarTotales);
+        inputInteres.addEventListener('input', actualizarTotales);
+        actualizarTotales();
+      },
+      willClose: () => {
+        delete (window as any).actualizarTotalesCC;
+      },
       focusConfirm: false,
       showCancelButton: true,
       confirmButtonText: 'Generar e Imprimir',
@@ -345,18 +500,23 @@ export default function CuentasCorrientesPage() {
       cancelButtonColor: '#6b7280',
       background: '#1f2937',
       color: '#fff',
+      showLoaderOnConfirm: true,
       preConfirm: () => {
-        const monto = parseFloat((document.getElementById('swal-monto') as HTMLInputElement).value);
+        const montoCapital = parseFloat((document.getElementById('swal-monto-capital') as HTMLInputElement).value);
+        const montoInteres = parseFloat((document.getElementById('swal-interes') as HTMLInputElement).value) || 0;
         const formaPago = (document.getElementById('swal-forma-pago') as HTMLSelectElement).value;
         const concepto = (document.getElementById('swal-concepto') as HTMLInputElement).value;
-        if (!monto || monto <= 0) { Swal.showValidationMessage('El monto debe ser mayor a 0'); return false; }
-        return { monto, formaPago, concepto };
+        if (!montoCapital || montoCapital <= 0) { Swal.showValidationMessage('El monto al capital debe ser mayor a 0'); return false; }
+        if (montoCapital > cuenta.deudaTotal) { Swal.showValidationMessage(`El monto al capital no puede superar la deuda (${formatARS(cuenta.deudaTotal)})`); return false; }
+        return { montoCapital, montoInteres, formaPago, concepto };
       }
     });
 
     if (formValues) {
+      setProcesandoPagoId(cuenta.clienteId);
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
+        setProcesandoPagoId(null);
         Swal.fire({
           icon: 'warning',
           title: 'Ventana de impresión bloqueada',
@@ -389,14 +549,38 @@ export default function CuentasCorrientesPage() {
       `);
 
       try {
+        let conceptoFinal = formValues.concepto;
+        if (formValues.montoInteres > 0) {
+          conceptoFinal += ` (Incluye ${formatARS(formValues.montoInteres)} de interés/recargo)`;
+          
+          // 1. Registrar el interés como ajuste
+          const resInteres = await fetch('/api/gestion/cuentas-corrientes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clienteId: cuenta.clienteId,
+              tipo: 'ajuste',
+              importe: formValues.montoInteres,
+              descripcion: 'Interés/Recargo aplicado a pago parcial',
+              notas: `Interés manual cobrado junto al pago. Forma de pago: ${formValues.formaPago}`
+            })
+          });
+          
+          if (!resInteres.ok) {
+            throw new Error('No se pudo registrar el interés/recargo');
+          }
+        }
+
+        const totalPagar = formValues.montoCapital + formValues.montoInteres;
+
         const resRecibo = await fetch('/api/gestion/pagos/recibo', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             clienteId: cuenta.clienteId,
-            monto: formValues.monto,
+            monto: totalPagar, // El recibo muestra el total cobrado (capital + interés)
             formaPago: formValues.formaPago,
-            concepto: formValues.concepto,
+            concepto: conceptoFinal,
             deudaAnterior: cuenta.deudaTotal
           })
         });
@@ -409,14 +593,16 @@ export default function CuentasCorrientesPage() {
           body: JSON.stringify({
             clienteId: cuenta.clienteId,
             tipo: 'pago',
-            importe: formValues.monto,
+            importe: totalPagar,
             formaPago: formValues.formaPago,
-            descripcion: `Recibo #${String(recibo.numero).padStart(6, '0')} - ${formValues.concepto}`
+            descripcion: `Recibo #${String(recibo.numero).padStart(6, '0')} - ${conceptoFinal}`
           })
         });
 
         if (resCC.ok) {
           printWindow.location.href = `/gestion/pagos/recibo/${recibo._id}/imprimir`;
+          
+          const nuevoSaldo = Math.max(0, cuenta.deudaTotal - formValues.montoCapital);
           
           await Swal.fire({
             icon: 'success',
@@ -424,7 +610,9 @@ export default function CuentasCorrientesPage() {
             html: `
               <div style="text-align: left;">
                 <p style="margin-bottom: 8px;">Se generó el recibo <strong>#${String(recibo.numero).padStart(6, '0')}</strong> por:</p>
-                <div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 12px;">${formatARS(formValues.monto)}</div>
+                <div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 12px;">${formatARS(totalPagar)}</div>
+                <p style="color: #9ca3af; font-size: 13px; margin-bottom: 4px;">(Abono a capital: ${formatARS(formValues.montoCapital)} + Interés: ${formatARS(formValues.montoInteres)})</p>
+                <p style="color: #fbbf24; font-size: 14px; margin-bottom: 8px;">Nueva deuda restante: <strong>${formatARS(nuevoSaldo)}</strong></p>
                 <p style="color: #9ca3af; font-size: 13px;">✅ La ventana de impresión se abrió automáticamente.</p>
               </div>
             `,
@@ -433,7 +621,6 @@ export default function CuentasCorrientesPage() {
             color: '#fff'
           });
 
-          const nuevoSaldo = cuenta.deudaTotal - formValues.monto;
           if (nuevoSaldo <= 0) {
             const { isConfirmed } = await Swal.fire({
               title: '¿Desea agregar una nueva deuda?',
@@ -460,6 +647,8 @@ export default function CuentasCorrientesPage() {
       } catch (err: any) {
         printWindow.close();
         Swal.fire('Error', err.message || 'Error de conexión', 'error');
+      } finally {
+        setProcesandoPagoId(null);
       }
     }
   };
@@ -618,7 +807,6 @@ export default function CuentasCorrientesPage() {
                         <span>{cuenta.pedidosDeudores} pedido(s) pendiente(s)</span>
                       </div>
 
-                      {/* 🆕 TABLA DE ÚLTIMOS 5 MOVIMIENTOS - CORREGIDA */}
                       {cuenta.ultimosMovimientos && cuenta.ultimosMovimientos.length > 0 && (
                         <div className="mt-3 ml-5">
                           <div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider flex items-center gap-1">
@@ -666,18 +854,46 @@ export default function CuentasCorrientesPage() {
                         <div className="text-xs text-gray-400">Saldo Pendiente</div>
                         <div className="text-2xl font-bold text-amber-400">{formatARS(cuenta.deudaTotal)}</div>
                       </div>
+                      
                       <button
                         onClick={() => handleRegistrarPago(cuenta)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"
+                        disabled={procesandoPagoId === cuenta.clienteId}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition ${
+                          procesandoPagoId === cuenta.clienteId
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        }`}
                       >
-                        <FaMoneyBillWave /> Registrar Pago
+                        {procesandoPagoId === cuenta.clienteId ? (
+                          <>
+                            <FaSync className="animate-spin" /> Procesando...
+                          </>
+                        ) : (
+                          <>
+                            <FaMoneyBillWave /> Registrar Pago
+                          </>
+                        )}
                       </button>
+
                       <button
                         onClick={() => handleGenerarRecibo(cuenta)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"
+                        disabled={procesandoPagoId === cuenta.clienteId}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition ${
+                          procesandoPagoId === cuenta.clienteId
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
                         title="Generar recibo de pago para imprimir"
                       >
-                        <FaPrint /> Generar Recibo
+                        {procesandoPagoId === cuenta.clienteId ? (
+                          <>
+                            <FaSync className="animate-spin" /> Procesando...
+                          </>
+                        ) : (
+                          <>
+                            <FaPrint /> Generar Recibo
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
