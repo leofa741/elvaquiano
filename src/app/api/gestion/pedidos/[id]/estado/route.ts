@@ -118,6 +118,15 @@ export async function PATCH(request: NextRequest, { params }: any) {
     if (estadoAnterior === 'pendiente' && estado === 'preparacion') {
       resultadoStock = await procesarStockFisico(pedido, 'descontar', 'pedido_en_preparacion');
     }
+      // 1. pendiente → preparacion (Descontar stock)
+    if (estadoAnterior === 'pendiente' && estado === 'enviado') {
+      resultadoStock = await procesarStockFisico(pedido, 'descontar', 'pedido_en_preparacion');
+    }
+
+      // 1. pendiente → preparacion (Descontar stock)
+    if (estadoAnterior === 'pendiente' && estado === 'entregado') {
+      resultadoStock = await procesarStockFisico(pedido, 'descontar', 'pedido_en_preparacion');
+    }
 
     // 2. preparacion → pendiente (Devolver stock)
     if (estadoAnterior === 'preparacion' && estado === 'pendiente') {
