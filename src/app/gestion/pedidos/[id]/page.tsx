@@ -116,7 +116,7 @@ export default function DetallePedidoPage() {
 
   const [mostrarImporteManual, setMostrarImporteManual] = useState(false);
   const [montoImporteManual, setMontoImporteManual] = useState<number>(0);
-  const [descImporteManual, setDescImporteManual] = useState<string>('Importe adeudado');
+  const [descImporteManual, setDescImporteManual] = useState<string>('Deuda de pedido anterior');
   const [formaPagoImporteManual, setFormaPagoImporteManual] = useState<string>('otro');
 
   const fetchProductos = async () => {
@@ -282,6 +282,7 @@ export default function DetallePedidoPage() {
     } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
   };
 
+  // ✅ MODIFICADO: Ahora solo agrega el cargo al pedido, NO registra un pago.
   const handleRegistrarImporteManual = async () => {
     if (procesandoPago || montoImporteManual <= 0) {
       if (montoImporteManual <= 0) Swal.fire('Error', 'El monto debe ser mayor a 0', 'error');
@@ -289,21 +290,48 @@ export default function DetallePedidoPage() {
     }
     setProcesandoPago(true);
     try {
+      // 1. Agregamos el concepto como un "producto/cargo" al pedido. 
+      // Esto hace que el backend sume este monto al TOTAL del pedido automáticamente.
       await fetch(`/api/gestion/pedidos/${id}/producto`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productoId: CONCEPTO_MANUAL_ID, nombrePersonalizado: `💰 PAGO EN CONCEPTO DE: ${descImporteManual}`, unidadPersonalizada: 'unidad', cantidad: 1, precioPersonalizado: montoImporteManual, actualizarProducto: false }),
+        body: JSON.stringify({ 
+          productoId: CONCEPTO_MANUAL_ID, 
+          nombrePersonalizado: `📌 IMPORTE ADEUDADO: ${descImporteManual}`, 
+          unidadPersonalizada: 'unidad', 
+          cantidad: 1, 
+          precioPersonalizado: montoImporteManual, 
+          actualizarProducto: false 
+        }),
       });
-      await fetch('/api/gestion/pagos', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clienteId: pedido.cliente._id, pedidoId: id, monto: montoImporteManual, formaPago: formaPagoImporteManual, referencia: descImporteManual, notas: descImporteManual }),
-      });
+      
+      // 2. ELIMINADO: Ya no llamamos a /api/gestion/pagos, porque esto es una deuda, no un pago.
+      // Al no registrarlo como pago, el campo "Pagado" no aumenta falsamente.
+
+      // 3. Recargamos los datos del pedido para que el Total y el Saldo Pendiente se recalculen correctamente
       await fetchPedidoData();
       const saldoRes = await fetch(`/api/gestion/pedidos/${id}/saldo`, { cache: 'no-store' });
-      if (saldoRes.ok) { const d = await saldoRes.json(); setSaldoPendiente(d.saldoPendiente); setTotalPagado(d.totalPagado || 0); }
-      Swal.fire({ icon: 'success', title: '¡Registrado!', html: `Se registró el pago de <strong>${formatARS(montoImporteManual)}</strong>`, confirmButtonColor: '#10b981' });
-      setMostrarImporteManual(false); setMontoImporteManual(0); setDescImporteManual('Importe adeudado'); setFormaPagoImporteManual('otro');
-    } catch (err: any) { Swal.fire('Error', err.message || 'Error de conexión', 'error'); }
-    finally { setProcesandoPago(false); }
+      if (saldoRes.ok) { 
+        const d = await saldoRes.json(); 
+        setSaldoPendiente(d.saldoPendiente); 
+        setTotalPagado(d.totalPagado || 0); 
+      }
+      
+      Swal.fire({ 
+        icon: 'success', 
+        title: '¡Importe Agregado!', 
+        html: `Se agregó el importe adeudado de <strong>${formatARS(montoImporteManual)}</strong> al total del pedido.`, 
+        confirmButtonColor: '#3b82f6' 
+      });
+      
+      setMostrarImporteManual(false); 
+      setMontoImporteManual(0); 
+      setDescImporteManual('Deuda de pedido anterior'); 
+      setFormaPagoImporteManual('otro');
+    } catch (err: any) { 
+      Swal.fire('Error', err.message || 'Error de conexión', 'error'); 
+    } finally { 
+      setProcesandoPago(false); 
+    }
   };
 
   const handleRegistrarPago = async () => {
@@ -601,12 +629,15 @@ export default function DetallePedidoPage() {
           </div>
         )}
 
+        {/* ✅ MODIFICADO: Sección rediseñada para reflejar que es un Cargo/Deuda, no un Pago */}
         <div className="mt-6 p-4 bg-gray-750 rounded-lg border border-gray-700">
-          <span className="text-sm font-medium text-amber-400 mb-2 flex items-center gap-2"><FaDollarSign /> Ingreso de importe al ticket en concepto de: </span>
+          <span className="text-sm font-medium text-amber-400 mb-2 flex items-center gap-2">
+            <FaExclamationCircle /> Agregar importe adeudado al pedido (Cargo/Deuda):
+          </span>
           <button onClick={() => setMostrarImporteManual(!mostrarImporteManual)} className="w-full flex items-center justify-between p-3 rounded-lg border bg-blue-900/20 hover:bg-blue-900/30 border-blue-700/50 transition group text-left cursor-pointer mt-2">
             <div className="flex items-center gap-2">
               <FaDollarSign className="text-blue-400" />
-              <span className="font-semibold text-sm text-blue-300 group-hover:text-blue-200">Agregar Importe</span>
+              <span className="font-semibold text-sm text-blue-300 group-hover:text-blue-200">Agregar Importe Adeudado</span>
             </div>
             <span className="text-xs font-bold text-blue-400 flex items-center gap-1">
               <FaPlus size={10} /> {mostrarImporteManual ? 'Ocultar formulario' : 'Ingresar importe'}
@@ -617,23 +648,50 @@ export default function DetallePedidoPage() {
             <div className="p-4 bg-gray-800 rounded-lg border border-blue-900/50 space-y-3 mt-3">
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1">Descripción del concepto</label>
-                <input type="text" value={descImporteManual} onChange={(e) => setDescImporteManual(e.target.value)} className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Ej. Cargo adicional" />
+                <input 
+                  type="text" 
+                  value={descImporteManual} 
+                  onChange={(e) => setDescImporteManual(e.target.value)} 
+                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                  placeholder="Ej. Deuda de boleta anterior, Saldo pendiente, etc." 
+                />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Importe a agregar ($)</label>
-                <input type="number" step="0.01" min="0.01" value={montoImporteManual} onChange={(e) => setMontoImporteManual(parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono" placeholder="0.00" />
+                <label className="block text-xs font-medium text-gray-400 mb-1">Importe a SUMAR al total del pedido ($)</label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  min="0.01" 
+                  value={montoImporteManual} 
+                  onChange={(e) => setMontoImporteManual(parseFloat(e.target.value) || 0)} 
+                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono" 
+                  placeholder="0.00" 
+                />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Forma de pago *</label>
-                <select value={formaPagoImporteManual} onChange={(e) => setFormaPagoImporteManual(e.target.value)} className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                  {FORMAS_PAGO.map(f => (<option key={f.value} value={f.value}>{f.label}</option>))}
-                </select>
+                <label className="block text-xs font-medium text-gray-400 mb-1">Referencia u Origen (opcional)</label>
+                <input 
+                  type="text" 
+                  value={formaPagoImporteManual === 'otro' ? '' : formaPagoImporteManual} 
+                  onChange={(e) => setFormaPagoImporteManual(e.target.value || 'otro')} 
+                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                  placeholder="Ej. Boleta #1234, Pedido anterior, etc." 
+                />
               </div>
               <div className="flex gap-2 pt-2">
-                <button onClick={handleRegistrarImporteManual} disabled={montoImporteManual <= 0 || procesandoPago} className={`flex-1 py-2 rounded text-sm font-medium transition flex items-center justify-center gap-2 ${procesandoPago || montoImporteManual <= 0 ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
-                  {procesandoPago ? <><FaSync className="animate-spin" /> Procesando...</> : <><FaCheck size={12} /> Agregar al Pedido</>}
+                <button 
+                  onClick={handleRegistrarImporteManual} 
+                  disabled={montoImporteManual <= 0 || procesandoPago} 
+                  className={`flex-1 py-2 rounded text-sm font-medium transition flex items-center justify-center gap-2 ${procesandoPago || montoImporteManual <= 0 ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                >
+                  {procesandoPago ? <><FaSync className="animate-spin" /> Procesando...</> : <><FaCheck size={12} /> Sumar al Total del Pedido</>}
                 </button>
-                <button onClick={() => { setMostrarImporteManual(false); setMontoImporteManual(0); setDescImporteManual('Importe adeudado'); setFormaPagoImporteManual('otro'); }} className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded text-sm transition">Cancelar</button>
+                <button 
+                  onClick={() => { setMostrarImporteManual(false); setMontoImporteManual(0); setDescImporteManual('Deuda de pedido anterior'); setFormaPagoImporteManual('otro'); }} 
+                  className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded text-sm transition"
+                >
+                  Cancelar
+                </button>
               </div>
             </div>
           )}
