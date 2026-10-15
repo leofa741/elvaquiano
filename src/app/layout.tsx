@@ -8,10 +8,9 @@ import Navbar from "./components/navbar/Navbar";
 import Footer from "./components/footer/Footer";
 import { Providers } from "./providers/Providers";
 import { ToastContainer } from "react-toastify";
-import { Analytics } from "@vercel/analytics/react"
+import { Analytics } from "@vercel/analytics/react";
 import Loader from "./components/loading/Loader";
 import VersionChecker from "./components/version/VersionChecker";
-
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,9 +25,8 @@ const geistMono = Geist_Mono({
 const montserrat = Montserrat({
   subsets: ["latin"],
   variable: "--font-montserrat",
-  weight: ["400"], // Podés elegir los pesos que quieras
+  weight: ["400"],
 });
-
 
 export const metadata: Metadata = {
   title: "Distribuidora El Vaquiano - Venta Mayorista y Minorista",
@@ -37,6 +35,14 @@ export const metadata: Metadata = {
   keywords:
     "distribuidora, venta mayorista, venta minorista, productos para negocios, suministros comerciales, El Vaquiano",
   authors: [{ name: "Distribuidora El Vaquiano", url: "https://elvaquiano.com.ar" }],
+  
+  // 👇 Metadata técnica del desarrollador (ya la tenías, ¡perfecto!)
+  other: {
+    generator: "Tu Marca AR - Desarrollo Web, SEO y Sistemas web a medida | https://www.tumarca.ar",
+    developer: "Tu Marca AR",
+    "developer-url": "https://www.tumarca.ar",
+  },
+
   openGraph: {
     title: "Distribuidora El Vaquiano - Venta Mayorista y Minorista",
     description:
@@ -56,12 +62,29 @@ export const metadata: Metadata = {
   },
 };
 
-
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  
+  // 👇 1. Datos estructurados (JSON-LD) para que Google sepa quién desarrolló el sitio
+  const developerJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Distribuidora El Vaquiano',
+    url: 'https://elvaquiano.com.ar',
+    creator: {
+      '@type': 'Organization',
+      name: 'Tu Marca AR',
+      url: 'https://www.tumarca.ar',
+      email: 'hola@tumarca.ar',
+      description: 'Agencia de desarrollo web, branding, SEO y marketing digital en Buenos Aires, Argentina.',
+      knowsAbout: ['Next.js', 'React', 'SEO', 'Marketing Digital', 'Branding', 'Desarrollo Web a Medida'],
+      sameAs: ['https://www.tumarca.ar']
+    }
+  };
+
   return (
     <html lang="es"
       className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable} dark`}
@@ -74,9 +97,11 @@ export default function RootLayout({
               <Navbar />
             </div>
           </header>
+          
           <main>
             <VersionChecker />
             {children}
+            
             {/* Botón flotante de WhatsApp — versión mejorada */}
             <a
               href="https://wa.me/5492224492051?text=Hola,%20me%20interesa%20un%20producto%20mayorista"
@@ -86,9 +111,7 @@ export default function RootLayout({
               aria-label="Chatear por WhatsApp"
             >
               <div className="relative group">
-                {/* Fondo verde WhatsApp con hover effect */}
                 <div className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-                  {/* Ícono de WhatsApp en blanco (SVG para mejor calidad) */}
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
@@ -102,12 +125,10 @@ export default function RootLayout({
                   </svg>
                 </div>
 
-                {/* Tooltip opcional: solo en escritorio */}
                 <div className="absolute bottom-full right-0 mb-2 hidden md:block opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                   <div className="bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg whitespace-nowrap shadow">
                     ¿Necesitás ayuda?
                   </div>
-                  {/* Flecha del tooltip */}
                   <div className="absolute top-full right-4 w-2 h-2 bg-gray-900 transform rotate-45"></div>
                 </div>
               </div>
@@ -129,11 +150,27 @@ export default function RootLayout({
               theme="light"
               style={{ zIndex: 9999 }}
             />
-
           </main>
 
           <Footer />
         </Providers>
+
+        {/* 👇 2. Script JSON-LD inyectado (Invisible para el usuario, legible para Google) */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(developerJsonLd) }}
+        />
+
+        {/* 👇 3. Enlace accesible "sr-only" (Invisible visualmente, presente en el DOM para Google y lectores de pantalla) */}
+        <a
+          href="https://www.tumarca.ar"
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="sr-only focus:not-sr-only focus:fixed focus:bottom-2 focus:left-2 focus:z-50 focus:bg-gray-900 focus:text-white focus:text-xs focus:px-3 focus:py-1.5 focus:rounded-md focus:shadow-lg focus:transition-all"
+          aria-label="Sitio web desarrollado por Tu Marca AR"
+        >
+          Desarrollo web y SEO por Tu Marca AR
+        </a>
 
       </body>
     </html>
