@@ -79,10 +79,13 @@ export default function CartDrawer() { // Componente principal del carrito, ahor
   }, [decrementQty]);
 
   // 🔹 ✨ NUEVA FUNCIÓN: Confirmar cantidad ingresada manualmente
+   // 🔹 ✨ FUNCIÓN MODIFICADA: Permite cualquier número (incluido -1 o 0)
   const handleConfirmManualQty = (productId: string, stockMax: number) => {
     const parsed = parseInt(manualQtyInput, 10);
 
-    if (isNaN(parsed) || parsed < 1) {
+    // 👇 Cambiado: Ahora solo verifica que sea un número válido. 
+    // Si escriben -1, 0 o 5, lo acepta y lo envía al contexto.
+    if (isNaN(parsed)) {
       setEditingQtyId(null);
       setManualQtyInput('');
       return;

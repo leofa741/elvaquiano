@@ -12,19 +12,31 @@ export function CartProvider({ children }: any) {
   const pathname = usePathname(); // 👈 Detecta cambios de ruta
 
   // 🔹 FUNCIÓN CENTRAL: Leer carrito desde localStorage (fuente de verdad)
-  const loadCartFromStorage = () => {
-    if (typeof window === 'undefined') return;
-    try {
-      const stored = localStorage.getItem('cart');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        // Solo actualizamos si es diferente para evitar re-renders innecesarios
-        setCart(prev => JSON.stringify(prev) !== JSON.stringify(parsed) ? parsed : prev);
+const loadCartFromStorage = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    const stored = localStorage.getItem('cart');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      
+      // 👇 NUEVO: Filtrar productos con cantidades inválidas (<= 0)
+      const validCart = parsed.filter((item: any) => 
+        item.qty && item.qty > 0 && !isNaN(item.qty)
+      );
+      
+      // Si hubo productos inválidos, guardar la versión corregida
+      if (validCart.length !== parsed.length) {
+        console.warn('🧹 Carrito corregido: se eliminaron', parsed.length - validCart.length, 'productos con cantidad inválida');
+        localStorage.setItem('cart', JSON.stringify(validCart));
       }
-    } catch (error) {
-      console.error('Error cargando carrito:', error);
+      
+      setCart(prev => JSON.stringify(prev) !== JSON.stringify(validCart) ? validCart : prev);
     }
-  };
+  } catch (error) {
+    console.error('Error cargando carrito:', error);
+  }
+};
+
 
   // 1️⃣ Cargar al montar por primera vez
   useEffect(() => {

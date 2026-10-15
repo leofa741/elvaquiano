@@ -31,27 +31,63 @@ async function procesarStockFisico(
     if (!item.producto) continue;
 
     if (accion === 'descontar') {
-      const producto = await Producto.findById(item.producto);
-      if (producto) {
-        const stockInfo = producto.stock.find((s: any) => s.deposito === pedido.deposito);
-        if (stockInfo && stockInfo.cantidad < item.cantidad) {
-          advertencias.push(`Stock insuficiente para "${item.nombre}" en ${pedido.deposito}.`);
+      // 👇 SOLUCIÓN ATÓMICA DEFINITIVA CON PIPELINE:
+      // Usamos $map para recorrer el array de stock. 
+      // Es 100% atómico (evita race conditions) y no usa el operador '$' que causaba el error.
+      operaciones.push({
+        updateOne: {
+          filter: { _id: item.producto, "stock.deposito": pedido.deposito },
+          update: [
+            {
+              $set: {
+                stock: {
+                  $map: {
+                    input: "$stock",
+                    as: "s",
+                    in: {
+                      $cond: [
+                        // Si es el depósito del pedido:
+                        { $eq: ["$$s.deposito", pedido.deposito] },
+                        {
+                          // Fusionamos el objeto original con la nueva cantidad calculada
+                          $mergeObjects: [
+                            "$$s",
+                            {
+                              cantidad: {
+                                // Resta la cantidad, pero si el resultado es < 0, lo fuerza a 0
+                                $max: [0, { $subtract: ["$$s.cantidad", item.cantidad] }]
+                              }
+                            }
+                          ]
+                        },
+                        // Si no es el depósito, se deja el objeto exactamente igual ("$$s")
+                        "$$s"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          ]
         }
-      }
+      });
+    } else {
+      // Para devolver stock, $inc es seguro y no genera negativos, así que lo dejamos simple.
+      operaciones.push({
+        updateOne: {
+          filter: { _id: item.producto, "stock.deposito": pedido.deposito },
+          update: {
+            $inc: { "stock.$.cantidad": item.cantidad }
+          }
+        }
+      });
     }
-
-    operaciones.push({
-      updateOne: {
-        filter: { _id: item.producto, "stock.deposito": pedido.deposito },
-        update: {
-          $inc: { "stock.$.cantidad": accion === 'descontar' ? -item.cantidad : item.cantidad }
-        }
-      }
-    });
+    
     idsProductosAfectados.add(item.producto.toString());
   }
 
   if (operaciones.length > 0) {
+    // ordered: false permite que si un producto no existe, no bloquee la actualización de los demás
     await Producto.bulkWrite(operaciones, { ordered: false });
   }
 
@@ -59,9 +95,13 @@ async function procesarStockFisico(
     stockDescontado: accion === 'descontar' ? true : false
   });
 
+  // Notificamos los cambios (fetcheamos el estado final para el websocket/notificaciones)
   const productosActualizados = await Producto.find({ _id: { $in: Array.from(idsProductosAfectados) } });
   productosActualizados.forEach(prod => {
-    notifyProducts({ type: 'stock_modificado', data: { producto: prod, motivo: motivoNotificacion, pedidoId: pedido._id } });
+    notifyProducts({ 
+      type: 'stock_modificado', 
+      data: { producto: prod, motivo: motivoNotificacion, pedidoId: pedido._id } 
+    });
   });
 
   return { advertencias, yaProcesado: false };

@@ -13,6 +13,7 @@ export default function ProductCard({ product, onAdd }: any) { // Recibimos la f
     0
   );
 
+  
   const hasOffer =
     product.precioOferta &&
     product.precioOferta < product.precioMayorista;

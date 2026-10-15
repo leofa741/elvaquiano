@@ -18,6 +18,7 @@ export default function CategoriaClient({ productos }: any) {
           />
         ))}
       </div>
+      
     </div>
   );
 }
