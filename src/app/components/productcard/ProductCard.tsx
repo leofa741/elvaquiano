@@ -1,4 +1,3 @@
-// src/app/components/productcard/ProductCard.tsx
 'use client';
 
 import Image from 'next/image';
@@ -8,12 +7,13 @@ export default function ProductCard({ product, onAdd }: any) { // Recibimos la f
 
   const cantidadUnidadText = `${product.cantidadUnidad} ${product.unidad}`;
 
-  const stockTotal = product.stock.reduce(
+  // 👇 FIX DEFENSIVO: Math.max(0, ...) asegura que el stock nunca sea negativo en la vista,
+  // evitando que productos con stock legacy negativo se puedan agregar al carrito.
+  const stockTotal = Math.max(0, product.stock.reduce(
     (acc: number, s: any) => acc + s.cantidad,
     0
-  );
+  ));
 
-  
   const hasOffer =
     product.precioOferta &&
     product.precioOferta < product.precioMayorista;
@@ -117,7 +117,7 @@ export default function ProductCard({ product, onAdd }: any) { // Recibimos la f
           onClick={() =>
             onAdd({
               ...product,
-              stockTotal
+              stockTotal // 👈 Aquí se pasa el stockTotal ya protegido (mínimo 0)
             })
           }
           disabled={isOutOfStock}
