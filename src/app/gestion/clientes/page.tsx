@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { FaUsers, FaPlus, FaSearch } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
+import Loader from '@/app/components/loading/Loader';
 
 interface Cliente {
   _id: string;
@@ -430,7 +431,7 @@ export default function ClientesPage() {
   // -------------------------------
   // 🚨 Render condicional de aut
   // -------------------------------
-  if (!isAuthorized) return <div className="p-6 text-center text-gray-400">Validando acceso...</div>;
+  if (!isAuthorized) return   <Loader />;
 
   // -------------------------------
   // 🌟 JSX Principal

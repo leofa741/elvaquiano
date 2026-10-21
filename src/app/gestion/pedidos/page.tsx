@@ -20,6 +20,7 @@ import {
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { formatARS } from '@/app/lib/formatcurrenci';
+import Loader from '@/app/components/loading/Loader';
 
 /* =======================
    TIPOS
@@ -115,7 +116,7 @@ export default function PedidosPage() {
       try {
         // 🆕 Construir query params dinámicamente
         const params = new URLSearchParams({ page: page.toString(), limit: '10' });
-        
+
         if (searchMode === 'cliente' && debouncedSearchCliente.trim()) {
           params.append('cliente', debouncedSearchCliente.trim());
         } else if (searchMode === 'fecha') {
@@ -127,7 +128,7 @@ export default function PedidosPage() {
           fetch(`/api/gestion/pedidos?${params.toString()}`, { cache: 'no-store' }),
           fetch('/api/gestion/cuentas-corrientes?pedidosRegistrados=true', { cache: 'no-store' })
         ]);
-        
+
         const { data, totalPages: total } = await resPedidos.json();
         const list = Array.isArray(data) ? data.map(sanitizePedido) : [];
         setPedidos(list);
@@ -153,7 +154,7 @@ export default function PedidosPage() {
   /* =======================
      SSE (Sin cambios, sigue funcionando)
   ======================= */
-  
+
   useEffect(() => {
     if (!isAuthorized) return;
     const es = new EventSource('/api/gestion/pedidos/events');
@@ -268,6 +269,18 @@ export default function PedidosPage() {
     }
   };
 
+
+  if (!isAuthorized) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+       <Loader/>
+        </div>
+      </div>
+    );
+  }
+
   /* =======================
      RENDER
   ======================= */
@@ -290,31 +303,29 @@ export default function PedidosPage() {
           <FaPlus /> Nuevo Pedido
         </Link>
       </div>
-      
+
 
       {/* 🆕 BARRA DE BÚSQUEDA PREMIUM */}
       <div className="bg-gray-800/50 backdrop-blur-md border border-gray-700 rounded-xl p-4 shadow-xl">
         <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-          
+
           {/* Selector de Modo */}
           <div className="flex bg-gray-900/80 p-1 rounded-lg border border-gray-700">
             <button
               onClick={() => handleSearchModeChange('cliente')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                searchMode === 'cliente' 
-                  ? 'bg-amber-600 text-white shadow-md' 
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${searchMode === 'cliente'
+                  ? 'bg-amber-600 text-white shadow-md'
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
+                }`}
             >
               <FaUser size={14} /> Por Cliente
             </button>
             <button
               onClick={() => handleSearchModeChange('fecha')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                searchMode === 'fecha' 
-                  ? 'bg-amber-600 text-white shadow-md' 
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${searchMode === 'fecha'
+                  ? 'bg-amber-600 text-white shadow-md'
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
+                }`}
             >
               <FaCalendarAlt size={14} /> Por Fecha
             </button>
@@ -369,7 +380,7 @@ export default function PedidosPage() {
             )}
           </div>
         </div>
-        
+
         {/* Indicador de búsqueda activa */}
         {(debouncedSearchCliente || searchFechaInicio || searchFechaFin) && (
           <div className="mt-3 flex items-center gap-2 text-xs text-amber-400/80 animate-pulse">
@@ -477,13 +488,13 @@ export default function PedidosPage() {
           </div>
         )}
       </div>
-      
+
       {/* PAGINACIÓN */}
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-2 p-4 bg-gray-800/50 rounded-xl border border-gray-700">
-          <button 
-            onClick={() => setPage((p) => Math.max(1, p - 1))} 
-            disabled={page === 1} 
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
             className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
           >
             ← Anterior
@@ -491,9 +502,9 @@ export default function PedidosPage() {
           <span className="px-4 py-2 text-gray-300 text-sm font-medium bg-gray-900 rounded-lg border border-gray-700">
             Página {page} de {totalPages}
           </span>
-          <button 
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))} 
-            disabled={page === totalPages} 
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
             className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
           >
             Siguiente →

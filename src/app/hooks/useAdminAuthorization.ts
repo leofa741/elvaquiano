@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 
+
 /**
  * Hook para proteger páginas solo accesibles por admin/superadmin.
  * Redirige automáticamente si no tiene permisos.
