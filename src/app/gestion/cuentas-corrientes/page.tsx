@@ -8,7 +8,6 @@ import {
   FaExclamationTriangle, FaCheck, FaSync, FaPrint, FaHistory, 
   FaSearch, FaTimes, FaFileInvoiceDollar, FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
-import { FaDollarSign } from 'react-icons/fa6';
 import Swal from 'sweetalert2';
 import { formatARS } from '@/app/lib/formatcurrenci';
 
@@ -50,6 +49,29 @@ const FORMAS_PAGO = [
   { value: 'cheque', label: 'Cheque' },
   { value: 'otro', label: 'Otro' },
 ];
+
+// Función para agrupar movimientos por fecha y sumar sus importes
+const agruparMovimientosPorFecha = (movimientos: Movimiento[]) => {
+  const agrupados: Record<string, { fecha: string; tipo: string; descripcion: string; importe: number; cantidad: number }> = {};
+  
+  movimientos.forEach(mov => {
+    if (!agrupados[mov.fecha]) {
+      agrupados[mov.fecha] = {
+        fecha: mov.fecha,
+        tipo: mov.tipo,
+        descripcion: mov.descripcion,
+        importe: mov.importe,
+        cantidad: 1
+      };
+    } else {
+      agrupados[mov.fecha].importe += mov.importe;
+      agrupados[mov.fecha].cantidad += 1;
+      agrupados[mov.fecha].descripcion = `${agrupados[mov.fecha].cantidad} movimientos del día`;
+    }
+  });
+
+  return Object.values(agrupados);
+};
 
 export default function CuentasCorrientesPage() {
   const isAuthorized = useAdminAuthorization();
@@ -296,7 +318,6 @@ export default function CuentasCorrientesPage() {
 
         inputCapital.addEventListener('input', actualizarTotales);
         inputInteres.addEventListener('input', actualizarTotales);
-        
         actualizarTotales();
       },
       willClose: () => {
@@ -333,7 +354,6 @@ export default function CuentasCorrientesPage() {
         if (formValues.montoInteres > 0) {
           descripcionPago += ` (Incluye ${formatARS(formValues.montoInteres)} de interés/recargo)`;
           
-          // 1. Registrar el interés como un ajuste/cargo a la cuenta (aumenta la deuda temporalmente)
           const resInteres = await fetch('/api/gestion/cuentas-corrientes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -346,13 +366,9 @@ export default function CuentasCorrientesPage() {
             })
           });
           
-          if (!resInteres.ok) {
-            throw new Error('No se pudo registrar el interés/recargo');
-          }
+          if (!resInteres.ok) throw new Error('No se pudo registrar el interés/recargo');
         }
 
-        // 2. Registrar el pago total (capital + interés). 
-        // Al restar el total, la deuda neta bajará exactamente por el monto del capital.
         const totalPagar = formValues.montoCapital + formValues.montoInteres;
 
         const res = await fetch('/api/gestion/cuentas-corrientes', {
@@ -400,11 +416,8 @@ export default function CuentasCorrientesPage() {
               color: '#fff'
             });
 
-            if (isConfirmed) {
-              await mostrarModalAgregarDeuda(cuenta.clienteId, cuenta.razonSocial);
-            }
+            if (isConfirmed) await mostrarModalAgregarDeuda(cuenta.clienteId, cuenta.razonSocial);
           }
-          
           await fetchCuentas();
         } else {
           const err = await res.json();
@@ -420,14 +433,7 @@ export default function CuentasCorrientesPage() {
 
   const handleGenerarRecibo = async (cuenta: CuentaCorriente) => {
     if (procesandoPagoId === cuenta.clienteId) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Procesando...',
-        text: 'Ya hay una operación en curso para este cliente. Espera un momento.',
-        confirmButtonColor: '#f59e0b',
-        background: '#1f2937',
-        color: '#fff'
-      });
+      Swal.fire({ icon: 'warning', title: 'Procesando...', text: 'Ya hay una operación en curso para este cliente.', confirmButtonColor: '#f59e0b', background: '#1f2937', color: '#fff' });
       return;
     }
 
@@ -439,15 +445,12 @@ export default function CuentasCorrientesPage() {
           <div style="font-size: 12px; color: #9ca3af; margin-bottom: 4px;">Deuda actual:</div>
           <div style="font-size: 20px; font-weight: bold; color: #f59e0b;">${formatARS(cuenta.deudaTotal)}</div>
         </div>
-        
         <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Monto a abonar al capital (Principal) *</label>
         <input id="swal-monto-capital" type="number" step="0.01" min="0.01" max="${cuenta.deudaTotal}" value="${cuenta.deudaTotal}" 
           style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 8px;" />
-        
         <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Interés / Recargo (en $, manual sin redondeo)</label>
         <input id="swal-interes" type="number" step="0.01" min="0" value="0" 
           style="width: 100%; padding: 8px 12px; background: #374151; color: #fbbf24; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;" />
-
         <div style="margin-bottom: 15px; padding: 10px; background: #064e3b; border-radius: 8px; border: 1px solid #065f46;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
             <span style="font-size: 13px; color: #a7f3d0;">Total en Recibo:</span>
@@ -458,7 +461,6 @@ export default function CuentasCorrientesPage() {
             <span id="swal-nueva-deuda" style="font-size: 14px; font-weight: bold; color: #fbbf24;">${formatARS(0)}</span>
           </div>
         </div>
-
         <label style="display: block; font-size: 13px; color: #d1d5db; margin-bottom: 5px; font-weight: 500;">Forma de pago *</label>
         <select id="swal-forma-pago" style="width: 100%; padding: 8px 12px; background: #374151; color: white; border: 1px solid #4b5563; border-radius: 6px; font-size: 14px; margin-bottom: 12px;">
           ${FORMAS_PAGO.map(f => `<option value="${f.value}">${f.label}</option>`).join('')}
@@ -478,20 +480,16 @@ export default function CuentasCorrientesPage() {
           const interes = parseFloat(inputInteres.value) || 0;
           const total = capital + interes;
           const nuevaDeuda = Math.max(0, cuenta.deudaTotal - capital);
-
           if (spanTotal) spanTotal.textContent = formatARS(total);
           if (spanNuevaDeuda) spanNuevaDeuda.textContent = formatARS(nuevaDeuda);
         };
 
         (window as any).actualizarTotalesCC = actualizarTotales;
-
         inputCapital.addEventListener('input', actualizarTotales);
         inputInteres.addEventListener('input', actualizarTotales);
         actualizarTotales();
       },
-      willClose: () => {
-        delete (window as any).actualizarTotalesCC;
-      },
+      willClose: () => { delete (window as any).actualizarTotalesCC; },
       focusConfirm: false,
       showCancelButton: true,
       confirmButtonText: 'Generar e Imprimir',
@@ -507,7 +505,7 @@ export default function CuentasCorrientesPage() {
         const formaPago = (document.getElementById('swal-forma-pago') as HTMLSelectElement).value;
         const concepto = (document.getElementById('swal-concepto') as HTMLInputElement).value;
         if (!montoCapital || montoCapital <= 0) { Swal.showValidationMessage('El monto al capital debe ser mayor a 0'); return false; }
-        if (montoCapital > cuenta.deudaTotal) { Swal.showValidationMessage(`El monto al capital no puede superar la deuda (${formatARS(cuenta.deudaTotal)})`); return false; }
+        if (montoCapital > cuenta.deudaTotal) { Swal.showValidationMessage(`El monto no puede superar la deuda (${formatARS(cuenta.deudaTotal)})`); return false; }
         return { montoCapital, montoInteres, formaPago, concepto };
       }
     });
@@ -517,129 +515,62 @@ export default function CuentasCorrientesPage() {
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
         setProcesandoPagoId(null);
-        Swal.fire({
-          icon: 'warning',
-          title: 'Ventana de impresión bloqueada',
-          html: 'Tu navegador bloqueó la ventana emergente.<br><br><strong>Solución:</strong> Haz clic en el ícono de "ventana bloqueada" y selecciona "Permitir siempre ventanas emergentes de este sitio".',
-          background: '#1f2937',
-          color: '#fff',
-          confirmButtonColor: '#f59e0b'
-        });
+        Swal.fire({ icon: 'warning', title: 'Ventana bloqueada', html: 'Tu navegador bloqueó la ventana emergente. Permite ventanas emergentes para este sitio.', background: '#1f2937', color: '#fff', confirmButtonColor: '#f59e0b' });
         return;
       }
 
       printWindow.document.write(`
-        <html>
-          <head>
-            <title>Generando Recibo...</title>
-            <style>
-              body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #111827; color: white; }
-              .loader { border: 4px solid #374151; border-top: 4px solid #f59e0b; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
-              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            </style>
-          </head>
-          <body>
-            <div style="text-align: center;">
-              <div class="loader"></div>
-              <h2>Generando recibo...</h2>
-              <p style="color: #9ca3af;">Por favor no cierres esta ventana.</p>
-            </div>
-          </body>
-        </html>
+        <html><head><title>Generando Recibo...</title>
+        <style>body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: system-ui, sans-serif; background: #111827; color: white; }
+        .loader { border: 4px solid #374151; border-top: 4px solid #f59e0b; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style></head>
+        <body><div style="text-align: center;"><div class="loader"></div><h2>Generando recibo...</h2><p style="color: #9ca3af;">Por favor no cierres esta ventana.</p></div></body></html>
       `);
 
       try {
         let conceptoFinal = formValues.concepto;
         if (formValues.montoInteres > 0) {
           conceptoFinal += ` (Incluye ${formatARS(formValues.montoInteres)} de interés/recargo)`;
-          
-          // 1. Registrar el interés como ajuste
           const resInteres = await fetch('/api/gestion/cuentas-corrientes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              clienteId: cuenta.clienteId,
-              tipo: 'ajuste',
-              importe: formValues.montoInteres,
-              descripcion: 'Interés/Recargo aplicado a pago parcial',
-              notas: `Interés manual cobrado junto al pago. Forma de pago: ${formValues.formaPago}`
-            })
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clienteId: cuenta.clienteId, tipo: 'ajuste', importe: formValues.montoInteres, descripcion: 'Interés/Recargo aplicado', notas: `Forma de pago: ${formValues.formaPago}` })
           });
-          
-          if (!resInteres.ok) {
-            throw new Error('No se pudo registrar el interés/recargo');
-          }
+          if (!resInteres.ok) throw new Error('No se pudo registrar el interés/recargo');
         }
 
         const totalPagar = formValues.montoCapital + formValues.montoInteres;
-
         const resRecibo = await fetch('/api/gestion/pagos/recibo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clienteId: cuenta.clienteId,
-            monto: totalPagar, // El recibo muestra el total cobrado (capital + interés)
-            formaPago: formValues.formaPago,
-            concepto: conceptoFinal,
-            deudaAnterior: cuenta.deudaTotal
-          })
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clienteId: cuenta.clienteId, monto: totalPagar, formaPago: formValues.formaPago, concepto: conceptoFinal, deudaAnterior: cuenta.deudaTotal })
         });
         if (!resRecibo.ok) throw new Error('No se pudo generar el recibo');
         const recibo = await resRecibo.json();
 
         const resCC = await fetch('/api/gestion/cuentas-corrientes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clienteId: cuenta.clienteId,
-            tipo: 'pago',
-            importe: totalPagar,
-            formaPago: formValues.formaPago,
-            descripcion: `Recibo #${String(recibo.numero).padStart(6, '0')} - ${conceptoFinal}`
-          })
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clienteId: cuenta.clienteId, tipo: 'pago', importe: totalPagar, formaPago: formValues.formaPago, descripcion: `Recibo #${String(recibo.numero).padStart(6, '0')} - ${conceptoFinal}` })
         });
 
         if (resCC.ok) {
           printWindow.location.href = `/gestion/pagos/recibo/${recibo._id}/imprimir`;
-          
           const nuevoSaldo = Math.max(0, cuenta.deudaTotal - formValues.montoCapital);
           
           await Swal.fire({
-            icon: 'success',
-            title: '¡Recibo Generado!',
-            html: `
-              <div style="text-align: left;">
-                <p style="margin-bottom: 8px;">Se generó el recibo <strong>#${String(recibo.numero).padStart(6, '0')}</strong> por:</p>
-                <div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 12px;">${formatARS(totalPagar)}</div>
-                <p style="color: #9ca3af; font-size: 13px; margin-bottom: 4px;">(Abono a capital: ${formatARS(formValues.montoCapital)} + Interés: ${formatARS(formValues.montoInteres)})</p>
-                <p style="color: #fbbf24; font-size: 14px; margin-bottom: 8px;">Nueva deuda restante: <strong>${formatARS(nuevoSaldo)}</strong></p>
-                <p style="color: #9ca3af; font-size: 13px;">✅ La ventana de impresión se abrió automáticamente.</p>
-              </div>
-            `,
-            confirmButtonColor: '#10b981',
-            background: '#1f2937',
-            color: '#fff'
+            icon: 'success', title: '¡Recibo Generado!',
+            html: `<div style="text-align: left;"><p style="margin-bottom: 8px;">Se generó el recibo <strong>#${String(recibo.numero).padStart(6, '0')}</strong> por:</p>
+            <div style="font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 12px;">${formatARS(totalPagar)}</div>
+            <p style="color: #fbbf24; font-size: 14px; margin-bottom: 8px;">Nueva deuda restante: <strong>${formatARS(nuevoSaldo)}</strong></p>
+            <p style="color: #9ca3af; font-size: 13px;">✅ La ventana de impresión se abrió automáticamente.</p></div>`,
+            confirmButtonColor: '#10b981', background: '#1f2937', color: '#fff'
           });
 
           if (nuevoSaldo <= 0) {
             const { isConfirmed } = await Swal.fire({
-              title: '¿Desea agregar una nueva deuda?',
-              text: `La deuda de ${cuenta.razonSocial} ha sido saldada. ¿Desea registrar un nuevo cargo o ajuste ahora?`,
-              icon: 'question',
-              showCancelButton: true,
-              confirmButtonText: 'Sí, agregar deuda',
-              cancelButtonText: 'No, finalizar',
-              confirmButtonColor: '#f59e0b',
-              cancelButtonColor: '#6b7280',
-              background: '#1f2937',
-              color: '#fff'
+              title: '¿Desea agregar una nueva deuda?', text: `La deuda de ${cuenta.razonSocial} ha sido saldada.`, icon: 'question', showCancelButton: true,
+              confirmButtonText: 'Sí, agregar deuda', cancelButtonText: 'No, finalizar', confirmButtonColor: '#f59e0b', cancelButtonColor: '#6b7280', background: '#1f2937', color: '#fff'
             });
-
-            if (isConfirmed) {
-              await mostrarModalAgregarDeuda(cuenta.clienteId, cuenta.razonSocial);
-            }
+            if (isConfirmed) await mostrarModalAgregarDeuda(cuenta.clienteId, cuenta.razonSocial);
           }
-
           await fetchCuentas();
         } else {
           throw new Error('No se pudo registrar el pago en la cuenta corriente');
@@ -666,8 +597,7 @@ export default function CuentasCorrientesPage() {
       <div className="flex flex-col sm:flex-row sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
-            <FaWallet className="text-amber-400" />
-            Cuentas Corrientes
+            <FaWallet className="text-amber-400" /> Cuentas Corrientes
           </h1>
           <p className="text-gray-400 mt-1">Gestión de saldos pendientes, cargos y pagos de clientes.</p>
         </div>
@@ -690,10 +620,8 @@ export default function CuentasCorrientesPage() {
             <div className="relative flex-1">
               <FaUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input
-                type="text"
-                placeholder="Buscar cliente para agregarle una deuda..."
-                value={busquedaCliente}
-                onChange={(e) => setBusquedaCliente(e.target.value)}
+                type="text" placeholder="Buscar cliente para agregarle una deuda..."
+                value={busquedaCliente} onChange={(e) => setBusquedaCliente(e.target.value)}
                 className="w-full bg-gray-900 border border-gray-700 text-white pl-10 pr-10 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-all placeholder-gray-500"
               />
               {buscando && <div className="absolute right-3 top-1/2 -translate-y-1/2"><FaSync className="animate-spin text-amber-400 text-sm" /></div>}
@@ -748,18 +676,12 @@ export default function CuentasCorrientesPage() {
           <FaSearch className="text-gray-400 text-lg" />
         </div>
         <input
-          type="text"
-          placeholder="🔍 Buscar en la lista por nombre, razón social o teléfono..."
-          value={filtroLista}
-          onChange={(e) => setFiltroLista(e.target.value)}
+          type="text" placeholder="🔍 Buscar en la lista por nombre, razón social o teléfono..."
+          value={filtroLista} onChange={(e) => setFiltroLista(e.target.value)}
           className="w-full bg-gray-800 border border-gray-700 text-white pl-12 pr-12 py-3.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all placeholder-gray-500 shadow-sm"
         />
         {filtroLista && (
-          <button 
-            onClick={() => setFiltroLista('')}
-            className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-white transition-colors"
-            title="Limpiar búsqueda"
-          >
+          <button onClick={() => setFiltroLista('')} className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-white transition-colors" title="Limpiar búsqueda">
             <FaTimes className="text-lg" />
           </button>
         )}
@@ -773,8 +695,7 @@ export default function CuentasCorrientesPage() {
       <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-sm">
         {loading ? (
           <div className="p-8 text-center text-gray-300 flex flex-col items-center gap-3">
-            <FaSync className="animate-spin text-amber-400 text-2xl" />
-            Cargando cuentas corrientes...
+            <FaSync className="animate-spin text-amber-400 text-2xl" /> Cargando cuentas corrientes...
           </div>
         ) : cuentasFiltradas.length === 0 ? (
           <div className="p-8 text-center text-gray-400 flex flex-col items-center gap-3">
@@ -804,26 +725,27 @@ export default function CuentasCorrientesPage() {
                         {cuenta.telefono && (
                           <span className="flex items-center gap-1"><FaPhone size={12} /> {cuenta.telefono}</span>
                         )}
-                        <span>{cuenta.pedidosDeudores} pedido(s) pendiente(s)</span>
                       </div>
 
                       {cuenta.ultimosMovimientos && cuenta.ultimosMovimientos.length > 0 && (
                         <div className="mt-3 ml-5">
                           <div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider flex items-center gap-1">
-                            <FaHistory className="text-amber-400" /> Últimos 5 Movimientos
+                            <FaHistory className="text-amber-400" /> Historial de Pagos y Movimientos
                           </div>
-                          <div className="overflow-x-auto rounded-lg border border-gray-700">
+                          
+                          {/* CONTENEDOR CON SCROLL INTERNO Y ENCABEZADO FIJO */}
+                          <div className="overflow-x-auto rounded-lg border border-gray-700 max-h-64 overflow-y-auto">
                             <table className="w-full text-xs text-left">
-                              <thead className="bg-gray-900/80 text-gray-400">
+                              <thead className="bg-gray-900/90 text-gray-400 sticky top-0 z-10 backdrop-blur-sm">
                                 <tr>
                                   <th className="px-3 py-2">Fecha</th>
                                   <th className="px-3 py-2">Tipo</th>
                                   <th className="px-3 py-2">Descripción</th>
-                                  <th className="px-3 py-2 text-right">Importe</th>
+                                  <th className="px-3 py-2 text-right">Importe Total</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-700 bg-gray-900/30">
-                                {cuenta.ultimosMovimientos.map((mov, idx) => (
+                                {agruparMovimientosPorFecha(cuenta.ultimosMovimientos).map((mov, idx) => (
                                   <tr key={idx} className="hover:bg-gray-800/50 transition-colors">
                                     <td className="px-3 py-2 text-gray-300 whitespace-nowrap">{mov.fecha}</td>
                                     <td className="px-3 py-2">
@@ -831,8 +753,7 @@ export default function CuentasCorrientesPage() {
                                         mov.tipo === 'pago' ? 'text-green-400' : 
                                         mov.tipo === 'ajuste' ? 'text-amber-400' : 'text-blue-400'
                                       }`}>
-                                        {mov.tipo === 'pago' ? '💰 Pago' : 
-                                         mov.tipo === 'ajuste' ? '⚠️ Ajuste' : '📦 Pedido'}
+                                        {mov.tipo === 'pago' ? '💰 Pago' : mov.tipo === 'ajuste' ? '⚠️ Ajuste' : '📦 Pedido'}
                                       </span>
                                     </td>
                                     <td className="px-3 py-2 text-gray-300 max-w-[150px] truncate" title={mov.descripcion}>
@@ -859,41 +780,21 @@ export default function CuentasCorrientesPage() {
                         onClick={() => handleRegistrarPago(cuenta)}
                         disabled={procesandoPagoId === cuenta.clienteId}
                         className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition ${
-                          procesandoPagoId === cuenta.clienteId
-                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          procesandoPagoId === cuenta.clienteId ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                         }`}
                       >
-                        {procesandoPagoId === cuenta.clienteId ? (
-                          <>
-                            <FaSync className="animate-spin" /> Procesando...
-                          </>
-                        ) : (
-                          <>
-                            <FaMoneyBillWave /> Registrar Pago
-                          </>
-                        )}
+                        {procesandoPagoId === cuenta.clienteId ? <><FaSync className="animate-spin" /> Procesando...</> : <><FaMoneyBillWave /> Registrar Pago</>}
                       </button>
 
                       <button
                         onClick={() => handleGenerarRecibo(cuenta)}
                         disabled={procesandoPagoId === cuenta.clienteId}
                         className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition ${
-                          procesandoPagoId === cuenta.clienteId
-                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          procesandoPagoId === cuenta.clienteId ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'
                         }`}
                         title="Generar recibo de pago para imprimir"
                       >
-                        {procesandoPagoId === cuenta.clienteId ? (
-                          <>
-                            <FaSync className="animate-spin" /> Procesando...
-                          </>
-                        ) : (
-                          <>
-                            <FaPrint /> Generar Recibo
-                          </>
-                        )}
+                        {procesandoPagoId === cuenta.clienteId ? <><FaSync className="animate-spin" /> Procesando...</> : <><FaPrint /> Generar Recibo</>}
                       </button>
                     </div>
                   </div>
@@ -909,43 +810,22 @@ export default function CuentasCorrientesPage() {
                   <span className="font-medium text-white">{cuentasFiltradas.length}</span> resultados
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setPaginaActual(p => Math.max(1, p - 1))}
-                    disabled={paginaActual === 1}
-                    className="px-4 py-2 rounded-lg bg-gray-700 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-600 transition flex items-center gap-2 text-sm font-medium"
-                  >
+                  <button onClick={() => setPaginaActual(p => Math.max(1, p - 1))} disabled={paginaActual === 1} className="px-4 py-2 rounded-lg bg-gray-700 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-600 transition flex items-center gap-2 text-sm font-medium">
                     <FaChevronLeft size={12} /> Anterior
                   </button>
-                  
                   <div className="hidden sm:flex items-center gap-1">
                     {Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => {
                       let pageNum = i + 1;
-                      if (totalPaginas > 5 && paginaActual > 3) {
-                        pageNum = paginaActual - 2 + i;
-                      }
+                      if (totalPaginas > 5 && paginaActual > 3) pageNum = paginaActual - 2 + i;
                       if (pageNum > totalPaginas) return null;
-                      
                       return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setPaginaActual(pageNum)}
-                          className={`w-9 h-9 rounded-lg text-sm font-medium transition ${
-                            paginaActual === pageNum 
-                              ? 'bg-amber-600 text-white' 
-                              : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                          }`}
-                        >
+                        <button key={pageNum} onClick={() => setPaginaActual(pageNum)} className={`w-9 h-9 rounded-lg text-sm font-medium transition ${paginaActual === pageNum ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
                           {pageNum}
                         </button>
                       );
                     })}
                   </div>
-
-                  <button
-                    onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))}
-                    disabled={paginaActual === totalPaginas}
-                    className="px-4 py-2 rounded-lg bg-gray-700 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-600 transition flex items-center gap-2 text-sm font-medium"
-                  >
+                  <button onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))} disabled={paginaActual === totalPaginas} className="px-4 py-2 rounded-lg bg-gray-700 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-600 transition flex items-center gap-2 text-sm font-medium">
                     Siguiente <FaChevronRight size={12} />
                   </button>
                 </div>

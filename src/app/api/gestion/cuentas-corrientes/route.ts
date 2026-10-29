@@ -194,6 +194,8 @@ async function actualizarEstadoPagoPedidos(
   }
 }
 
+
+
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
@@ -331,7 +333,7 @@ export async function GET(req: NextRequest) {
       {
         $project: {
           deudaTotal: 1,
-          ultimosMovimientos: { $slice: ["$ultimosMovimientos", 5] } 
+          ultimosMovimientos: { $slice: ["$ultimosMovimientos", 35] } 
         }
       }
     ]);
