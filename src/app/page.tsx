@@ -3,8 +3,8 @@ import { Metadata } from "next";
 import Image from "next/image";
 
 
-import PrimaveraBanner from "./components/primaverabanner/PrimaveraBanner";
 import CategoryResumenCard from "./components/categoryresumencard/CategoryResumenCard";
+import NavidadBanner from "./components/navideño2026/NavidadBanner";
 
 
 export const metadata: Metadata = {
@@ -52,11 +52,14 @@ export default async function Home() {
         <Banner />
       </div>
 
-   
-      <PrimaveraBanner
-      title="Feliz Primavera"
+<NavidadBanner
+    title="Feliz Navidad"
+    subtitle="Que la magia de estas fiestas ilumine tu hogar"
+ 
+  
+/>
+
      
-       />
       <br />
 
       {/* Sección: Valor principal + CTAs */}

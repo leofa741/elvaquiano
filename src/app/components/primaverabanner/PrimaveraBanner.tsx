@@ -89,6 +89,7 @@ export default function PrimaveraBanner({
         }
         setSparkles(generatedSparkles);
     }, []);
+    
 
     const PrimaveraIcon = ({ type, color }: { type: FloatingItem['type']; color: string }) => {
         switch (type) {
