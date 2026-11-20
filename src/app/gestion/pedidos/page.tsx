@@ -270,6 +270,7 @@ export default function PedidosPage() {
   };
 
 
+
   if (!isAuthorized) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900">
@@ -280,6 +281,8 @@ export default function PedidosPage() {
       </div>
     );
   }
+
+
 
   /* =======================
      RENDER

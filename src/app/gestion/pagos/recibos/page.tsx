@@ -6,7 +6,7 @@ import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import { formatARS } from '@/app/lib/formatcurrenci';
 import { 
     FaPrint, FaArrowLeft, FaSearch, FaFileInvoice, FaCalendar, FaMoneyBillWave,
-    FaChevronLeft, FaChevronRight, FaFilePdf // 🆕 Icono para PDF
+    FaChevronLeft, FaChevronRight, FaFilePdf
 } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 
@@ -89,7 +89,6 @@ export default function HistorialRecibosPage() {
         window.open(`/gestion/pagos/recibo/${registroId}/imprimir`, '_blank');
     };
 
-    // 🆕 FUNCIÓN PARA GENERAR Y DESCARGAR PDF
     const handleDescargarPDF = () => {
         if (registrosFiltrados.length === 0) {
             Swal.fire('Sin datos', 'No hay registros para exportar con este criterio de búsqueda.', 'warning');
@@ -101,13 +100,13 @@ export default function HistorialRecibosPage() {
         const totalMonto = registrosFiltrados.reduce((sum, reg) => sum + reg.monto, 0);
 
         const filasTabla = registrosFiltrados.map(reg => {
-            const fecha = new Date(reg.fecha).toLocaleDateString('es-AR');
+            const fecha = new Date(reg.fecha).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
             const tipo = reg.esReciboFormal ? `Recibo #${String(reg.numero).padStart(6, '0')}` : 'Pago Simple';
             const formaPago = getFormaPagoLabel(reg.formaPago);
             
             return `
                 <tr>
-                    <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb;">${fecha}</td>
+                    <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; white-space: nowrap;">${fecha}</td>
                     <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb;">${tipo}</td>
                     <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb;">${reg.concepto}</td>
                     <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb;">${formaPago}</td>
@@ -142,7 +141,7 @@ export default function HistorialRecibosPage() {
                 <table>
                     <thead>
                         <tr>
-                            <th>Fecha</th>
+                            <th>Fecha y Hora</th>
                             <th>Tipo / Comprobante</th>
                             <th>Concepto</th>
                             <th>Forma de Pago</th>
@@ -213,7 +212,6 @@ export default function HistorialRecibosPage() {
 
     return (
         <div className="p-4 sm:p-6 md:p-8 min-h-screen bg-gray-900">
-            {/* HEADER */}
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
                 <div>
                     <div className="flex items-center gap-2 mb-2">
@@ -236,7 +234,6 @@ export default function HistorialRecibosPage() {
                 </div>
             </div>
 
-            {/* 🆕 BÚSQUEDA Y BOTÓN DE EXPORTACIÓN */}
             <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                 <div className="relative w-full sm:max-w-md">
                     <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -258,7 +255,6 @@ export default function HistorialRecibosPage() {
                 </button>
             </div>
 
-            {/* LISTADO DE REGISTROS */}
             <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
                 {registrosFiltrados.length === 0 ? (
                     <div className="p-8 text-center text-gray-400">
@@ -271,7 +267,7 @@ export default function HistorialRecibosPage() {
                                 <div key={registro._id} className="p-4 hover:bg-gray-750 transition-colors">
                                     <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                                         <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
+                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                 {registro.esReciboFormal ? (
                                                     <span className="text-xs font-mono bg-amber-900/30 text-amber-400 px-2 py-0.5 rounded border border-amber-700/50 flex items-center gap-1">
                                                         <FaFileInvoice size={10} />
@@ -285,7 +281,8 @@ export default function HistorialRecibosPage() {
                                                 )}
                                                 <span className="text-xs text-gray-400 flex items-center gap-1">
                                                     <FaCalendar size={10} />
-                                                    {new Date(registro.fecha).toLocaleDateString('es-AR')}
+                                                    {/* ✅ FECHA CON HORA INCLUIDA */}
+                                                    {new Date(registro.fecha).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
                                             
@@ -293,7 +290,8 @@ export default function HistorialRecibosPage() {
                                                 {getClienteNombre(registro.cliente)}
                                             </div>
                                             
-                                            <div className="text-sm text-gray-400 mt-1">
+                                            <div className="text-sm text-gray-300 mt-1">
+                                                {/* ✅ DESCRIPCIÓN COMPLETA VISIBLE */}
                                                 {registro.concepto} • {getFormaPagoLabel(registro.formaPago)}
                                             </div>
 
@@ -330,7 +328,6 @@ export default function HistorialRecibosPage() {
                             ))}
                         </div>
 
-                        {/* CONTROLES DE PAGINACIÓN */}
                         {totalPaginas > 1 && (
                             <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 bg-gray-900/50 border-t border-gray-700">
                                 <div className="text-sm text-gray-400 mb-3 sm:mb-0">

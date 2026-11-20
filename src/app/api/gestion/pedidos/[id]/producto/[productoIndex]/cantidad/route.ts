@@ -1,4 +1,3 @@
-// app/api/gestion/pedidos/[id]/producto/[productoIndex]/cantidad/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import Pedido from '@/app/models/Pedido';
 import Producto from '@/app/models/Product';
@@ -8,157 +7,78 @@ import { notifyPedidoClients } from '@/app/api/gestion/pedidos/events/pedidoClie
 
 connectDB();
 
-// ✅ Helper para validar cantidad decimal
-function validarCantidad(cantidad: number): { valido: boolean; error?: string } {
-  if (typeof cantidad !== 'number' || isNaN(cantidad)) {
-    return { valido: false, error: 'Cantidad debe ser un número' };
-  }
-  
-  if (cantidad <= 0) {
-    return { valido: false, error: 'Cantidad debe ser mayor a 0' };
-  }
-  
-  // ✅ Validar máximo 3 decimales (precisión de gramos/mililitros)
-  const decimales = cantidad.toString().split('.')[1]?.length || 0;
-  if (decimales > 3) {
-    return { valido: false, error: 'Cantidad no puede tener más de 3 decimales' };
-  }
-  
+function validarCantidad(cantidad: number) {
+  if (typeof cantidad !== 'number' || isNaN(cantidad) || cantidad <= 0) return { valido: false, error: 'Cantidad debe ser mayor a 0' };
+  if ((cantidad.toString().split('.')[1]?.length || 0) > 3) return { valido: false, error: 'Máximo 3 decimales' };
   return { valido: true };
 }
 
-// ✅ Helper para validar precio
-function validarPrecio(precio: number): { valido: boolean; error?: string } {
-  if (typeof precio !== 'number' || isNaN(precio)) {
-    return { valido: false, error: 'Precio debe ser un número' };
-  }
-  
-  if (precio <= 0) {
-    return { valido: false, error: 'Precio debe ser mayor a 0' };
-  }
-  
+function validarPrecio(precio: number) {
+  if (typeof precio !== 'number' || isNaN(precio) || precio <= 0) return { valido: false, error: 'Precio debe ser mayor a 0' };
   return { valido: true };
 }
 
 export async function PATCH(request: NextRequest, { params }: any) {
   try {
-    // ✅ FIX: Await params antes de usarlo
     const { id, productoIndex } = await params;
-    
-    // 🆕 Agregamos 'nuevoPesoAproximado' y 'soloTicket' a la extracción del body
     const { nuevaCantidad, nuevoPrecio, actualizarProducto, soloTicket, nuevoPesoAproximado } = await request.json();
     const index = parseInt(productoIndex, 10);
 
     const pedido = await Pedido.findById(id).populate('productos.producto');
-    if (!pedido) {
-      return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 });
-    }
-
-    if (['entregado', 'cancelado'].includes(pedido.estado)) {
-      return NextResponse.json({ error: 'No se puede modificar un pedido entregado o cancelado' }, { status: 400 });
-    }
-
-    if (index < 0 || index >= pedido.productos.length) {
-      return NextResponse.json({ error: 'Índice de producto inválido' }, { status: 400 });
-    }
+    if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 });
+    if (['entregado', 'cancelado'].includes(pedido.estado)) return NextResponse.json({ error: 'No se puede modificar' }, { status: 400 });
+    if (index < 0 || index >= pedido.productos.length) return NextResponse.json({ error: 'Índice inválido' }, { status: 400 });
 
     const item = pedido.productos[index];
+    let warningMsg = null;
 
-    // ✅ Si se modifica cantidad, validar y actualizar stock
     if (nuevaCantidad !== undefined) {
       const validacion = validarCantidad(nuevaCantidad);
-      if (!validacion.valido) {
-        return NextResponse.json({ error: validacion.error || 'Cantidad inválida' }, { status: 400 });
-      }
-
-      const diferencia = item.cantidad - nuevaCantidad;
-
-      // Manejo de stock solo si está en "preparacion" y NO es soloTicket (opcional, según tu lógica)
-      if (pedido.estado === 'preparacion') {
-        const productoDB = await Producto.findById(item.producto);
-        if (productoDB) {
-          const stock = productoDB.stock.find((s: any) => s.deposito === pedido.deposito);
-          if (stock) {
-            if (diferencia > 0) {
-              stock.cantidad += diferencia;
-            } else if (diferencia < 0) {
-              const stockNecesario = Math.abs(diferencia);
-              if (stock.cantidad < stockNecesario) {
-                return NextResponse.json(
-                  { error: `Stock insuficiente para "${item.nombre}". Disponible: ${stock.cantidad}` },
-                  { status: 400 }
-                );
-              }
-              stock.cantidad -= stockNecesario;
-            }
-            await productoDB.save();
-
-            notifyProducts({
-              type: 'stock_modificado',
-              data: {
-                producto: productoDB,
-                motivo: 'cantidad_modificada_en_pedido',
-                pedidoId: pedido._id,
-              },
-            });
-          }
+      if (!validacion.valido) return NextResponse.json({ error: validacion.error }, { status: 400 });
+      
+      // ✅ VERIFICAR STOCK SOLO PARA AVISAR, SIN MODIFICARLO
+      const productoDB = await Producto.findById(item.producto);
+      if (productoDB) {
+        const stock = productoDB.stock?.find((s: any) => s.deposito === pedido.deposito);
+        if (stock && stock.cantidad < nuevaCantidad) {
+          const faltante = parseFloat((nuevaCantidad - stock.cantidad).toFixed(3));
+          warningMsg = `⚠️ Stock insuficiente. Faltan ${faltante} ${productoDB.unidad}(s) de "${item.nombre}" en el depósito.`;
         }
       }
-
-      // ✅ Actualizar cantidad y subtotal
+      
       item.cantidad = parseFloat(nuevaCantidad.toFixed(3));
     }
 
-    // ✅ Si se modifica precio, actualizar
     if (nuevoPrecio !== undefined) {
       const validacionPrecio = validarPrecio(nuevoPrecio);
-      if (!validacionPrecio.valido) {
-        return NextResponse.json({ error: validacionPrecio.error || 'Precio inválido' }, { status: 400 });
-      }
+      if (!validacionPrecio.valido) return NextResponse.json({ error: validacionPrecio.error }, { status: 400 });
 
       item.precioAplicado = nuevoPrecio;
 
-      // ✅ Opcional: Actualizar el producto en la base de datos (solo si no es soloTicket)
       if (actualizarProducto && !soloTicket) {
         const productoDB = await Producto.findById(item.producto);
         if (productoDB) {
-          // Determinar si actualizar precioMayorista o precioOferta
-          if (item.tipoPrecio === 'mayorista') {
-            productoDB.precioMayorista = nuevoPrecio;
-          } else if (item.tipoPrecio === 'oferta') {
-            productoDB.precioOferta = nuevoPrecio;
-          }
+          if (item.tipoPrecio === 'mayorista') productoDB.precioMayorista = nuevoPrecio;
+          else if (item.tipoPrecio === 'oferta') productoDB.precioOferta = nuevoPrecio;
           await productoDB.save();
-
-          notifyProducts({
-            type: 'producto_actualizado',
-            data: productoDB,
-          });
+          notifyProducts({ type: 'producto_actualizado', data: productoDB });
         }
       }
     }
 
-    // 🆕 NUEVO: Actualizar peso aproximado si se envió desde el frontend
     if (nuevoPesoAproximado !== undefined) {
       item.pesoAproximado = nuevoPesoAproximado;
     }
 
-    // ✅ Recalcular subtotal y total
     item.subtotal = parseFloat((item.cantidad * item.precioAplicado).toFixed(2));
-    pedido.total = parseFloat(
-      pedido.productos.reduce((sum: any, p: { subtotal: any; }) => sum + p.subtotal, 0).toFixed(2)
-    );
+    pedido.total = parseFloat(pedido.productos.reduce((sum: any, p: any) => sum + p.subtotal, 0).toFixed(2));
 
     await pedido.save();
+    notifyPedidoClients({ type: 'pedido_actualizado', data: pedido });
 
-    notifyPedidoClients({
-      type: 'pedido_actualizado',
-      data: pedido,
-    });
-
-    return NextResponse.json(pedido, { status: 200 });
+    // ✅ DEVOLVEMOS EL PEDIDO CON LA POSIBLE ADVERTENCIA (sin fallar)
+    return NextResponse.json({ ...pedido.toObject(), warning: warningMsg }, { status: 200 });
   } catch (error: any) {
-    console.error('Error al modificar cantidad/precio:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

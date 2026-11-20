@@ -14,6 +14,7 @@ export default function ProductCard({ product, onAdd }: any) { // Recibimos la f
     0
   ));
 
+
   const hasOffer =
     product.precioOferta &&
     product.precioOferta < product.precioMayorista;
@@ -56,12 +57,7 @@ export default function ProductCard({ product, onAdd }: any) { // Recibimos la f
         </div>
       )}
 
-      {/* 🔹 Badge de stock con cantidad (esquina superior derecha) 
-      <div className="absolute top-2 right-2 z-10">
-        <span className={`text-[10px] font-semibold px-2 py-1 rounded-full border ${stockBadgeClasses}`}>
-          {stockBadgeText}
-        </span>
-      </div>*/}
+     
 
       {/* Imagen */}
       <div className="h-40 w-full flex items-center justify-center bg-gray-50">
@@ -95,22 +91,7 @@ export default function ProductCard({ product, onAdd }: any) { // Recibimos la f
             {formatARS(finalPrice)}
           </p>
 
-          {/* Badge de stock en el cuerpo (refuerzo visual) 
-          <div className="mt-2">
-            {isOutOfStock ? (
-              <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded border border-red-200">
-                Sin stock
-              </span>
-            ) : isLowStock ? (
-              <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">
-                ⚠️ Últimas {stockTotal} unidades
-              </span>
-            ) : (
-              <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded border border-green-200">
-                ✅  en stock
-              </span>
-            )}
-          </div>*/}
+        
         </div>
 
         <button

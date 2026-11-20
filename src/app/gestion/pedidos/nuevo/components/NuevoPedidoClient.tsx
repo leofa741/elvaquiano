@@ -6,6 +6,7 @@ import { useAdminAuthorization } from '@/app/hooks/useAdminAuthorization';
 import Link from 'next/link';
 import { FaShoppingCart, FaUser, FaTruck, FaTag, FaInfoCircle, FaCheckCircle, FaExclamationTriangle, FaBook } from 'react-icons/fa';
 import { toast, ToastContainer } from 'react-toastify';
+import Swal from 'sweetalert2'; // ✅ AGREGADO: Necesario para las alertas de proceso
 import 'react-toastify/dist/ReactToastify.css';
 import ProductoLinea from './ProductoLinea';
 import { formatARS } from '@/app/lib/formatcurrenci';
@@ -71,7 +72,7 @@ export default function NuevoPedidoClient({
   const [clientePreseleccionado, setClientePreseleccionado] = useState(false);
   const [registrarEnCuentaCorriente, setRegistrarEnCuentaCorriente] = useState(false);
 
-  // ✅ NUEVOS ESTADOS PARA DEUDA ANTERIOR
+  // ✅ ESTADOS PARA DEUDA ANTERIOR
   const [saldoPendienteCliente, setSaldoPendienteCliente] = useState<number>(0);
   const [incluirDeudaAnterior, setIncluirDeudaAnterior] = useState<boolean>(false);
 
@@ -88,12 +89,8 @@ export default function NuevoPedidoClient({
         const dataClientes = await resClientes.json();
         const dataProductos = await resProductos.json();
 
-        // ✅ CORRECCIÓN: Extraer el array del objeto { clientes: [...] }
         const listaClientes = dataClientes.clientes || dataClientes;
-        
-        // Filtramos solo los activos (usamos !== false para incluir datos antiguos sin el campo)
         setClientes(Array.isArray(listaClientes) ? listaClientes.filter((c: any) => c.activo !== false) : []);
-        
         setProductos(dataProductos.products?.filter((p: any) => p.stock?.some((s: any) => s.cantidad > 0)) || []);
       } catch (err) {
         console.error('Error cargando datos iniciales:', err);
@@ -102,6 +99,7 @@ export default function NuevoPedidoClient({
     };
     loadData();
   }, [isAuthorized]);
+
   useEffect(() => {
     if (toastQueue.length > 0) {
       const { type, message } = toastQueue[0];
@@ -141,9 +139,7 @@ export default function NuevoPedidoClient({
     }
   }, [clienteId, clientes]);
 
-  // ✅ NUEVO: Consultar saldo del cliente cuando cambia la selección
   useEffect(() => {
-    // Resetear al cambiar de cliente
     setIncluirDeudaAnterior(false);
     setProductosEnPedido(prev => prev.filter(p => p.producto._id !== DEUDA_PRODUCT_ID));
 
@@ -164,7 +160,6 @@ export default function NuevoPedidoClient({
     fetchSaldo();
   }, [clienteId]);
 
-  // ✅ NUEVO: Actualizar el depósito del ítem de deuda si el usuario cambia el depósito principal
   useEffect(() => {
     if (incluirDeudaAnterior && saldoPendienteCliente > 0) {
       setProductosEnPedido(prev => prev.map(p =>
@@ -225,7 +220,6 @@ export default function NuevoPedidoClient({
     });
   };
 
-  // ✅ MODIFICADO: Manejar eliminación especial si es el ítem de deuda
   const handleEliminarProducto = (index: number) => {
     const producto = productosEnPedido[index].producto;
     const esDeuda = producto._id === DEUDA_PRODUCT_ID;
@@ -251,7 +245,6 @@ export default function NuevoPedidoClient({
     return true;
   };
 
-  // ✅ NUEVO: Función para agregar/quitar la deuda del listado de productos
   const toggleDeudaAnterior = (checked: boolean) => {
     setIncluirDeudaAnterior(checked);
     if (checked && saldoPendienteCliente > 0) {
@@ -277,6 +270,7 @@ export default function NuevoPedidoClient({
     }
   };
 
+  // ✅ FUNCIONALIDAD MODIFICADA: Cadena de creación + preparación + descuento + impresión
   const handleSubmit = async (e: React.FormEvent, imprimir: boolean = false) => {
     e.preventDefault();
     if (!validate()) return;
@@ -286,7 +280,7 @@ export default function NuevoPedidoClient({
       const productosParaGuardar = productosEnPedido.map(p => {
         const precioAplicado = p.tipoPrecio === 'mayorista' ? p.producto.precioMayorista : (p.producto.precioOferta || p.producto.precioMayorista);
         return {
-          producto: p.producto._id, // El ID dummy '00000000...' es válido para MongoDB
+          producto: p.producto._id,
           nombre: p.producto.nombre,
           unidad: p.producto.unidad,
           deposito: p.deposito,
@@ -297,6 +291,7 @@ export default function NuevoPedidoClient({
         };
       });
 
+      // 1. CREAR EL PEDIDO
       const res = await fetch('/api/gestion/pedidos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -310,45 +305,96 @@ export default function NuevoPedidoClient({
         })
       });
 
-      if (res.ok) {
-        const nuevoPedido = await res.json();
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'No se pudo crear el pedido');
+      }
 
-        if (registrarEnCuentaCorriente) {
-          try {
-            const resCC = await fetch('/api/gestion/cuentas-corrientes', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                clienteId,
-                pedidoId: nuevoPedido._id,
-                tipo: 'pedido',
-                importe: total, // ✅ Incluye automáticamente la deuda si fue marcada
-                formaPago: 'Saldo Pendiente',
-                descripcion: `Creación de Pedido #${nuevoPedido._id.slice(-6).toUpperCase()}`
-              })
-            });
-            if (!resCC.ok) {
-              setToastQueue(prev => [...prev, { type: 'warning', message: '⚠️ Pedido creado, pero falló el registro en Cta. Cte.' }]);
-            }
-          } catch (err) {
-            console.error('Error en cuenta corriente:', err);
-            setToastQueue(prev => [...prev, { type: 'warning', message: '⚠️ Error al actualizar la cuenta corriente.' }]);
+      const nuevoPedido = await res.json();
+
+      // 2. REGISTRAR EN CUENTA CORRIENTE (Si aplica)
+      if (registrarEnCuentaCorriente) {
+        try {
+          const resCC = await fetch('/api/gestion/cuentas-corrientes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clienteId,
+              pedidoId: nuevoPedido._id,
+              tipo: 'pedido',
+              importe: total,
+              formaPago: 'Saldo Pendiente',
+              descripcion: `Creación de Pedido #${nuevoPedido._id.slice(-6).toUpperCase()}`
+            })
+          });
+          if (!resCC.ok) {
+            setToastQueue(prev => [...prev, { type: 'warning', message: '⚠️ Pedido creado, pero falló el registro en Cta. Cte.' }]);
           }
+        } catch (err) {
+          console.error('Error en cuenta corriente:', err);
+          setToastQueue(prev => [...prev, { type: 'warning', message: '⚠️ Error al actualizar la cuenta corriente.' }]);
         }
+      }
 
-        if (imprimir) {
-          setToastQueue(prev => [...prev, { type: 'success', message: '¡Pedido creado! Preparando impresión...' }]);
-          setTimeout(() => router.push(`/gestion/pedidos/${nuevoPedido._id}/imprimir?afterPrint=/gestion/pedidos`), 800);
-        } else {
-          setToastQueue(prev => [...prev, { type: 'success', message: '¡Pedido creado con éxito!' }]);
-          setTimeout(() => router.push('/gestion/pedidos'), 1000);
+      // 3. LÓGICA DE IMPRESIÓN Y DESCUENTO DE STOCK
+      if (imprimir) {
+        Swal.fire({
+          title: 'Procesando pedido...',
+          html: 'Creando pedido, pasando a preparación y descontando stock.<br><small style="color:#9ca3af;">No cierres esta ventana.</small>',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          didOpen: () => { Swal.showLoading(); }
+        });
+
+        try {
+          // 3a. Cambiar estado a 'preparacion'
+          await fetch(`/api/gestion/pedidos/${nuevoPedido._id}/estado`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ estado: 'preparacion' })
+          });
+
+          // 3b. Descontar stock (Usando la API segura que ya creamos)
+          const resStock = await fetch(`/api/gestion/pedidos/${nuevoPedido._id}/descontar-stock`, {
+            method: 'POST'
+          });
+
+          if (!resStock.ok) {
+            throw new Error('Error al descontar el stock');
+          }
+
+          const dataStock = await resStock.json();
+          
+          if (dataStock.yaDescontado) {
+             Swal.fire({ icon: 'info', title: 'Aviso', text: 'El stock ya estaba descontado.', timer: 1500 });
+          } else {
+             Swal.fire({ icon: 'success', title: '¡Stock Descontado!', text: 'El inventario se ha actualizado correctamente.', timer: 1500 });
+          }
+
+          // 3c. Redirigir a impresión
+          setTimeout(() => {
+            router.push(`/gestion/pedidos/${nuevoPedido._id}/imprimir?afterPrint=/gestion/pedidos`);
+          }, 1000);
+
+        } catch (stockError: any) {
+          console.error('Error en el proceso de impresión:', stockError);
+          Swal.fire({
+            icon: 'warning',
+            title: 'Pedido creado, pero hubo un problema',
+            text: stockError.message || 'No se pudo descontar el stock automáticamente. El pedido fue creado como "pendiente".',
+            confirmButtonText: 'Ir al pedido de todas formas'
+          }).then(() => {
+            router.push(`/gestion/pedidos/${nuevoPedido._id}`);
+          });
         }
       } else {
-        const error = await res.json();
-        setToastQueue(prev => [...prev, { type: 'error', message: error.error || 'No se pudo crear el pedido' }]);
+        // Flujo normal sin imprimir
+        setToastQueue(prev => [...prev, { type: 'success', message: '¡Pedido creado con éxito!' }]);
+        setTimeout(() => router.push('/gestion/pedidos'), 1000);
       }
-    } catch {
-      setToastQueue(prev => [...prev, { type: 'error', message: 'Error de conexión con el servidor' }]);
+
+    } catch (error: any) {
+      setToastQueue(prev => [...prev, { type: 'error', message: error.message || 'Error de conexión con el servidor' }]);
     } finally {
       setLoading(false);
     }
@@ -357,6 +403,7 @@ export default function NuevoPedidoClient({
   const totalMayorista = productosEnPedido.filter(p => p.tipoPrecio === 'mayorista' && p.producto._id !== DEUDA_PRODUCT_ID).reduce((sum, p) => sum + p.cantidad * p.producto.precioMayorista, 0);
   const totalOferta = productosEnPedido.filter(p => p.tipoPrecio === 'oferta').reduce((sum, p) => sum + p.cantidad * (p.producto.precioOferta || 0), 0);
   const depositosDisponibles = Array.from(new Set(productos.flatMap(p => p.stock.map(s => s.deposito))));
+  
   const handleEliminarTodos = () => {
     setProductosEnPedido([]);
     setIncluirDeudaAnterior(false);
@@ -476,119 +523,108 @@ export default function NuevoPedidoClient({
               </div>
             </div>
           )}
-          
-
-             
-            {totalMayorista > 0 && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400">Subtotal Productos Mayorista:</span>
-                <span className="font-medium text-amber-400">{formatARS(totalMayorista)}</span>
-              </div>
-            )}
-            {totalOferta > 0 && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400">Subtotal Productos Oferta:</span>
-                <span className="font-medium text-green-400">{formatARS(totalOferta)}</span>
-              </div>
-            )}
-            
-
-          {/* <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-200 mb-2 flex items-center gap-2"><FaInfoCircle className="text-amber-400" /> Notas internas</label>
-            <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={3} className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 hover:border-gray-500 resize-none" placeholder="Ej: Entregar antes de las 12hs, Cliente especial, etc." />
-            <p className="text-xs text-gray-400">Información adicional para el equipo de logística</p>
-          </div>
 
           <div className="bg-gray-700/50 rounded-xl p-5 border border-gray-600/50">
             <h4 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2"><FaCheckCircle className="text-green-400" /> Resumen del pedido</h4>
 
-          
-          {saldoPendienteCliente > 0 && (
-            <div className="mb-4 p-3 bg-red-900/20 rounded-lg border border-red-700/50 flex items-start gap-3">
+            {saldoPendienteCliente > 0 && (
+              <div className="mb-4 p-3 bg-red-900/20 rounded-lg border border-red-700/50 flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="incluirDeuda"
+                  checked={incluirDeudaAnterior}
+                  onChange={(e) => toggleDeudaAnterior(e.target.checked)}
+                  className="mt-1 w-5 h-5 rounded border-red-500 text-red-500 focus:ring-red-500 bg-gray-700 cursor-pointer accent-red-500"
+                />
+                <label htmlFor="incluirDeuda" className="text-sm text-gray-200 cursor-pointer flex flex-col">
+                  <span className="font-semibold flex items-center gap-2 text-red-400">
+                    <FaExclamationTriangle /> Incluir deuda anterior en este pedido
+                  </span>
+                  <span className="text-xs text-gray-300 mt-1">
+                    Este cliente tiene un saldo pendiente de <strong>{formatARS(saldoPendienteCliente)}</strong>. Al marcar esta casilla, se agregará como un ítem en el pedido.
+                  </span>
+                </label>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {totalMayorista > 0 && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-400">Subtotal Productos Mayorista:</span>
+                  <span className="font-medium text-amber-400">{formatARS(totalMayorista)}</span>
+                </div>
+              )}
+              {totalOferta > 0 && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-400">Subtotal Productos Oferta:</span>
+                  <span className="font-medium text-green-400">{formatARS(totalOferta)}</span>
+                </div>
+              )}
+
+              {incluirDeudaAnterior && saldoPendienteCliente > 0 && (
+                <div className="flex justify-between items-center text-sm border-t border-gray-600 pt-2 mt-2">
+                  <span className="text-red-400">+ Saldo Anterior Pendiente:</span>
+                  <span className="font-medium text-red-400">{formatARS(saldoPendienteCliente)}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center text-lg pt-2 border-t border-gray-600">
+                <span className="text-gray-200 font-semibold">Total a Pagar:</span>
+                <span className="text-white font-bold text-xl">{formatARS(total)}</span>
+              </div>
+            </div>
+
+            <div className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600 flex items-start gap-3">
               <input
                 type="checkbox"
-                id="incluirDeuda"
-                checked={incluirDeudaAnterior}
-                onChange={(e) => toggleDeudaAnterior(e.target.checked)}
-                className="mt-1 w-5 h-5 rounded border-red-500 text-red-500 focus:ring-red-500 bg-gray-700 cursor-pointer accent-red-500"
+                id="registrarCC"
+                checked={registrarEnCuentaCorriente}
+                onChange={(e) => setRegistrarEnCuentaCorriente(e.target.checked)}
+                className="mt-1 w-5 h-5 rounded border-gray-500 text-amber-500 focus:ring-amber-500 bg-gray-700 cursor-pointer accent-amber-500"
               />
-              <label htmlFor="incluirDeuda" className="text-sm text-gray-200 cursor-pointer flex flex-col">
-                <span className="font-semibold flex items-center gap-2 text-red-400">
-                  <FaExclamationTriangle /> Incluir deuda anterior en este pedido
+              <label htmlFor="registrarCC" className="text-sm text-gray-200 cursor-pointer flex flex-col">
+                <span className="font-semibold flex items-center gap-2">
+                  <FaBook className="text-amber-400" /> Registrar en Cuenta Corriente
                 </span>
-                <span className="text-xs text-gray-300 mt-1">
-                  Este cliente tiene un saldo pendiente de <strong>{formatARS(saldoPendienteCliente)}</strong>. Al marcar esta casilla, se agregará como un ítem en el pedido para que pueda saldarlo ahora.
+                <span className="text-xs text-gray-400 mt-1">
+                  Se agregará un movimiento de "Debe" por el <strong>total final</strong> vinculado a este pedido.
                 </span>
               </label>
             </div>
-          )}
-
-          <div className="space-y-2">
-            {totalMayorista > 0 && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400">Subtotal Productos Mayorista:</span>
-                <span className="font-medium text-amber-400">{formatARS(totalMayorista)}</span>
-              </div>
-            )}
-            {totalOferta > 0 && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400">Subtotal Productos Oferta:</span>
-                <span className="font-medium text-green-400">{formatARS(totalOferta)}</span>
-              </div>
-            )}
-
-           
-            {incluirDeudaAnterior && saldoPendienteCliente > 0 && (
-              <div className="flex justify-between items-center text-sm border-t border-gray-600 pt-2 mt-2">
-                <span className="text-red-400">+ Saldo Anterior Pendiente:</span>
-                <span className="font-medium text-red-400">{formatARS(saldoPendienteCliente)}</span>
-              </div>
-            )}
-
-            <div className="flex justify-between items-center text-lg pt-2 border-t border-gray-600">
-              <span className="text-gray-200 font-semibold">Total a Pagar:</span>
-              <span className="text-white font-bold text-xl">{formatARS(total)}</span>
-            </div>
           </div>
 
-      
-          <div className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600 flex items-start gap-3">
-            <input
-              type="checkbox"
-              id="registrarCC"
-              checked={registrarEnCuentaCorriente}
-              onChange={(e) => setRegistrarEnCuentaCorriente(e.target.checked)}
-              className="mt-1 w-5 h-5 rounded border-gray-500 text-amber-500 focus:ring-amber-500 bg-gray-700 cursor-pointer accent-amber-500"
-            />
-            <label htmlFor="registrarCC" className="text-sm text-gray-200 cursor-pointer flex flex-col">
-              <span className="font-semibold flex items-center gap-2">
-                <FaBook className="text-amber-400" /> Registrar en Cuenta Corriente
-              </span>
-              <span className="text-xs text-gray-400 mt-1">
-                Se agregará un movimiento de "Debe" por el <strong>total final</strong> vinculado a este pedido.
-              </span>
-            </label>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button 
+              type="button" 
+              onClick={(e) => { e.preventDefault(); if (validate()) { handleSubmit(e, true); } }} 
+              disabled={loading} 
+              className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold py-4 rounded-xl transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg hover:shadow-emerald-500/30 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <><svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Procesando...</>
+              ) : (
+                <>🖨️ Crear, Descontar Stock e Imprimir</>
+              )}
+            </button>
+            
+            <button 
+              type="submit" 
+              disabled={loading} 
+              className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold py-4 rounded-xl transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg hover:shadow-amber-500/30 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <><svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Creando...</>
+              ) : (
+                <> <FaCheckCircle /> Solo Crear Pedido</>
+              )}
+            </button>
+            
+            <Link href="/gestion/pedidos" className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 rounded-xl text-center transition-all duration-200 flex items-center justify-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg> Cancelar
+            </Link>
           </div>
+        </form>
       </div>
-                    */}
-
-
-
-
-
-      <div className="flex flex-col sm:flex-row gap-3 pt-2">
-        <button type="button" onClick={(e) => { e.preventDefault(); if (validate()) { handleSubmit(e, true); } }} disabled={loading} className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold py-4 rounded-xl transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg hover:shadow-emerald-500/30 flex items-center justify-center gap-2">
-          {loading ? (<><svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Procesando...</>) : (<>🖨️ Crear e Imprimir</>)}
-        </button>
-        <button type="submit" disabled={loading} className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold py-4 rounded-xl transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg hover:shadow-amber-500/30 flex items-center justify-center gap-2">
-          {loading ? (<><svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Creando...</>) : (<> <FaCheckCircle /> Crear Pedido</>)}
-        </button>
-        <Link href="/gestion/pedidos" className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 rounded-xl text-center transition-all duration-200 flex items-center justify-center gap-2">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg> Cancelar
-        </Link>
-      </div>
-    </form>
-      </div >
-    </div >
+    </div>
   );
 }

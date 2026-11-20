@@ -1,4 +1,3 @@
-// app/gestion/pedidos/nuevo/components/ProductoLinea.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -46,32 +45,55 @@ export default function ProductoLinea({
   onRemove,
   onChange
 }: ProductoLineaProps) {
-  // ✅ Estado local sincronizado con el prop cantidad
+  // ✅ Estado local para permitir escritura libre sin interrupciones
   const [cantidadInput, setCantidadInput] = useState<string>(formatCantidad(cantidad, producto.unidad));
+  const [isFocused, setIsFocused] = useState(false);
   
-  // ✅ Sincronizar estado local cuando cambia el prop desde el padre
+  // ✅ Sincronizar solo si NO está enfocado (evita sobrescribir mientras el usuario escribe)
   useEffect(() => {
-    setCantidadInput(formatCantidad(cantidad, producto.unidad));
-  }, [cantidad, producto.unidad]);
+    if (!isFocused) {
+      setCantidadInput(formatCantidad(cantidad, producto.unidad));
+    }
+  }, [cantidad, producto.unidad, isFocused]);
 
-  // ✅ Precios y cálculo del subtotal (se recalcula en cada render)
   const precioUnitario = tipoPrecio === 'oferta' 
     ? producto.precioOferta 
     : producto.precioMayorista;
   
   const subtotal = parseFloat((cantidad * precioUnitario).toFixed(2));
-
-  // ✅ Step dinámico según unidad
-  const step = producto.unidad === 'kg' || producto.unidad === 'litro' ? 0.1 : 1;
   const increment = producto.unidad === 'kg' || producto.unidad === 'litro' ? 0.1 : 1;
 
-  // ✅ Manejar cambio en input con formato de coma
+  // ✅ Manejar cambio en input: permite escribir libremente "1,", "1,5", etc.
   const handleCantidadChange = (value: string) => {
-    setCantidadInput(value);
-    // Convertir coma a punto para parsear
-    const valorNumerico = parseFloat(value.replace(',', '.'));
+    // Limpiar: solo permite números y una coma
+    let cleanValue = value.replace(/[^0-9,]/g, '');
+    const parts = cleanValue.split(',');
+    if (parts.length > 2) {
+      cleanValue = parts[0] + ',' + parts.slice(1).join('');
+    }
+    
+    setCantidadInput(cleanValue);
+    
+    // Actualizar el padre solo si es un número válido
+    const valorNumerico = parseFloat(cleanValue.replace(',', '.'));
     if (!isNaN(valorNumerico) && valorNumerico >= 0.001) {
       onChange('cantidad', parseFloat(valorNumerico.toFixed(3)));
+    }
+  };
+
+  // ✅ Normalizar al perder el foco (aquí sí agrega los ceros finales si es necesario)
+  const handleBlur = () => {
+    setIsFocused(false);
+    const valorNumerico = parseFloat(cantidadInput.replace(',', '.'));
+    
+    if (isNaN(valorNumerico) || valorNumerico < 0.001) {
+      const valorCorregido = 0.001;
+      setCantidadInput(formatCantidad(valorCorregido, producto.unidad));
+      onChange('cantidad', valorCorregido);
+    } else {
+      const valorCorregido = parseFloat(valorNumerico.toFixed(3));
+      setCantidadInput(formatCantidad(valorCorregido, producto.unidad));
+      onChange('cantidad', valorCorregido);
     }
   };
 
@@ -79,14 +101,13 @@ export default function ProductoLinea({
   const ajustarCantidad = (delta: number) => {
     const nuevaCantidad = parseFloat(Math.max(0.001, cantidad + delta).toFixed(3));
     onChange('cantidad', nuevaCantidad);
-    // El estado local se actualiza vía useEffect
+    setCantidadInput(formatCantidad(nuevaCantidad, producto.unidad));
   };
 
   return (
     <div className="bg-gray-750 p-4 rounded-lg border border-gray-600">
       <div className="flex justify-between items-start">
         <div className="flex-1">
-          {/* Nombre del producto + indicador de peso */}
           <div className="font-medium text-white flex items-center gap-2">
             {producto.nombre}
             {(producto.unidad === 'kg' || producto.unidad === 'litro') && (
@@ -97,7 +118,6 @@ export default function ProductoLinea({
             {getUnidadTexto(producto.unidad)}
           </div>
 
-          {/* Depósito */}
           <div className="mt-3">
             <label className="text-xs text-gray-400">Depósito</label>
             <select
@@ -113,9 +133,7 @@ export default function ProductoLinea({
             </select>
           </div>
 
-          {/* Cantidad + Subtotal en una fila */}
           <div className="mt-3 grid grid-cols-2 gap-3">
-            {/* ✅ Input de cantidad con botones */}
             <div>
               <label className="text-xs text-gray-400 flex items-center gap-1">
                 Cantidad ({producto.unidad})
@@ -135,16 +153,8 @@ export default function ProductoLinea({
                   inputMode="decimal"
                   value={cantidadInput}
                   onChange={(e) => handleCantidadChange(e.target.value)}
-                  onBlur={(e) => {
-                    // Normalizar al perder foco
-                    const valor = parseFloat(e.target.value.replace(',', '.'));
-                    if (isNaN(valor) || valor < 0.001) {
-                      setCantidadInput(formatCantidad(0.001, producto.unidad));
-                      onChange('cantidad', 0.001);
-                    } else {
-                      setCantidadInput(formatCantidad(valor, producto.unidad));
-                    }
-                  }}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={handleBlur}
                   className="flex-1 text-center bg-gray-700 border border-gray-600 rounded text-white text-sm py-1.5 font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
                   placeholder={producto.unidad === 'kg' ? "0,000" : "1"}
                 />
@@ -159,7 +169,6 @@ export default function ProductoLinea({
                 </button>
               </div>
               
-              {/* Hint para kg */}
               {producto.unidad === 'kg' && (
                 <p className="text-[10px] text-gray-500 mt-1 italic">
                   Ej: 1,300 = 1 kg 300g
@@ -167,7 +176,6 @@ export default function ProductoLinea({
               )}
             </div>
             
-            {/* ✅ Subtotal con indicador visual de recálculo */}
             <div>
               <label className="text-xs text-gray-400 flex items-center gap-1">
                 <FaCalculator className="text-green-400" /> Subtotal
@@ -175,14 +183,12 @@ export default function ProductoLinea({
               <div className="mt-1 px-2 py-1.5 bg-green-900/30 border border-green-700/50 rounded text-green-300 text-sm font-bold text-right">
                 {formatARS(subtotal)}
               </div>
-              {/* ✅ Mini-detalle del cálculo */}
               <p className="text-[10px] text-gray-500 mt-1 text-right">
                 {formatCantidad(cantidad, producto.unidad)} × {formatARS(precioUnitario)}
               </p>
             </div>
           </div>
 
-          {/* ✅ Selector de precio con unitario visible */}
           <div className="mt-3">
             <label className="text-xs text-gray-400">Precio unitario a aplicar</label>
             <div className="flex mt-1 gap-2">
@@ -220,7 +226,6 @@ export default function ProductoLinea({
           </div>
         </div>
 
-        {/* Botón eliminar */}
         <button
           onClick={onRemove}
           className="ml-3 text-red-400 hover:text-red-300 text-xl font-bold"

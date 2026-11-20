@@ -1,100 +1,79 @@
-// src/app/context/CartContext.tsx
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation'; // 👈 IMPORTANTE para App Router
+import { usePathname } from 'next/navigation';
 
-const CartContext = createContext<any>(null); // Puedes definir una interfaz más específica para el contexto si lo deseas
+// revisar CartDrawer.tsx
+
+const CartContext = createContext<any>(null);
 
 export function CartProvider({ children }: any) {
   const [cart, setCart] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
-  const pathname = usePathname(); // 👈 Detecta cambios de ruta
+  const pathname = usePathname();
 
-  // 🔹 FUNCIÓN CENTRAL: Leer carrito desde localStorage (fuente de verdad)
-const loadCartFromStorage = () => {
-  if (typeof window === 'undefined') return;
-  try {
-    const stored = localStorage.getItem('cart');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      
-      // 👇 NUEVO: Filtrar productos con cantidades inválidas (<= 0)
-      const validCart = parsed.filter((item: any) => 
-        item.qty && item.qty > 0 && !isNaN(item.qty)
-      );
-      
-      // Si hubo productos inválidos, guardar la versión corregida
-      if (validCart.length !== parsed.length) {
-        console.warn('🧹 Carrito corregido: se eliminaron', parsed.length - validCart.length, 'productos con cantidad inválida');
-        localStorage.setItem('cart', JSON.stringify(validCart));
+  const loadCartFromStorage = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = localStorage.getItem('cart');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const validCart = parsed.filter((item: any) => 
+          item.qty && item.qty > 0 && !isNaN(item.qty)
+        );
+        
+        if (validCart.length !== parsed.length) {
+          localStorage.setItem('cart', JSON.stringify(validCart));
+        }
+        
+        setCart(prev => JSON.stringify(prev) !== JSON.stringify(validCart) ? validCart : prev);
       }
-      
-      setCart(prev => JSON.stringify(prev) !== JSON.stringify(validCart) ? validCart : prev);
+    } catch (error) {
+      console.error('Error cargando carrito:', error);
     }
-  } catch (error) {
-    console.error('Error cargando carrito:', error);
-  }
-};
+  };
 
-
-  // 1️⃣ Cargar al montar por primera vez
   useEffect(() => {
     loadCartFromStorage();
     setIsLoaded(true);
   }, []);
 
-  // 2️⃣ 🔥 RE-SINCRONIZAR cuando cambia la ruta (navegación con flecha atrás/adelante)
   useEffect(() => {
     if (isLoaded) {
-      // Pequeño delay para asegurar que la navegación terminó
       const timer = setTimeout(() => {
         loadCartFromStorage();
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [pathname, isLoaded]); // 👈 CLAVE: se ejecuta en cada cambio de URL
+  }, [pathname, isLoaded]);
 
-  // 3️⃣ Guardar en localStorage cuando el carrito cambia
   useEffect(() => {
     if (isLoaded) {
       localStorage.setItem('cart', JSON.stringify(cart));
     }
   }, [cart, isLoaded]);
 
-  // 4️⃣ Escuchar evento 'storage' para sincronización entre pestañas
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'cart') {
-        loadCartFromStorage();
-      }
+      if (e.key === 'cart') loadCartFromStorage();
     };
-
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [isLoaded]);
 
-  // 5️⃣ 🔥 Bonus: Actualizar cuando el usuario regresa a la pestaña (focus)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    const handleFocus = () => {
-      loadCartFromStorage();
-    };
-
+    const handleFocus = () => loadCartFromStorage();
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [isLoaded]);
 
-  // 🔹 Función helper para notificaciones de stock (tu código original)
   const showStockNotification = (message: string, type: 'warning' | 'info' = 'warning') => {
     const toast = document.createElement('div');
-    toast.className = `fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 rounded-lg shadow-lg text-sm font-medium animate-fade-in ${type === 'warning'
-        ? 'bg-amber-500 text-white'
-        : 'bg-blue-500 text-white'
-      }`;
+    toast.className = `fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 rounded-lg shadow-lg text-sm font-medium animate-fade-in ${
+      type === 'warning' ? 'bg-amber-500 text-white' : 'bg-blue-500 text-white'
+    }`;
     toast.textContent = message;
     document.body.appendChild(toast);
 
@@ -110,54 +89,30 @@ const loadCartFromStorage = () => {
     }, 3000);
   };
 
-
-  // 🔹 AGREGAR AL CARRITO (tu lógica original, sin cambios)
+  // ✅ SIN LÍMITE DE STOCK: Agrega la cantidad exacta que se pide
   const addToCart = (product: any, qtyToAdd: number = 1) => {
     setCart(prev => {
       const existing = prev.find((p: any) => p._id === product._id);
-      const stockDisponible = product.stockTotal || 0;
-
       if (existing) {
-        const espacioRestante = stockDisponible - existing.qty;
-        if (espacioRestante <= 0) {
-          showStockNotification('⚠️ Ya agregaste todo el stock disponible', 'info');
-          return prev;
-        }
-        const cantidadAAgregar = Math.min(qtyToAdd, espacioRestante);
-        if (cantidadAAgregar < qtyToAdd) {
-          showStockNotification(`⚠️ Solo hay ${stockDisponible} unidades disponibles. Se agregaron ${cantidadAAgregar}.`);
-        }
         return prev.map((p: any) =>
-          p._id === product._id ? { ...p, qty: p.qty + cantidadAAgregar } : p
+          p._id === product._id ? { ...p, qty: p.qty + qtyToAdd } : p
         );
       } else {
-        const qtyFinal = Math.min(qtyToAdd, stockDisponible);
-        if (qtyFinal < qtyToAdd) {
-          showStockNotification(`⚠️ Solo hay ${stockDisponible} unidades disponibles. Se agregaron ${qtyFinal}.`);
-        }
-        return [
-          ...prev,
-          { ...product, qty: qtyFinal, stockTotal: stockDisponible }
-        ];
+        return [...prev, { ...product, qty: qtyToAdd }];
       }
     });
   };
 
-  // 🔹 INCREMENTAR CANTIDAD (botón +)
+  // ✅ SIN LÍMITE DE STOCK: Incrementa libremente
   const incrementQty = (id: string) => {
     setCart(prev =>
       prev.map(p => {
         if (p._id !== id) return p;
-        if (p.qty >= (p.stockTotal || 0)) {
-          showStockNotification('✅ Stock máximo alcanzado para este producto', 'info');
-          return p;
-        }
         return { ...p, qty: p.qty + 1 };
       })
     );
   };
 
-  // 🔹 DECREMENTAR CANTIDAD (botón −)
   const decrementQty = (id: string) => {
     setCart(prev =>
       prev
@@ -166,67 +121,35 @@ const loadCartFromStorage = () => {
     );
   };
 
-  // 🔹 ✨ NUEVO: ACTUALIZAR CANTIDAD MANUAL (para input numérico)
-  const updateQty = (id: string, newQty: number, stockMax: number) => {
-    // Validar y limitar la cantidad
-    const finalQty = Math.max(1, Math.min(newQty, stockMax));
-
+  // ✅ SIN LÍMITE DE STOCK: Solo valida que sea un número entero >= 1
+  const updateQty = (id: string, newQty: number) => {
+    const finalQty = Math.max(1, Math.floor(newQty));
     setCart(prev => {
-      // Si el producto existe, actualizamos su cantidad
       const exists = prev.some(p => p._id === id);
       if (exists) {
-        return prev.map(p =>
-          p._id === id ? { ...p, qty: finalQty } : p
-        );
+        return prev.map(p => p._id === id ? { ...p, qty: finalQty } : p);
       }
-      // Si no existe (caso edge), no hacemos nada
       return prev;
     });
-
-    // Notificación opcional si se ajustó por stock
-    if (newQty > stockMax && stockMax > 0) {
-      showStockNotification(`⚠️ Se ajustó a ${stockMax} (máximo disponible)`, 'info');
-    }
   };
 
-  // 🔹 REMOVER PRODUCTO
   const removeFromCart = (id: string) => {
     setCart(prev => prev.filter(p => p._id !== id));
   };
 
-  // 🔹 VACIAR CARRITO
-  const clearCart = () => {
-    setCart([]);
-  };
+  const clearCart = () => setCart([]);
 
-  // 🔹 CONTADOR DE ITEMS
   const getCartCount = () => cart.reduce((acc, item) => acc + item.qty, 0);
 
-  // 🔹 CALCULAR TOTAL
   const getCartTotal = () => {
     return cart.reduce((acc: number, p: any) => {
-      const price = p.precioOferta && p.precioOferta < p.precioMayorista
-        ? p.precioOferta
-        : p.precioMayorista;
+      const price = p.precioOferta && p.precioOferta < p.precioMayorista ? p.precioOferta : p.precioMayorista;
       return acc + price * p.qty;
     }, 0);
   };
 
   return (
-    <CartContext.Provider
-      value={{
-        cart,
-        isLoaded,
-        addToCart,
-        incrementQty,
-        decrementQty,
-        updateQty,        // 👈 NUEVO: expuesto para uso en componentes
-        removeFromCart,
-        clearCart,
-        getCartCount,
-        getCartTotal,
-      }}
-    >
+    <CartContext.Provider value={{ cart, isLoaded, addToCart, incrementQty, decrementQty, updateQty, removeFromCart, clearCart, getCartCount, getCartTotal }}>
       {children}
     </CartContext.Provider>
   );
@@ -234,8 +157,6 @@ const loadCartFromStorage = () => {
 
 export const useCart = () => {
   const context = useContext(CartContext);
-  if (!context) {
-    throw new Error('useCart debe usarse dentro de un CartProvider');
-  }
+  if (!context) throw new Error('useCart debe usarse dentro de un CartProvider');
   return context;
 };

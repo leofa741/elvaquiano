@@ -32,17 +32,18 @@ interface ProductoSimple {
 
 interface Pedido {
   _id: string; cliente: Cliente; productos: Producto[];
-  estado: 'pendiente' | 'preparacion' | 'cancelado'; // ✅ SOLO 3 ESTADOS
+  estado: 'pendiente' | 'preparacion' | 'cancelado';
   estadoPago: 'pendiente' | 'parcial' | 'pagado';
   deposito: string; fechaEstimadaEntrega?: string; notas?: string; total: number; createdAt: string;
+  stockDescontado?: boolean; // ✅ NUEVO: Para bloquear ediciones tras imprimir
 }
 
 const ESTADO_LABEL: Record<string, string> = {
-  pendiente: 'Pendiente', 
-  preparacion: 'En preparación', 
+  pendiente: 'Pendiente',
+  preparacion: 'En preparación',
   cancelado: 'Cancelado',
 };
-const ESTADO_OPCIONES = ['pendiente', 'preparacion', 'cancelado'] as const; // ✅ SOLO 3 OPCIONES
+const ESTADO_OPCIONES = ['pendiente', 'preparacion', 'cancelado'] as const;
 
 const ESTADO_PAGO_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
   pendiente: { label: 'Pago Pendiente', color: 'text-red-400', bgColor: 'bg-red-900/30 border-red-700/50' },
@@ -92,6 +93,7 @@ export default function DetallePedidoPage() {
   const [totalPagado, setTotalPagado] = useState<number>(0);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [procesandoPago, setProcesandoPago] = useState(false);
+  const [procesandoImpresion, setProcesandoImpresion] = useState(false);
 
   const [editandoProducto, setEditandoProducto] = useState<number | null>(null);
   const [cantidadTemporal, setCantidadTemporal] = useState<number>(1);
@@ -195,9 +197,14 @@ export default function DetallePedidoPage() {
   const handleCambiarEstado = async (nuevoEstado: string) => {
     if (updatingStatus) return;
     const result = await Swal.fire({
-      title: '¿Cambiar estado?', text: `¿Seguro que deseas cambiar el estado a "${ESTADO_LABEL[nuevoEstado]}"?`,
-      icon: 'question', showCancelButton: true, confirmButtonColor: '#3b82f6', cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Sí, actualizar', cancelButtonText: 'Cancelar'
+      title: '¿Cambiar estado?',
+      text: `¿Seguro que deseas cambiar el estado a "${ESTADO_LABEL[nuevoEstado]}"?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#3b82f6',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, actualizar',
+      cancelButtonText: 'Cancelar'
     });
 
     if (result.isConfirmed) {
@@ -211,7 +218,10 @@ export default function DetallePedidoPage() {
         if (res.ok) {
           const data = await res.json();
           await fetchPedidoData();
-          if (data.warning) {
+
+          if (data.message) {
+            Swal.fire({ icon: 'info', title: 'Estado actualizado', text: data.message, confirmButtonColor: '#3b82f6' });
+          } else if (data.warning) {
             Swal.fire({ icon: 'warning', title: 'Actualizado con advertencia', html: `<small style="color:#fbbf24;">⚠️ ${data.warning}</small>`, confirmButtonColor: '#f59e0b' });
           } else {
             Swal.fire('¡Actualizado!', 'El estado del pedido ha sido actualizado.', 'success');
@@ -247,10 +257,40 @@ export default function DetallePedidoPage() {
           nuevoPesoAproximado: pesoAproximadoTemporal === '' ? undefined : parseFloat(String(pesoAproximadoTemporal))
         }),
       });
+      const data = await res.json();
+
       if (res.ok) {
         await fetchPedidoData(); setEditandoProducto(null);
-        Swal.fire({ icon: 'success', title: '¡Actualizado!', timer: 2000 });
-      } else { Swal.fire('Error', (await res.json()).error || 'No se pudo actualizar', 'error'); }
+        if (data.warning) {
+          Swal.fire({ icon: 'warning', title: 'Guardado con advertencia', html: `<small style="color:#fbbf24;">${data.warning}</small>`, confirmButtonColor: '#f59e0b' });
+        } else {
+          Swal.fire({ icon: 'success', title: '¡Actualizado!', timer: 2000 });
+        }
+      } else { Swal.fire('Error', data.error || 'No se pudo actualizar', 'error'); }
+    } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
+  };
+
+  const handleAgregarProducto = async () => {
+    if (!productoSeleccionado || cantidadNuevo <= 0 || isNaN(cantidadNuevo) || precioNuevo <= 0 || isNaN(precioNuevo)) {
+      Swal.fire('Error', 'Selecciona un producto, cantidad y precio válidos', 'error'); return;
+    }
+    try {
+      const res = await fetch(`/api/gestion/pedidos/${id}/producto`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productoId: productoSeleccionado, cantidad: parseFloat(cantidadNuevo.toFixed(3)), precioPersonalizado: precioNuevo, actualizarProducto: actualizarProductoNuevo, soloTicket: esPrecioManualNuevo }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        await fetchPedidoData(); setMostrarAgregar(false); setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0);
+        setActualizarProductoNuevo(false); setBusquedaProducto(''); setEsPrecioManualNuevo(false);
+
+        if (data.warning) {
+          Swal.fire({ icon: 'warning', title: 'Agregado con advertencia', html: `<small style="color:#fbbf24;">${data.warning}</small>`, confirmButtonColor: '#f59e0b' });
+        } else {
+          Swal.fire({ icon: 'success', title: '¡Agregado!', timer: 2000 });
+        }
+      } else { Swal.fire('Error', data.error || 'No se pudo agregar', 'error'); }
     } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
   };
 
@@ -265,24 +305,6 @@ export default function DetallePedidoPage() {
     }
   };
 
-  const handleAgregarProducto = async () => {
-    if (!productoSeleccionado || cantidadNuevo <= 0 || isNaN(cantidadNuevo) || precioNuevo <= 0 || isNaN(precioNuevo)) {
-      Swal.fire('Error', 'Selecciona un producto, cantidad y precio válidos', 'error'); return;
-    }
-    try {
-      const res = await fetch(`/api/gestion/pedidos/${id}/producto`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productoId: productoSeleccionado, cantidad: parseFloat(cantidadNuevo.toFixed(3)), precioPersonalizado: precioNuevo, actualizarProducto: actualizarProductoNuevo, soloTicket: esPrecioManualNuevo }),
-      });
-      if (res.ok) {
-        await fetchPedidoData(); setMostrarAgregar(false); setProductoSeleccionado(''); setCantidadNuevo(1); setPrecioNuevo(0);
-        setActualizarProductoNuevo(false); setBusquedaProducto(''); setEsPrecioManualNuevo(false);
-        Swal.fire({ icon: 'success', title: '¡Agregado!', timer: 2000 });
-      } else { Swal.fire('Error', (await res.json()).error || 'No se pudo agregar', 'error'); }
-    } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
-  };
-
-  // ✅ MODIFICADO: Ahora solo agrega el cargo al pedido, NO registra un pago.
   const handleRegistrarImporteManual = async () => {
     if (procesandoPago || montoImporteManual <= 0) {
       if (montoImporteManual <= 0) Swal.fire('Error', 'El monto debe ser mayor a 0', 'error');
@@ -290,47 +312,41 @@ export default function DetallePedidoPage() {
     }
     setProcesandoPago(true);
     try {
-      // 1. Agregamos el concepto como un "producto/cargo" al pedido. 
-      // Esto hace que el backend sume este monto al TOTAL del pedido automáticamente.
       await fetch(`/api/gestion/pedidos/${id}/producto`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          productoId: CONCEPTO_MANUAL_ID, 
-          nombrePersonalizado: `📌 IMPORTE ADEUDADO: ${descImporteManual}`, 
-          unidadPersonalizada: 'unidad', 
-          cantidad: 1, 
-          precioPersonalizado: montoImporteManual, 
-          actualizarProducto: false 
+        body: JSON.stringify({
+          productoId: CONCEPTO_MANUAL_ID,
+          nombrePersonalizado: `📌 IMPORTE ADEUDADO: ${descImporteManual}`,
+          unidadPersonalizada: 'unidad',
+          cantidad: 1,
+          precioPersonalizado: montoImporteManual,
+          actualizarProducto: false
         }),
       });
-      
-      // 2. ELIMINADO: Ya no llamamos a /api/gestion/pagos, porque esto es una deuda, no un pago.
-      // Al no registrarlo como pago, el campo "Pagado" no aumenta falsamente.
 
-      // 3. Recargamos los datos del pedido para que el Total y el Saldo Pendiente se recalculen correctamente
       await fetchPedidoData();
       const saldoRes = await fetch(`/api/gestion/pedidos/${id}/saldo`, { cache: 'no-store' });
-      if (saldoRes.ok) { 
-        const d = await saldoRes.json(); 
-        setSaldoPendiente(d.saldoPendiente); 
-        setTotalPagado(d.totalPagado || 0); 
+      if (saldoRes.ok) {
+        const d = await saldoRes.json();
+        setSaldoPendiente(d.saldoPendiente);
+        setTotalPagado(d.totalPagado || 0);
       }
-      
-      Swal.fire({ 
-        icon: 'success', 
-        title: '¡Importe Agregado!', 
-        html: `Se agregó el importe adeudado de <strong>${formatARS(montoImporteManual)}</strong> al total del pedido.`, 
-        confirmButtonColor: '#3b82f6' 
+
+      Swal.fire({
+        icon: 'success',
+        title: '¡Importe Agregado!',
+        html: `Se agregó el importe adeudado de <strong>${formatARS(montoImporteManual)}</strong> al total del pedido.`,
+        confirmButtonColor: '#3b82f6'
       });
-      
-      setMostrarImporteManual(false); 
-      setMontoImporteManual(0); 
-      setDescImporteManual('Deuda de pedido anterior'); 
+
+      setMostrarImporteManual(false);
+      setMontoImporteManual(0);
+      setDescImporteManual('Deuda de pedido anterior');
       setFormaPagoImporteManual('otro');
-    } catch (err: any) { 
-      Swal.fire('Error', err.message || 'Error de conexión', 'error'); 
-    } finally { 
-      setProcesandoPago(false); 
+    } catch (err: any) {
+      Swal.fire('Error', err.message || 'Error de conexión', 'error');
+    } finally {
+      setProcesandoPago(false);
     }
   };
 
@@ -425,7 +441,6 @@ export default function DetallePedidoPage() {
           </div>
         </div>
 
-        {/* ✅ BOTONES DE ESTADO SIMPLIFICADOS A 3 */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-300 mb-2">Estado actual</label>
           <div className="flex flex-wrap gap-2">
@@ -441,11 +456,11 @@ export default function DetallePedidoPage() {
               );
             })}
           </div>
-          {updatingStatus && <p className="text-xs text-amber-400 mt-2 flex items-center gap-1 animate-pulse"><FaSync className="animate-spin" /> Actualizando pedido y ajustando stock...</p>}
+          {updatingStatus && <p className="text-xs text-amber-400 mt-2 flex items-center gap-1 animate-pulse"><FaSync className="animate-spin" /> Actualizando estado...</p>}
         </div>
 
-        {/* ✅ SOLO SE PUEDE AGREGAR/EDITAR EN 'preparacion' (puedes cambiar a ['pendiente', 'preparacion'] si lo prefieres) */}
-        {['preparacion'].includes(pedido.estado) && (
+        {/* ✅ 1. SOLO SE PUEDE AGREGAR EN 'preparacion' Y SI NO SE HA DESCONTADO EL STOCK */}
+        {['preparacion'].includes(pedido.estado) && !pedido.stockDescontado && (
           <div className="mb-4">
             <button onClick={() => { setMostrarAgregar(!mostrarAgregar); if (!mostrarAgregar) setTimeout(() => inputRef.current?.focus(), 50); }} className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 text-sm">
               <FaPlus size={12} /> Agregar producto al pedido
@@ -526,6 +541,17 @@ export default function DetallePedidoPage() {
           </div>
         )}
 
+        {/* ✅ 2. AVISO DE BLOQUEO SI YA SE DESCONTÓ EL STOCK */}
+        {['preparacion'].includes(pedido.estado) && pedido.stockDescontado && (
+          <div className="mb-4 p-4 bg-blue-900/20 border border-blue-700/50 rounded-lg flex items-start gap-3">
+            <FaCheck className="text-blue-400 text-xl mt-0.5 shrink-0" />
+            <div>
+              <p className="text-blue-300 font-semibold">Pedido procesado e impreso</p>
+              <p className="text-blue-200/70 text-sm">El stock ya ha sido descontado del inventario. Para garantizar la integridad de los datos, ya no es posible agregar, editar o eliminar productos de este pedido.</p>
+            </div>
+          </div>
+        )}
+
         <div className="mb-6">
           <h3 className="text-lg font-medium text-amber-400 mb-3">Productos</h3>
           <div className="space-y-3">
@@ -588,8 +614,9 @@ export default function DetallePedidoPage() {
                             {(p as any).esPrecioManualTicket && <span className="ml-2 px-1.5 py-0.5 bg-amber-900/40 text-amber-400 text-[10px] rounded border border-amber-700/50 flex items-center gap-1"><FaFileInvoice size={8} /> Manual</span>}
                           </div>
                         </div>
-                        {/* ✅ SOLO SE PUEDE EDITAR/ELIMINAR EN 'preparacion' */}
-                        {['preparacion'].includes(pedido.estado) && (
+
+                        {/* ✅ 3. SOLO SE PUEDE EDITAR/ELIMINAR EN 'preparacion' Y SI NO SE HA DESCONTADO EL STOCK */}
+                        {['preparacion'].includes(pedido.estado) && !pedido.stockDescontado && (
                           <div className="flex gap-1">
                             <button onClick={() => iniciarEdicion(idx, p.cantidad, p.precioAplicado, !!(p as any).esPrecioManualTicket, p.pesoAproximado)} className="text-amber-500 hover:text-amber-400" title="Editar"><FaEdit size={16} /></button>
                             <button onClick={() => eliminarProducto(idx, p.nombre)} className="text-red-500 hover:text-red-400" title="Eliminar"><FaTrash size={16} /></button>
@@ -629,78 +656,140 @@ export default function DetallePedidoPage() {
           </div>
         )}
 
-        {/* ✅ MODIFICADO: Sección rediseñada para reflejar que es un Cargo/Deuda, no un Pago */}
-        <div className="mt-6 p-4 bg-gray-750 rounded-lg border border-gray-700">
-          <span className="text-sm font-medium text-amber-400 mb-2 flex items-center gap-2">
-            <FaExclamationCircle /> Agregar importe adeudado al pedido (Cargo/Deuda):
-          </span>
-          <button onClick={() => setMostrarImporteManual(!mostrarImporteManual)} className="w-full flex items-center justify-between p-3 rounded-lg border bg-blue-900/20 hover:bg-blue-900/30 border-blue-700/50 transition group text-left cursor-pointer mt-2">
-            <div className="flex items-center gap-2">
-              <FaDollarSign className="text-blue-400" />
-              <span className="font-semibold text-sm text-blue-300 group-hover:text-blue-200">Agregar Importe Adeudado</span>
-            </div>
-            <span className="text-xs font-bold text-blue-400 flex items-center gap-1">
-              <FaPlus size={10} /> {mostrarImporteManual ? 'Ocultar formulario' : 'Ingresar importe'}
+        {/* ✅ 4. DESHABILITAR CARGOS MANUALES SI YA SE DESCONTÓ EL STOCK */}
+        {!pedido.stockDescontado ? (
+          <div className="mt-6 p-4 bg-gray-750 rounded-lg border border-gray-700">
+            <span className="text-sm font-medium text-amber-400 mb-2 flex items-center gap-2">
+              <FaExclamationCircle /> Agregar importe adeudado al pedido (Cargo/Deuda):
             </span>
-          </button>
+            <button onClick={() => setMostrarImporteManual(!mostrarImporteManual)} className="w-full flex items-center justify-between p-3 rounded-lg border bg-blue-900/20 hover:bg-blue-900/30 border-blue-700/50 transition group text-left cursor-pointer mt-2">
+              <div className="flex items-center gap-2">
+                <FaDollarSign className="text-blue-400" />
+                <span className="font-semibold text-sm text-blue-300 group-hover:text-blue-200">Agregar Importe Adeudado</span>
+              </div>
+              <span className="text-xs font-bold text-blue-400 flex items-center gap-1">
+                <FaPlus size={10} /> {mostrarImporteManual ? 'Ocultar formulario' : 'Ingresar importe'}
+              </span>
+            </button>
 
-          {mostrarImporteManual && (
-            <div className="p-4 bg-gray-800 rounded-lg border border-blue-900/50 space-y-3 mt-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Descripción del concepto</label>
-                <input 
-                  type="text" 
-                  value={descImporteManual} 
-                  onChange={(e) => setDescImporteManual(e.target.value)} 
-                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
-                  placeholder="Ej. Deuda de boleta anterior, Saldo pendiente, etc." 
-                />
+            {mostrarImporteManual && (
+              <div className="p-4 bg-gray-800 rounded-lg border border-blue-900/50 space-y-3 mt-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1">Descripción del concepto</label>
+                  <input type="text" value={descImporteManual} onChange={(e) => setDescImporteManual(e.target.value)} className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Ej. Deuda de boleta anterior, Saldo pendiente, etc." />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1">Importe a SUMAR al total del pedido ($)</label>
+                  <input type="number" step="0.01" min="0.01" value={montoImporteManual} onChange={(e) => setMontoImporteManual(parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono" placeholder="0.00" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1">Referencia u Origen (opcional)</label>
+                  <input type="text" value={formaPagoImporteManual === 'otro' ? '' : formaPagoImporteManual} onChange={(e) => setFormaPagoImporteManual(e.target.value || 'otro')} className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Ej. Boleta #1234, Pedido anterior, etc." />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button onClick={handleRegistrarImporteManual} disabled={montoImporteManual <= 0 || procesandoPago} className={`flex-1 py-2 rounded text-sm font-medium transition flex items-center justify-center gap-2 ${procesandoPago || montoImporteManual <= 0 ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+                    {procesandoPago ? <><FaSync className="animate-spin" /> Procesando...</> : <><FaCheck size={12} /> Sumar al Total del Pedido</>}
+                  </button>
+                  <button onClick={() => { setMostrarImporteManual(false); setMontoImporteManual(0); setDescImporteManual('Deuda de pedido anterior'); setFormaPagoImporteManual('otro'); }} className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded text-sm transition">
+                    Cancelar
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Importe a SUMAR al total del pedido ($)</label>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  min="0.01" 
-                  value={montoImporteManual} 
-                  onChange={(e) => setMontoImporteManual(parseFloat(e.target.value) || 0)} 
-                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono" 
-                  placeholder="0.00" 
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Referencia u Origen (opcional)</label>
-                <input 
-                  type="text" 
-                  value={formaPagoImporteManual === 'otro' ? '' : formaPagoImporteManual} 
-                  onChange={(e) => setFormaPagoImporteManual(e.target.value || 'otro')} 
-                  className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
-                  placeholder="Ej. Boleta #1234, Pedido anterior, etc." 
-                />
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button 
-                  onClick={handleRegistrarImporteManual} 
-                  disabled={montoImporteManual <= 0 || procesandoPago} 
-                  className={`flex-1 py-2 rounded text-sm font-medium transition flex items-center justify-center gap-2 ${procesandoPago || montoImporteManual <= 0 ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
-                >
-                  {procesandoPago ? <><FaSync className="animate-spin" /> Procesando...</> : <><FaCheck size={12} /> Sumar al Total del Pedido</>}
-                </button>
-                <button 
-                  onClick={() => { setMostrarImporteManual(false); setMontoImporteManual(0); setDescImporteManual('Deuda de pedido anterior'); setFormaPagoImporteManual('otro'); }} 
-                  className="px-4 py-2 text-gray-300 hover:text-white border border-gray-600 rounded text-sm transition"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        ) : (
+          <div className="mt-6 p-4 bg-gray-750 rounded-lg border border-gray-700 opacity-60">
+            <span className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
+              <FaExclamationCircle /> Agregar importe adeudado (Deshabilitado)
+            </span>
+            <p className="text-xs text-gray-500">No se pueden agregar cargos una vez que el stock ha sido descontado e impreso.</p>
+          </div>
+        )}
 
         <div className="flex flex-col gap-2 mt-6">
-          <Link href={`/gestion/pedidos/${pedido._id}/imprimir`} className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
-            <FaPrint /> Imprimir ticket
-          </Link>
+          <button
+            onClick={async () => {
+              if (procesandoImpresion) return;
+              setProcesandoImpresion(true);
+
+              Swal.fire({
+                title: 'Procesando pedido...',
+                html: 'Descontando stock del inventario.<br><small style="color:#9ca3af;">Por favor, no cierres esta ventana ni actualices la página.</small>',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                didOpen: () => { Swal.showLoading(); }
+              });
+
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+              try {
+                const res = await fetch(`/api/gestion/pedidos/${pedido._id}/descontar-stock`, {
+                  method: 'POST',
+                  signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+                if (!res.ok) throw new Error('Error en el servidor al procesar el descuento');
+
+                const data = await res.json();
+
+                if (data.yaDescontado) {
+                  Swal.fire({
+                    icon: 'info',
+                    title: 'Aviso de Seguridad',
+                    text: 'El stock de este pedido ya había sido descontado previamente. Procediendo a imprimir.',
+                    timer: 2500
+                  });
+                } else {
+                  Swal.fire({
+                    icon: 'success',
+                    title: '¡Stock Descontado!',
+                    text: 'El inventario se ha actualizado correctamente.',
+                    timer: 1500
+                  });
+
+                  // ✅ AQUÍ ESTÁ LA CLAVE: Actualizamos el estado local inmediatamente
+                  // Esto fuerza a React a re-renderizar y mostrar el bloqueo al instante
+                  setPedido(prev => prev ? { ...prev, stockDescontado: true } : null);
+                }
+
+                // Abrir la ventana de impresión en una nueva pestaña
+                window.open(`/gestion/pedidos/${pedido._id}/imprimir`, '_blank');
+
+              } catch (error: any) {
+                clearTimeout(timeoutId);
+                if (error.name === 'AbortError') {
+                  Swal.fire({
+                    icon: 'warning',
+                    title: 'Conexión inestable',
+                    html: 'La petición tardó demasiado. <br><br><strong>Tranquilo:</strong> El sistema tiene un bloqueo de seguridad. Si el descuento se realizó, <u>no se duplicará</u>. Si falló, puedes intentar hacer clic en el botón nuevamente.',
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: '#f59e0b'
+                  });
+                } else {
+                  Swal.fire({
+                    icon: 'error',
+                    title: 'Error de conexión',
+                    text: 'No se pudo conectar con el servidor. Verifica tu conexión a internet e intenta nuevamente.',
+                    confirmButtonColor: '#ef4444'
+                  });
+                }
+              } finally {
+                setProcesandoImpresion(false);
+              }
+            }}
+            disabled={procesandoImpresion}
+            className={`flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-3 font-semibold rounded-lg transition shadow-lg ${procesandoImpresion ? 'bg-gray-600 text-gray-400 cursor-not-allowed shadow-none' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-900/20'}`}
+          >
+            {procesandoImpresion ? (
+              <><FaSync className="animate-spin" /> Procesando...</>
+            ) : (
+              <><FaPrint /> Descontar Stock e Imprimir Ticket</>
+            )}
+          </button>
+
+
         </div>
       </div>
     </div>

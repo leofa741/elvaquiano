@@ -57,6 +57,7 @@ export default async function CategoriaPage({ params }: PageProps) {
     imagen: p.imagen,
     stockMinimoAlerta: p.stockMinimoAlerta,
   }));
+  
 
   const filtrados = productos.filter(
     (p: any) => slugify(p.categoria) === slug

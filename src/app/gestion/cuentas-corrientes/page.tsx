@@ -50,27 +50,16 @@ const FORMAS_PAGO = [
   { value: 'otro', label: 'Otro' },
 ];
 
-// Función para agrupar movimientos por fecha y sumar sus importes
-const agruparMovimientosPorFecha = (movimientos: Movimiento[]) => {
-  const agrupados: Record<string, { fecha: string; tipo: string; descripcion: string; importe: number; cantidad: number }> = {};
-  
-  movimientos.forEach(mov => {
-    if (!agrupados[mov.fecha]) {
-      agrupados[mov.fecha] = {
-        fecha: mov.fecha,
-        tipo: mov.tipo,
-        descripcion: mov.descripcion,
-        importe: mov.importe,
-        cantidad: 1
-      };
-    } else {
-      agrupados[mov.fecha].importe += mov.importe;
-      agrupados[mov.fecha].cantidad += 1;
-      agrupados[mov.fecha].descripcion = `${agrupados[mov.fecha].cantidad} movimientos del día`;
-    }
+// ✅ FUNCIÓN SEGURA PARA FORMATEAR FECHAS (Evita "Invalid Date")
+const formatFechaSegura = (fechaStr: string) => {
+  if (!fechaStr) return 'Fecha no disponible';
+  const fecha = new Date(fechaStr);
+  if (isNaN(fecha.getTime())) {
+    return fechaStr || 'Fecha inválida';
+  }
+  return fecha.toLocaleString('es-AR', { 
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
   });
-
-  return Object.values(agrupados);
 };
 
 export default function CuentasCorrientesPage() {
@@ -350,24 +339,13 @@ export default function CuentasCorrientesPage() {
       setProcesandoPagoId(cuenta.clienteId);
       try {
         let descripcionPago = `Pago recibido - ${FORMAS_PAGO.find(f => f.value === formValues.formaPago)?.label}`;
-        
         if (formValues.montoInteres > 0) {
-          descripcionPago += ` (Incluye ${formatARS(formValues.montoInteres)} de interés/recargo)`;
-          
-          const resInteres = await fetch('/api/gestion/cuentas-corrientes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              clienteId: cuenta.clienteId,
-              tipo: 'ajuste',
-              importe: formValues.montoInteres,
-              descripcion: 'Interés/Recargo aplicado a pago parcial',
-              notas: `Interés manual cobrado junto al pago. Forma de pago: ${formValues.formaPago}`
-            })
-          });
-          
-          if (!resInteres.ok) throw new Error('No se pudo registrar el interés/recargo');
+          descripcionPago += ` (Capital: ${formatARS(formValues.montoCapital)} + Interés: ${formatARS(formValues.montoInteres)})`;
+        } else {
+          descripcionPago += ` por ${formatARS(formValues.montoCapital)}`;
         }
+        if (formValues.referencia) descripcionPago += ` | Ref: ${formValues.referencia}`;
+        if (formValues.notas) descripcionPago += ` | Nota: ${formValues.notas}`;
 
         const totalPagar = formValues.montoCapital + formValues.montoInteres;
 
@@ -530,12 +508,7 @@ export default function CuentasCorrientesPage() {
       try {
         let conceptoFinal = formValues.concepto;
         if (formValues.montoInteres > 0) {
-          conceptoFinal += ` (Incluye ${formatARS(formValues.montoInteres)} de interés/recargo)`;
-          const resInteres = await fetch('/api/gestion/cuentas-corrientes', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clienteId: cuenta.clienteId, tipo: 'ajuste', importe: formValues.montoInteres, descripcion: 'Interés/Recargo aplicado', notas: `Forma de pago: ${formValues.formaPago}` })
-          });
-          if (!resInteres.ok) throw new Error('No se pudo registrar el interés/recargo');
+          conceptoFinal += ` (Capital: ${formatARS(formValues.montoCapital)} + Interés: ${formatARS(formValues.montoInteres)})`;
         }
 
         const totalPagar = formValues.montoCapital + formValues.montoInteres;
@@ -548,7 +521,13 @@ export default function CuentasCorrientesPage() {
 
         const resCC = await fetch('/api/gestion/cuentas-corrientes', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clienteId: cuenta.clienteId, tipo: 'pago', importe: totalPagar, formaPago: formValues.formaPago, descripcion: `Recibo #${String(recibo.numero).padStart(6, '0')} - ${conceptoFinal}` })
+          body: JSON.stringify({ 
+            clienteId: cuenta.clienteId, 
+            tipo: 'pago', 
+            importe: totalPagar, 
+            formaPago: formValues.formaPago, 
+            descripcion: `Recibo #${String(recibo.numero).padStart(6, '0')} - ${conceptoFinal}` 
+          })
         });
 
         if (resCC.ok) {
@@ -733,37 +712,40 @@ export default function CuentasCorrientesPage() {
                             <FaHistory className="text-amber-400" /> Historial de Pagos y Movimientos
                           </div>
                           
-                          {/* CONTENEDOR CON SCROLL INTERNO Y ENCABEZADO FIJO */}
                           <div className="overflow-x-auto rounded-lg border border-gray-700 max-h-64 overflow-y-auto">
                             <table className="w-full text-xs text-left">
                               <thead className="bg-gray-900/90 text-gray-400 sticky top-0 z-10 backdrop-blur-sm">
                                 <tr>
-                                  <th className="px-3 py-2">Fecha</th>
+                                  <th className="px-3 py-2">Fecha y Hora</th>
                                   <th className="px-3 py-2">Tipo</th>
-                                  <th className="px-3 py-2">Descripción</th>
-                                  <th className="px-3 py-2 text-right">Importe Total</th>
+                                  <th className="px-3 py-2">Descripción Detallada</th>
+                                  <th className="px-3 py-2 text-right">Importe</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-700 bg-gray-900/30">
-                                {agruparMovimientosPorFecha(cuenta.ultimosMovimientos).map((mov, idx) => (
-                                  <tr key={idx} className="hover:bg-gray-800/50 transition-colors">
-                                    <td className="px-3 py-2 text-gray-300 whitespace-nowrap">{mov.fecha}</td>
-                                    <td className="px-3 py-2">
-                                      <span className={`font-semibold capitalize flex items-center gap-1 ${
-                                        mov.tipo === 'pago' ? 'text-green-400' : 
-                                        mov.tipo === 'ajuste' ? 'text-amber-400' : 'text-blue-400'
-                                      }`}>
-                                        {mov.tipo === 'pago' ? '💰 Pago' : mov.tipo === 'ajuste' ? '⚠️ Ajuste' : '📦 Pedido'}
-                                      </span>
-                                    </td>
-                                    <td className="px-3 py-2 text-gray-300 max-w-[150px] truncate" title={mov.descripcion}>
-                                      {mov.descripcion}
-                                    </td>
-                                    <td className="px-3 py-2 text-right font-bold text-white whitespace-nowrap">
-                                      {formatARS(mov.importe)}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {cuenta.ultimosMovimientos.map((mov, idx) => {
+                                  // ✅ AQUÍ USAMOS LA FUNCIÓN SEGURA
+                                  const fechaFormateada = formatFechaSegura(mov.fecha);
+                                  return (
+                                    <tr key={idx} className="hover:bg-gray-800/50 transition-colors">
+                                      <td className="px-3 py-2 text-gray-300 whitespace-nowrap text-[11px]">{fechaFormateada}</td>
+                                      <td className="px-3 py-2">
+                                        <span className={`font-semibold capitalize flex items-center gap-1 ${
+                                          mov.tipo === 'pago' ? 'text-green-400' : 
+                                          mov.tipo === 'ajuste' ? 'text-amber-400' : 'text-blue-400'
+                                        }`}>
+                                          {mov.tipo === 'pago' ? '💰 Pago' : mov.tipo === 'ajuste' ? '⚠️ Ajuste' : '📦 Pedido'}
+                                        </span>
+                                      </td>
+                                      <td className="px-3 py-2 text-gray-300 text-xs" title={mov.descripcion}>
+                                        {mov.descripcion}
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-bold text-white whitespace-nowrap text-xs">
+                                        {formatARS(mov.importe)}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>

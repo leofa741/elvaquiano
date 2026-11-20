@@ -101,14 +101,14 @@ export default async function StockLogsPage({
 
       {logs.length === 0 ? (
         <div className="text-center py-12">
-          <div className="text-gray-500 mb-2">📦</div>
+          <div className="text-gray-500 mb-2 text-4xl">📦</div>
           <p className="text-gray-400">
             No se encontraron registros de cambios de stock.
           </p>
         </div>
       ) : (
         <div className="overflow-x-auto bg-gray-800 rounded-xl shadow-lg border border-gray-700">
-          <table className="w-full min-w-[800px]">
+          <table className="w-full min-w-[900px]">
             <thead className="bg-gray-900">
               <tr>
                 <th className="text-left py-3 px-4 text-xs text-gray-300 uppercase">
@@ -126,17 +126,26 @@ export default async function StockLogsPage({
                 <th className="text-left py-3 px-4 text-xs text-gray-300 uppercase">
                   Stock Anterior
                 </th>
+                {/* ✅ NUEVA COLUMNA: VARIACIÓN */}
+                <th className="text-center py-3 px-4 text-xs text-gray-300 uppercase">
+                  Variación
+                </th>
                 <th className="text-left py-3 px-4 text-xs text-gray-300 uppercase">
-                  Stock Nuevo
+                  Stock Resultante
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
               {logs.map((log: any) => {
                 const accionInfo = getAccionLabel(log.accion);
+                // ✅ CALCULAR LA DIFERENCIA
+                const variacion = log.stockTotalNuevo - log.stockTotalAnterior;
+                const esAumento = variacion > 0;
+                const esDisminucion = variacion < 0;
+
                 return (
                   <tr key={log._id} className="hover:bg-gray-750 transition">
-                    <td className="py-3 px-4 text-gray-300 text-sm">
+                    <td className="py-3 px-4 text-gray-300 text-sm whitespace-nowrap">
                       {new Date(log.timestamp).toLocaleString("es-AR", {
                         day: "2-digit",
                         month: "2-digit",
@@ -148,28 +157,43 @@ export default async function StockLogsPage({
                     <td className="py-3 px-4 text-white text-sm break-all">
                       {log.usuario}
                     </td>
-                    <td className="py-3 px-4 text-white text-sm">
+                    <td className="py-3 px-4 text-white text-sm font-medium">
                       {log.productoNombre}
                     </td>
                     <td className="py-3 px-4">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs ${accionInfo.color}`}>
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${accionInfo.color}`}>
                         {accionInfo.label}
                       </span>
                     </td>
+                    
+                    {/* STOCK ANTERIOR */}
                     <td className="py-3 px-4">
                       <div className="text-sm">
                         <div className="text-gray-400">Total: <span className="font-semibold text-white">{log.stockTotalAnterior}</span></div>
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-xs text-gray-500 mt-1 space-y-0.5">
                           {log.stockAnterior.map((s: any, i: number) => (
                             <div key={i}>{s.deposito}: {s.cantidad}</div>
                           ))}
                         </div>
                       </div>
                     </td>
+
+                    {/* ✅ VARIACIÓN (CANTIDAD AGREGADA/RESTADA) */}
+                    <td className="py-3 px-4 text-center">
+                      <span className={`inline-flex items-center justify-center w-16 py-1 rounded-full text-sm font-bold ${
+                        esAumento ? 'bg-green-900/40 text-green-400 border border-green-700/50' : 
+                        esDisminucion ? 'bg-red-900/40 text-red-400 border border-red-700/50' : 
+                        'bg-gray-700 text-gray-400'
+                      }`}>
+                        {esAumento ? '+' : ''}{variacion}
+                      </span>
+                    </td>
+
+                    {/* STOCK RESULTANTE */}
                     <td className="py-3 px-4">
                       <div className="text-sm">
-                        <div className="text-gray-400">Total: <span className="font-semibold text-white">{log.stockTotalNuevo}</span></div>
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-gray-400">Resultante: <span className="font-semibold text-white">{log.stockTotalNuevo}</span></div>
+                        <div className="text-xs text-gray-500 mt-1 space-y-0.5">
                           {log.stockNuevo.map((s: any, i: number) => (
                             <div key={i}>{s.deposito}: {s.cantidad}</div>
                           ))}
@@ -193,17 +217,17 @@ export default async function StockLogsPage({
             {currentPage > 1 && (
               <a
                 href={buildUrl(currentPage - 1)}
-                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white"
+                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm transition"
               >
-                Anterior
+                ← Anterior
               </a>
             )}
             {currentPage < totalPages && (
               <a
                 href={buildUrl(currentPage + 1)}
-                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white"
+                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm transition"
               >
-                Siguiente
+                Siguiente →
               </a>
             )}
           </div>
