@@ -30,262 +30,63 @@ function normalizarFormaPago(formaPago: any): string {
   return mapeo[valor] || 'otro';
 }
 
-// ✅ FUNCIÓN CORREGIDA: Ahora recibe pagoIdOriginal para evitar duplicados al fraccionar
-async function actualizarEstadoPagoPedidos(
-  clienteId: string, 
-  montoPagado: number, 
-  movimientoCCId: string,
-  pedidoIdEspecifico?: string,
-  pagoIdOriginal?: string // 🆕 NUEVO: Para eliminar el pago general si se va a fraccionar
-) {
-  try {
-    console.log('🔍 [actualizarEstadoPagoPedidos] Iniciando...', {
-      clienteId,
-      montoPagado,
-      movimientoCCId,
-      pedidoIdEspecifico,
-      pagoIdOriginal
-    });
-
-    // Si hay un pedidoId específico, actualizar solo ese (NO borramos el pago original, es correcto)
-    if (pedidoIdEspecifico) {
-      const pedido = await Pedido.findById(pedidoIdEspecifico);
-      if (!pedido) {
-        console.warn('⚠️ Pedido específico no encontrado:', pedidoIdEspecifico);
-        return;
-      }
-
-      const pagosEnPago = await Pago.find({ pedido: pedidoIdEspecifico });
-      const pagosEnCC = await CuentaCorriente.find({
-        cliente: clienteId,
-        pedido: pedidoIdEspecifico,
-        tipo: 'pago'
-      });
-
-      const totalPagadoEnPago = pagosEnPago.reduce((sum, p) => sum + Number(p.monto), 0);
-      const totalPagadoEnCC = pagosEnCC.reduce((sum, p) => sum + Number(p.importe), 0);
-      const totalPagado = totalPagadoEnPago + totalPagadoEnCC;
-      const totalPedido = Number(pedido.total) || 0;
-
-      if (totalPagado >= totalPedido) {
-        pedido.estadoPago = 'pagado';
-      } else if (totalPagado > 0) {
-        pedido.estadoPago = 'parcial';
-      } else {
-        pedido.estadoPago = 'pendiente';
-      }
-      await pedido.save();
-      return;
-    }
-
-    // ✅ Si NO hay pedidoId específico, distribuir el pago entre pedidos pendientes
-    const pedidosPendientes = await Pedido.find({
-      cliente: new mongoose.Types.ObjectId(clienteId),
-      estadoPago: { $in: ['pendiente', 'parcial'] },
-      activo: { $ne: false },
-      estado: { $ne: 'cancelado' }
-    }).sort({ createdAt: 1 });
-
-    if (pedidosPendientes.length === 0) {
-      console.warn('⚠️ No hay pedidos pendientes para el cliente', clienteId);
-      return;
-    }
-
-    let montoRestante = montoPagado;
-    
-    const movimientoOriginal = await CuentaCorriente.findById(movimientoCCId);
-    if (!movimientoOriginal) {
-      console.error('❌ Movimiento original no encontrado:', movimientoCCId);
-      return;
-    }
-
-    // 1. Eliminamos el movimiento de CC original (se va a fraccionar)
-    await CuentaCorriente.findByIdAndDelete(movimientoCCId);
-
-    // 🆕 2. ELIMINAMOS EL PAGO GENERAL CREADO EN EL POST, YA QUE SE VA A FRACCIONAR
-    // Esto evita que quede el pago "general" + los pagos "fraccionados" (duplicidad)
-    if (pagoIdOriginal) {
-      await Pago.findByIdAndDelete(pagoIdOriginal);
-    }
-
-    let saldoAcumulado = movimientoOriginal.saldoAnterior || 0;
-    let pedidosActualizados = 0;
-
-    for (const pedido of pedidosPendientes) {
-      if (montoRestante <= 0) break;
-
-      const totalPedido = Number(pedido.total) || 0;
-      
-      const pagosEnPago = await Pago.find({ pedido: pedido._id });
-      const pagosEnCC = await CuentaCorriente.find({
-        cliente: new mongoose.Types.ObjectId(clienteId),
-        pedido: pedido._id,
-        tipo: 'pago'
-      });
-
-      const totalPagadoEnPago = pagosEnPago.reduce((sum, p) => sum + Number(p.monto), 0);
-      const totalPagadoEnCC = pagosEnCC.reduce((sum, p) => sum + Number(p.importe), 0);
-      const totalPagadoPedido = totalPagadoEnPago + totalPagadoEnCC;
-      const saldoPendientePedido = totalPedido - totalPagadoPedido;
-
-      if (saldoPendientePedido <= 0) continue;
-
-      const montoAplicado = Math.min(montoRestante, saldoPendientePedido);
-      montoRestante -= montoAplicado;
-
-      const saldoAnteriorPedido = saldoAcumulado;
-      saldoAcumulado = saldoAcumulado - montoAplicado;
-
-      // Crear movimiento fraccionado en CC
-      await CuentaCorriente.create({
-        cliente: new mongoose.Types.ObjectId(clienteId),
-        pedido: pedido._id,
-        tipo: 'pago',
-        referenciaId: pedido._id,
-        descripcion: movimientoOriginal.descripcion || 'Pago recibido',
-        importe: montoAplicado,
-        saldoAnterior: saldoAnteriorPedido,
-        saldoActual: saldoAcumulado,
-        formaPago: movimientoOriginal.formaPago,
-        notas: movimientoOriginal.notas
-      });
-
-      // Crear registro fraccionado en Pago
-      await Pago.create({
-        pedido: pedido._id,
-        cliente: new mongoose.Types.ObjectId(clienteId),
-        monto: montoAplicado,
-        formaPago: movimientoOriginal.formaPago || 'otro',
-        fechaPago: new Date(),
-        notas: `Pago desde Cuenta Corriente - ${movimientoOriginal.descripcion || 'Pago recibido'}`
-      });
-
-      const nuevoTotalPagado = totalPagadoPedido + montoAplicado;
-      
-      if (nuevoTotalPagado >= totalPedido) {
-        pedido.estadoPago = 'pagado';
-      } else if (nuevoTotalPagado > 0) {
-        pedido.estadoPago = 'parcial';
-      }
-      
-      await pedido.save();
-      pedidosActualizados++;
-    }
-
-    if (montoRestante > 0) {
-      await CuentaCorriente.create({
-        cliente: new mongoose.Types.ObjectId(clienteId),
-        pedido: null,
-        tipo: 'pago',
-        referenciaId: null,
-        descripcion: `${movimientoOriginal.descripcion || 'Pago recibido'} (Saldo a favor)`,
-        importe: montoRestante,
-        saldoAnterior: saldoAcumulado,
-        saldoActual: saldoAcumulado - montoRestante,
-        formaPago: movimientoOriginal.formaPago,
-        notas: movimientoOriginal.notas
-      });
-    }
-
-    console.log('🎉 [actualizarEstadoPagoPedidos] Completado. Pedidos actualizados:', pedidosActualizados);
-
-  } catch (error: any) {
-    console.error('❌ [ERROR CRÍTICO] en actualizarEstadoPagoPedidos:', error);
-  }
-}
-
-
 
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
     const body = await req.json();
-    const { clienteId, pedidoId, tipo, importe, formaPago, descripcion, notas } = body;
+    const { clienteId, tipo, importe, formaPago, descripcion, notas } = body;
 
     if (!clienteId || !importe || !tipo) {
       return NextResponse.json({ error: 'Faltan datos obligatorios (clienteId, tipo, importe)' }, { status: 400 });
     }
-    
-    if (tipo === 'pedido' && !pedidoId) {
-       return NextResponse.json({ error: 'pedidoId es requerido para tipo pedido' }, { status: 400 });
-    }
 
     const formaPagoNormalizada = normalizarFormaPago(formaPago);
+    const importeNumerico = parseFloat(importe);
 
+    // 1. Obtener el saldo anterior del cliente
     const ultimoMovimiento = await CuentaCorriente.findOne({ cliente: clienteId })
       .sort({ fecha: -1, createdAt: -1 })
       .lean() as any;
 
     const saldoAnterior = ultimoMovimiento ? (ultimoMovimiento.saldoActual || 0) : 0;
-    const importeNumerico = parseFloat(importe);
-    
-    const saldoActual = (tipo === 'pedido' || tipo === 'ajuste') 
-      ? saldoAnterior + importeNumerico 
-      : saldoAnterior - importeNumerico;
 
-    let referenciaId = pedidoId || null;
-    let nuevoPagoId: string | null = null; // 🆕 NUEVO: Para rastrear el pago creado
-    
-    if (tipo === 'pago') {
-      const nuevoPago = await Pago.create({
-        pedido: pedidoId || null,
-        cliente: clienteId,
-        monto: importeNumerico,
-        formaPago: formaPagoNormalizada, 
-        fechaPago: new Date(),
-        notas: notas || descripcion
-      });
-      nuevoPagoId = nuevoPago._id.toString(); // 🆕 NUEVO: Guardamos el ID
-      referenciaId = nuevoPago._id;
-    }
+    // 2. Calcular el nuevo saldo (Si es pago, RESTA. Si es ajuste/pedido, SUMA)
+    const saldoActual = (tipo === 'pago')
+      ? saldoAnterior - importeNumerico
+      : saldoAnterior + importeNumerico;
 
-    // ✅ Crear el movimiento de Cuenta Corriente
-    const nuevoMovimientoCC = await CuentaCorriente.create({
+    // 3. CREAR UN ÚNICO REGISTRO EN CUENTA CORRIENTE. PUNTO FINAL.
+    const nuevoMovimiento = await CuentaCorriente.create({
       cliente: clienteId,
-      pedido: pedidoId || null,
-      tipo,
-      referenciaId: referenciaId,
-      descripcion: descripcion || (tipo === 'ajuste' ? 'Ajuste manual de deuda' : (tipo === 'pedido' ? 'Nuevo pedido' : 'Registro de pago')),
-      importe: importeNumerico,
-      saldoAnterior,
-      saldoActual,
+      tipo: tipo,
+      descripcion: descripcion || 'Registro de pago',
+      importe: importeNumerico, // <-- AQUÍ VA EL MONTO TOTAL (Ej: 160.285)
+      saldoAnterior: saldoAnterior,
+      saldoActual: saldoActual,
       formaPago: formaPagoNormalizada,
-      notas
+      notas: notas || '',
+      fecha: new Date() // Guarda la fecha/hora exacta (el frontend ya la formatea a es-AR)
     });
 
-    // ✅ Si es tipo 'pago', actualizar estado de pedidos
+    // 4. (Opcional) Guardar también en la tabla de Pagos, pero UNA SOLA VEZ, sin fragmentar.
     if (tipo === 'pago') {
-      await actualizarEstadoPagoPedidos(
-        clienteId, 
-        importeNumerico, 
-        nuevoMovimientoCC._id.toString(),
-        pedidoId || undefined,
-        nuevoPagoId || undefined // 🆕 NUEVO: Pasamos el ID para que lo limpie si fracciona
-      );
-      
-      const pedidosActualizados = await Pedido.find({
-        cliente: new mongoose.Types.ObjectId(clienteId),
-        activo: { $ne: false },
-        estado: { $ne: 'cancelado' }
-      }).select('_id estadoPago total').lean();
-      
-      return NextResponse.json({ 
-        success: true, 
-        data: nuevoMovimientoCC, 
-        saldoActual,
-        pedidosActualizados
-      }, { status: 201 });
+      await Pago.create({
+        cliente: clienteId,
+        monto: importeNumerico,
+        formaPago: formaPagoNormalizada,
+        fechaPago: new Date(),
+        notas: descripcion || 'Pago registrado en Cuenta Corriente'
+      });
     }
 
-    if (tipo === 'pedido' && pedidoId) {
-      const pedido = await Pedido.findById(pedidoId);
-      if (pedido && pedido.estadoPago === 'pagado') {
-        pedido.estadoPago = 'pendiente';
-        await pedido.save();
-      }
-    }
+    // 5. Responder con éxito
+    return NextResponse.json({
+      success: true,
+      data: nuevoMovimiento,
+      saldoActual: saldoActual
+    }, { status: 201 });
 
-    return NextResponse.json({ success: true, data: nuevoMovimientoCC, saldoActual }, { status: 201 });
   } catch (error: any) {
     console.error('Error en POST Cuentas Corrientes:', error);
     return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 });
@@ -300,9 +101,9 @@ export async function GET(req: NextRequest) {
     const clienteId = searchParams.get('clienteId');
 
     if (searchParams.get('pedidosRegistrados') === 'true') {
-      const pedidos = await CuentaCorriente.distinct('pedido', { 
-        tipo: 'pedido', 
-        pedido: { $ne: null } 
+      const pedidos = await CuentaCorriente.distinct('pedido', {
+        tipo: 'pedido',
+        pedido: { $ne: null }
       }) as string[];
       return NextResponse.json({ pedidos }, { status: 200 });
     }
@@ -322,14 +123,15 @@ export async function GET(req: NextRequest) {
     const saldosClientes = await CuentaCorriente.aggregate([
       { $match: { cliente: { $exists: true } } },
       { $sort: { cliente: 1, createdAt: -1, _id: -1 } },
-      {
+          {
         $group: {
           _id: "$cliente",
           deudaTotal: { $first: "$saldoActual" },
           ultimosMovimientos: { $push: "$$ROOT" }
         }
       },
-      { $match: { deudaTotal: { $gt: 0 } } },
+      // ✅ AHORA DEVUELVE A TODOS LOS CLIENTES QUE TENGAN AL MENOS UN MOVIMIENTO REGISTRADO, 
+      // INCLUYENDO A LOS QUE YA PAGARON TODO (SALDO 0).
       {
         $project: {
           deudaTotal: 1,
@@ -339,12 +141,13 @@ export async function GET(req: NextRequest) {
     ]);
 
     if (saldosClientes.length === 0) {
-      return NextResponse.json({ 
-        cuentasCorrientes: [], totalAdeudado: 0, cantidadClientes: 0, alertasActivas: 0 
+      return NextResponse.json({
+        cuentasCorrientes: [], totalAdeudado: 0, cantidadClientes: 0, alertasActivas: 0
       }, { status: 200 });
     }
 
     const clientIds = saldosClientes.map((c: any) => c._id);
+
 
     const clientesData = await Cliente.find(
       { _id: { $in: clientIds }, activo: true },
@@ -352,13 +155,13 @@ export async function GET(req: NextRequest) {
     ).lean() as any[];
 
     const pedidosPorCliente = await Pedido.aggregate([
-      { 
-        $match: { 
-          cliente: { $in: clientIds }, 
-          activo: { $ne: false }, 
+      {
+        $match: {
+          cliente: { $in: clientIds },
+          activo: { $ne: false },
           estado: { $ne: 'cancelado' },
           estadoPago: { $in: ['pendiente', 'parcial'] }
-        } 
+        }
       },
       { $group: { _id: "$cliente", pedidosDeudores: { $sum: 1 } } }
     ]);
@@ -372,13 +175,11 @@ export async function GET(req: NextRequest) {
       const pedidosDeudores = mapPedidos.get(clienteIdStr) || 0;
       const deudaTotal = s.deudaTotal || 0;
       const umbral = cliente.alerta?.umbralDeuda ?? UMBRAL_GLOBAL;
-      
+
       const ultimosMovimientos = (s.ultimosMovimientos || []).map((mov: any) => ({
         descripcion: mov.descripcion || 'Sin descripción',
         tipo: mov.tipo || 'desconocido',
-        fecha: mov.fecha 
-          ? new Date(mov.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) 
-          : 'Sin fecha',
+        fecha: mov.fecha ? new Date(mov.fecha).toISOString() : new Date().toISOString(), // ✅ ENVÍA FORMATO ISO SEGURO
         importe: mov.importe || 0,
         formaPago: mov.formaPago || 'N/A'
       }));
@@ -402,11 +203,11 @@ export async function GET(req: NextRequest) {
     });
 
     cuentasConAlertas.sort((a, b) => b.deudaTotal - a.deudaTotal);
-    
+
     const totalAdeudado = cuentasConAlertas.reduce((sum, c) => sum + c.deudaTotal, 0);
     const alertasActivas = cuentasConAlertas.filter(c => c.tieneAlerta && !c.alertaRevisada).length;
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       cuentasCorrientes: cuentasConAlertas,
       totalAdeudado,
       cantidadClientes: cuentasConAlertas.length,

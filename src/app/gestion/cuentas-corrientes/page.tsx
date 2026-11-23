@@ -816,6 +816,7 @@ export default function CuentasCorrientesPage() {
           </>
         )}
       </div>
+      
     </div>
   );
 }

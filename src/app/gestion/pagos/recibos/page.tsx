@@ -353,6 +353,7 @@ export default function HistorialRecibosPage() {
                                     </button>
                                 </div>
                             </div>
+                            
                         )}
                     </>
                 )}
