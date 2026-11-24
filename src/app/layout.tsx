@@ -11,6 +11,7 @@ import { ToastContainer } from "react-toastify";
 import { Analytics } from "@vercel/analytics/react";
 import Loader from "./components/loading/Loader";
 import VersionChecker from "./components/version/VersionChecker";
+import ChristmasWelcomeConfetti from "./components/vavidad/ChristmasWelcomeConfetti";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -100,6 +101,7 @@ export default function RootLayout({
           
           <main>
             <VersionChecker />
+            <ChristmasWelcomeConfetti />
             {children}
             
             {/* Botón flotante de WhatsApp — versión mejorada */}

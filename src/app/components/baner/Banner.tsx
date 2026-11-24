@@ -25,7 +25,7 @@ export default function DistribuidoraBanner() {
         
         {/* Logo */}
         <Image
-          src="/El-Vaquiano.png"
+          src="/Logo_navideño_de_Distribuidora_El_Vaquiano-removebg-preview.png"
           alt="Distribuidora El Vaquiano"
           width={180}
           height={60}
