@@ -158,6 +158,7 @@ function PageContent() {
     setNuevoProveedorEmail('');
     setSelectedProveedorId(null);
   };
+  
 
   // 🔒 Validación de acceso
   useEffect(() => {

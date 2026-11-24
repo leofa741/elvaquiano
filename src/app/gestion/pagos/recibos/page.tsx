@@ -17,6 +17,7 @@ interface Cliente {
     _id?: string;
 }
 
+
 interface RegistroCobro {
     _id: string;
     numero: number | null;

@@ -31,6 +31,7 @@ function normalizarFormaPago(formaPago: any): string {
 }
 
 
+
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
       ? saldoAnterior - importeNumerico
       : saldoAnterior + importeNumerico;
 
-    // 3. CREAR UN ÚNICO REGISTRO EN CUENTA CORRIENTE. PUNTO FINAL.
+    // 3. CREAR UN ÚNICO REGISTRO EN CUENTA CORRIENTE. 
     const nuevoMovimiento = await CuentaCorriente.create({
       cliente: clienteId,
       tipo: tipo,
@@ -92,6 +93,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 });
   }
 }
+
 
 export async function GET(req: NextRequest) {
   try {
@@ -147,7 +149,6 @@ export async function GET(req: NextRequest) {
     }
 
     const clientIds = saldosClientes.map((c: any) => c._id);
-
 
     const clientesData = await Cliente.find(
       { _id: { $in: clientIds }, activo: true },

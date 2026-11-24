@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
 
+
 export default async function StockLogsPage({
   searchParams,
 }: {
@@ -35,21 +36,22 @@ export default async function StockLogsPage({
   const currentPage = Math.max(1, parseInt(params.page || "1", 10));
 
   const query: any = {};
-  
+
   if (productoFilter) {
     query.productoNombre = { $regex: productoFilter, $options: "i" };
   }
-  
+
   if (usuarioFilter) {
     query.usuario = { $regex: usuarioFilter, $options: "i" };
   }
-  
+
   if (accionFilter) {
     query.accion = accionFilter;
   }
 
   const totalLogs = await LogStockModel.countDocuments(query);
   const totalPages = Math.ceil(totalLogs / PAGE_SIZE);
+
 
   const logs = await LogStockModel.find(query)
     .sort({ timestamp: -1 })
@@ -152,6 +154,7 @@ export default async function StockLogsPage({
                         year: "numeric",
                         hour: "2-digit",
                         minute: "2-digit",
+                        timeZone: "America/Argentina/Buenos_Aires", 
                       })}
                     </td>
                     <td className="py-3 px-4 text-white text-sm break-all">
@@ -165,7 +168,7 @@ export default async function StockLogsPage({
                         {accionInfo.label}
                       </span>
                     </td>
-                    
+
                     {/* STOCK ANTERIOR */}
                     <td className="py-3 px-4">
                       <div className="text-sm">
@@ -180,11 +183,10 @@ export default async function StockLogsPage({
 
                     {/* ✅ VARIACIÓN (CANTIDAD AGREGADA/RESTADA) */}
                     <td className="py-3 px-4 text-center">
-                      <span className={`inline-flex items-center justify-center w-16 py-1 rounded-full text-sm font-bold ${
-                        esAumento ? 'bg-green-900/40 text-green-400 border border-green-700/50' : 
-                        esDisminucion ? 'bg-red-900/40 text-red-400 border border-red-700/50' : 
-                        'bg-gray-700 text-gray-400'
-                      }`}>
+                      <span className={`inline-flex items-center justify-center w-16 py-1 rounded-full text-sm font-bold ${esAumento ? 'bg-green-900/40 text-green-400 border border-green-700/50' :
+                          esDisminucion ? 'bg-red-900/40 text-red-400 border border-red-700/50' :
+                            'bg-gray-700 text-gray-400'
+                        }`}>
                         {esAumento ? '+' : ''}{variacion}
                       </span>
                     </td>

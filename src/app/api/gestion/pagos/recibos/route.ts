@@ -3,6 +3,8 @@ import connectDB from '@/app/lib/mongoose';
 import ReciboPago from '@/app/models/ReciboPago';
 import Pago from '@/app/models/Pago';
 
+
+
 export async function GET(req: NextRequest) {
     try {
         await connectDB();

@@ -15,7 +15,6 @@ connectDB();
 const isAdmin = (role: string) => ['admin', 'superadmin'].includes(role);
 
 
-
 // GET: obtener producto por ID
 export async function GET(
   request: Request,
@@ -33,9 +32,6 @@ export async function GET(
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
-
-
-
 
 
 // PUT: actualizar producto

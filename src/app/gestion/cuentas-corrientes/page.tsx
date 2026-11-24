@@ -80,6 +80,7 @@ export default function CuentasCorrientesPage() {
 
   const [procesandoPagoId, setProcesandoPagoId] = useState<string | null>(null);
 
+
   const fetchCuentas = async () => {
     try {
       const res = await fetch('/api/gestion/cuentas-corrientes', { cache: 'no-store' });
@@ -147,6 +148,7 @@ export default function CuentasCorrientesPage() {
     (paginaActual - 1) * itemsPorPagina,
     paginaActual * itemsPorPagina
   );
+
 
   const mostrarModalAgregarDeuda = async (clienteId: string, razonSocial: string) => {
     const { value: formValues } = await Swal.fire({
@@ -221,11 +223,13 @@ export default function CuentasCorrientesPage() {
     }
   };
 
+
   const handleAgregarDeudaRapida = async (cliente: ClienteBuscado) => {
     setMostrarDropdown(false);
     setBusquedaCliente('');
     await mostrarModalAgregarDeuda(cliente._id, cliente.razonSocial);
   };
+
 
   const handleRegistrarPago = async (cuenta: CuentaCorriente) => {
     if (procesandoPagoId === cuenta.clienteId) {
@@ -409,6 +413,7 @@ export default function CuentasCorrientesPage() {
     }
   };
 
+
   const handleGenerarRecibo = async (cuenta: CuentaCorriente) => {
     if (procesandoPagoId === cuenta.clienteId) {
       Swal.fire({ icon: 'warning', title: 'Procesando...', text: 'Ya hay una operación en curso para este cliente.', confirmButtonColor: '#f59e0b', background: '#1f2937', color: '#fff' });
@@ -565,6 +570,7 @@ export default function CuentasCorrientesPage() {
 
   if (!isAuthorized) return null;
 
+
   return (
     <div className="p-4 sm:p-6 md:p-8">
       <div className="flex items-center gap-4 mb-6">
@@ -633,6 +639,7 @@ export default function CuentasCorrientesPage() {
         </div>
       </div>
 
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
           <div className="text-sm text-gray-400 mb-1">Total Adeudado</div>
@@ -670,6 +677,7 @@ export default function CuentasCorrientesPage() {
           </div>
         )}
       </div>
+      
 
       <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-sm">
         {loading ? (
