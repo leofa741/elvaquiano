@@ -55,7 +55,7 @@ export default function DistribuidoraBanner() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full max-w-3xl">
           <div className="flex flex-col items-center">
             <FaTruckFast className="text-2xl mb-1 text-[#39FF14]" />
-            <span className="text-xs sm:text-sm">Entrega 24-48h</span>
+            <span className="text-xs sm:text-sm">Entregas el el mismo Día</span>
           </div>
           <div className="flex flex-col items-center">
             <FaBox className="text-2xl mb-1 text-[#39FF14]" />
