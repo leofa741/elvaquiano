@@ -5,6 +5,7 @@ import Image from "next/image";
 
 import CategoryResumenCard from "./components/categoryresumencard/CategoryResumenCard";
 import NavidadBanner from "./components/navideño2026/NavidadBanner";
+import ChristmasWelcomeConfetti from "./components/vavidad/ChristmasWelcomeConfetti";
 
 
 export const metadata: Metadata = {
@@ -47,6 +48,7 @@ export default async function Home() {
 
   return (
     <>
+          <ChristmasWelcomeConfetti />
       {/* Hero Banner */}
       <div className="relative">
         <Banner />
